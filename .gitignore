@@ -1,0 +1,22 @@
+# Secrets — never commit
+.env
+firebase-service-account.json
+google-services.json
+
+# Python
+*.pyc
+__pycache__/
+
+# Node
+node_modules/
+
+# Flutter / Dart
+.dart_tool/
+build/
+# Note: *.g.dart files are committed (generated code is checked in for reproducibility)
+
+# Media uploads
+/backend/api/media/
+
+# Logs
+*.log

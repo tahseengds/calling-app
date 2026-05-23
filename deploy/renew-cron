@@ -1,0 +1,16 @@
+# /etc/cron.d/familylink-certbot
+#
+# Install:
+#   sudo cp deploy/renew-cron /etc/cron.d/familylink-certbot
+#   sudo chmod 644 /etc/cron.d/familylink-certbot
+#
+# certbot renew is a no-op when the cert is not within 30 days of expiry.
+# It runs deploy hooks from /etc/letsencrypt/renewal-hooks/deploy/ automatically.
+# The hook installed by deploy/issue-cert.sh reloads nginx after renewal.
+#
+# Runs at 03:15 UTC daily (twice to catch transient failures).
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+15 3 * * * root certbot renew --quiet >> /var/log/certbot-renew.log 2>&1

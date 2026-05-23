@@ -1,0 +1,22 @@
+{
+  "name": "familylink-signaling",
+  "version": "1.0.0",
+  "description": "FamilyLink WebRTC signaling server",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js"
+  },
+  "dependencies": {
+    "socket.io": "^4.7",
+    "ioredis": "^5",
+    "jsonwebtoken": "^9",
+    "winston": "^3",
+    "dotenv": "^16",
+    "pg": "^8",
+    "uuid": "^9"
+  },
+  "devDependencies": {
+    "nodemon": "^3"
+  }
+}
