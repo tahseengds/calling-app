@@ -204,6 +204,14 @@ class PendingMediaUploadsDao extends DatabaseAccessor<AppDatabase>
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
+  /// Opens an in-memory database — used exclusively in unit tests.
+  ///
+  /// ```dart
+  /// import 'package:drift/native.dart';
+  /// final db = AppDatabase.forTesting(NativeDatabase.memory());
+  /// ```
+  AppDatabase.forTesting(QueryExecutor e) : super(e);
+
   @override
   int get schemaVersion => 1;
 

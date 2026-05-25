@@ -1,5 +1,6 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/material.dart';
 
 // Channel IDs referenced by the native manifest and prompt 15 call service.
 const kChannelMessages = 'messages';
@@ -44,7 +45,31 @@ class NotificationService {
     );
   }
 
-  // TODO: prompt 13 — show message notification
+  /// Shows a heads-up notification for a new message received while the app is
+  /// backgrounded. [payload] is the conversationId for deep-link routing.
+  Future<void> showMessageNotification({
+    required String id,
+    required String senderName,
+    required String preview,
+    required String conversationId,
+  }) async {
+    const androidDetails = AndroidNotificationDetails(
+      kChannelMessages,
+      'Messages',
+      channelDescription: 'New message notifications',
+      importance: Importance.defaultImportance,
+      priority: Priority.defaultPriority,
+      styleInformation: BigTextStyleInformation(''),
+    );
+    await _plugin.show(
+      id.hashCode,
+      senderName,
+      preview,
+      const NotificationDetails(android: androidDetails),
+      payload: conversationId,
+    );
+  }
+
   // TODO: prompt 15 — show full-screen incoming call notification
 }
 

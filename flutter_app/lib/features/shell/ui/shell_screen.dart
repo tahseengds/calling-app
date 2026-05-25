@@ -6,7 +6,7 @@ import '../../../shared/widgets/lumio_icons.dart';
 import '../../contacts/ui/contacts_screen.dart';
 import '../../profile/ui/profile_screen.dart';
 import '../../calls/presentation/screens/call_history_screen.dart';
-import '../../chats/presentation/screens/chats_home_screen.dart';
+import '../../chat/presentation/conversation_list_screen.dart';
 
 final shellTabProvider = StateProvider<int>((_) => 2);
 
@@ -22,7 +22,7 @@ class ShellScreen extends ConsumerWidget {
         index: tabIndex,
         children: const [
           CallHistoryScreen(),
-          ChatsHomeScreen(),
+          ConversationListScreen(),
           ContactsScreen(),
           ProfileScreen(),
         ],

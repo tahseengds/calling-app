@@ -11,19 +11,20 @@ import 'features/auth/ui/register_screen.dart';
 import 'features/auth/ui/splash_screen.dart';
 import 'features/contacts/ui/add_contact_screen.dart';
 import 'features/shell/ui/shell_screen.dart';
-import 'features/chats/presentation/screens/chat_rich_screen.dart';
+// New real chat screens (prompt 13).
+import 'features/chat/presentation/chat_screen.dart';
+import 'features/chat/presentation/media_viewer_screen.dart';
+// Legacy mock screens — kept for backwards compat during transition.
 import 'features/chats/presentation/screens/search_screen.dart';
-import 'features/chats/presentation/screens/media_viewer.dart';
 import 'features/calls/presentation/screens/incoming_call_screen.dart';
 import 'features/calls/presentation/screens/outgoing_call_screen.dart';
 import 'features/calls/presentation/screens/active_call_screen.dart';
 import 'features/profile/presentation/screens/change_number_screen.dart';
 import 'features/profile/presentation/screens/edit_name_screen.dart';
+import 'main.dart';
 
 // ── Router ────────────────────────────────────────────────────────────────────
 
-/// Notifies GoRouter when auth changes so redirects run without recreating the
-/// router (recreating it was unreliable on release builds).
 final _routerRefreshProvider = Provider<GoRouterRefreshNotifier>((ref) {
   final notifier = GoRouterRefreshNotifier();
   ref.listen(authNotifierProvider, (_, next) => notifier.notify());
@@ -35,7 +36,6 @@ class GoRouterRefreshNotifier extends ChangeNotifier {
   void notify() => notifyListeners();
 }
 
-/// Single GoRouter instance; [redirect] reads live auth state via [Ref.read].
 final _routerProvider = Provider<GoRouter>((ref) {
   final refresh = ref.watch(_routerRefreshProvider);
 
@@ -47,21 +47,12 @@ final _routerProvider = Provider<GoRouter>((ref) {
       final authState = ref.read(authNotifierProvider);
 
       return switch (authState) {
-        // Still checking stored session — stay on splash.
-        AuthUnknown() =>
-          loc == '/splash' ? null : '/splash',
-
-        // No session — allow auth routes, redirect everything else.
+        AuthUnknown() => loc == '/splash' ? null : '/splash',
         AuthUnauthenticated() => switch (loc) {
             '/login' || '/register' => null,
             _ => '/login',
           },
-
-        // Waiting for OTP — must be on /otp.
-        AuthOtpPending() =>
-          loc == '/otp' ? null : '/otp',
-
-        // Fully authenticated — redirect auth/splash routes to home.
+        AuthOtpPending() => loc == '/otp' ? null : '/otp',
         AuthAuthenticated() => switch (loc) {
             '/login' || '/register' || '/otp' || '/splash' => '/home',
             _ => null,
@@ -69,96 +60,121 @@ final _routerProvider = Provider<GoRouter>((ref) {
       };
     },
     routes: [
-      GoRoute(
-        path: '/splash',
-        builder: (context, state) => const SplashScreen(),
-      ),
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginScreen(),
-      ),
-      GoRoute(
-        path: '/register',
-        builder: (context, state) => const RegisterScreen(),
-      ),
-      GoRoute(
-        path: '/otp',
-        builder: (context, state) => const OtpScreen(),
-      ),
+      GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
+      GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
+      GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
+      GoRoute(path: '/otp', builder: (_, __) => const OtpScreen()),
       // ── Authenticated shell ─────────────────────────────────────────────
+      GoRoute(path: '/home', builder: (_, __) => const ShellScreen()),
       GoRoute(
-        path: '/home',
-        builder: (context, state) => const ShellScreen(),
-      ),
-      // AddContact is a full-screen route pushed over the shell.
+          path: '/contacts/add',
+          builder: (_, __) => const AddContactScreen()),
+      // ── Chat search (legacy mock, replaced in prompt 14) ────────────────
       GoRoute(
-        path: '/contacts/add',
-        builder: (context, state) => const AddContactScreen(),
-      ),
-      // ── Chats and Calls Routes ──────────────────────────────────────────
-      GoRoute(
-        path: '/chat/search',
-        builder: (context, state) => const SearchScreen(),
-      ),
+          path: '/chat/search', builder: (_, __) => const SearchScreen()),
+      // ── Chat — uses new real ChatScreen ─────────────────────────────────
       GoRoute(
         path: '/chat/:conversationId',
-        builder: (_, state) => ChatRichScreen(
-          conversationId: state.pathParameters['conversationId'] ?? 'rose',
-          // Pass the contact's display name so the screen doesn't need to
-          // guess it from the ID (important for real UUID-based IDs).
+        builder: (_, state) => ChatScreen(
+          conversationId: state.pathParameters['conversationId'] ?? '',
           contactName: state.uri.queryParameters['name'],
         ),
       ),
+      // ── Media viewer — new full-screen viewer with photo_view / video ────
       GoRoute(
         path: '/media',
-        builder: (_, state) => MediaViewer(
-          kind: state.uri.queryParameters['kind'] ?? 'image',
-          sender: state.uri.queryParameters['sender'] ?? 'Grandma Rose',
-          when: state.uri.queryParameters['when'] ?? 'Today · 7:42 PM',
-          // null when not provided → widget falls back to placeholder art
-          url: state.uri.queryParameters['url'],
-        ),
+        builder: (_, state) {
+          final kind = state.uri.queryParameters['kind'] ?? 'image';
+          final url = state.uri.queryParameters['url'];
+          if (url != null && (kind == 'image' || kind == 'video')) {
+            return MediaViewerScreen(
+              url: url,
+              kind: kind,
+              sender: state.uri.queryParameters['sender'],
+              when: state.uri.queryParameters['when'],
+            );
+          }
+          // Fallback to legacy placeholder for document / audio.
+          return MediaViewerScreen(
+            url: url ?? '',
+            kind: kind,
+            sender: state.uri.queryParameters['sender'],
+            when: state.uri.queryParameters['when'],
+          );
+        },
       ),
+      // ── Calls ────────────────────────────────────────────────────────────
       GoRoute(
         path: '/call/incoming',
         builder: (_, state) => IncomingCallScreen(
-          name: state.uri.queryParameters['name'] ?? 'Grandma Rose',
+          name: state.uri.queryParameters['name'] ?? 'Family',
           kind: state.uri.queryParameters['kind'] ?? 'video',
         ),
       ),
       GoRoute(
         path: '/call/outgoing',
         builder: (_, state) => OutgoingCallScreen(
-          name: state.uri.queryParameters['name'] ?? 'Grandma Rose',
+          name: state.uri.queryParameters['name'] ?? 'Family',
           kind: state.uri.queryParameters['kind'] ?? 'video',
         ),
       ),
       GoRoute(
         path: '/call/active',
         builder: (_, state) => ActiveCallScreen(
-          name: state.uri.queryParameters['name'] ?? 'Grandma Rose',
+          name: state.uri.queryParameters['name'] ?? 'Family',
           kind: state.uri.queryParameters['kind'] ?? 'video',
         ),
       ),
       GoRoute(
-        path: '/profile/change-number',
-        builder: (context, state) => const ChangeNumberScreen(),
-      ),
+          path: '/profile/change-number',
+          builder: (_, __) => const ChangeNumberScreen()),
       GoRoute(
-        path: '/profile/edit-name',
-        builder: (context, state) => const EditNameScreen(),
-      ),
+          path: '/profile/edit-name',
+          builder: (_, __) => const EditNameScreen()),
     ],
   );
 });
 
 // ── App root ──────────────────────────────────────────────────────────────────
 
-class LuminApp extends ConsumerWidget {
-  const LuminApp({super.key});
+class LuminApp extends ConsumerStatefulWidget {
+  final VoidCallback? onResume;
+  const LuminApp({super.key, this.onResume});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LuminApp> createState() => _LuminAppState();
+}
+
+class _LuminAppState extends ConsumerState<LuminApp>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Consume any pending deep-link from FCM cold-start.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final path = ref.read(pendingDeepLinkProvider.notifier).consume();
+      if (path != null) {
+        ref.read(_routerProvider).push(path);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      widget.onResume?.call();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(_routerProvider);
     return MaterialApp.router(
       title: 'Lumio',
