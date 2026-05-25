@@ -77,9 +77,9 @@ Expected: certificate from Let's Encrypt, `Verify return code: 0 (ok)`.
      "credential": "base64string==",
      "ttl": 86400,
      "uris": [
-       "stun:family.example.com:3478",
-       "turn:family.example.com:3478",
-       "turns:family.example.com:5349"
+       "stun:lumin.example.com:3478",
+       "turn:lumin.example.com:3478",
+       "turns:lumin.example.com:5349"
      ]
    }
    ```

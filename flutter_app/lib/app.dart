@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'core/config/theme.dart';
+import 'core/config/app_config.dart';
+import 'core/theme/app_theme.dart';
 import 'features/auth/domain/auth_notifier.dart';
 import 'features/auth/domain/auth_state.dart';
 import 'features/auth/ui/login_screen.dart';
@@ -10,19 +11,40 @@ import 'features/auth/ui/register_screen.dart';
 import 'features/auth/ui/splash_screen.dart';
 import 'features/contacts/ui/add_contact_screen.dart';
 import 'features/shell/ui/shell_screen.dart';
+import 'features/chats/presentation/screens/chat_rich_screen.dart';
+import 'features/chats/presentation/screens/search_screen.dart';
+import 'features/chats/presentation/screens/media_viewer.dart';
+import 'features/calls/presentation/screens/incoming_call_screen.dart';
+import 'features/calls/presentation/screens/outgoing_call_screen.dart';
+import 'features/calls/presentation/screens/active_call_screen.dart';
+import 'features/profile/presentation/screens/change_number_screen.dart';
+import 'features/profile/presentation/screens/edit_name_screen.dart';
 
 // ── Router ────────────────────────────────────────────────────────────────────
 
-/// [_routerProvider] is invalidated whenever authState changes, which causes
-/// GoRouter to re-evaluate the redirect. This is the single source of
-/// navigation truth — screens never push/replace routes for auth transitions.
+/// Notifies GoRouter when auth changes so redirects run without recreating the
+/// router (recreating it was unreliable on release builds).
+final _routerRefreshProvider = Provider<GoRouterRefreshNotifier>((ref) {
+  final notifier = GoRouterRefreshNotifier();
+  ref.listen(authNotifierProvider, (_, next) => notifier.notify());
+  ref.onDispose(notifier.dispose);
+  return notifier;
+});
+
+class GoRouterRefreshNotifier extends ChangeNotifier {
+  void notify() => notifyListeners();
+}
+
+/// Single GoRouter instance; [redirect] reads live auth state via [Ref.read].
 final _routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authNotifierProvider);
+  final refresh = ref.watch(_routerRefreshProvider);
 
   return GoRouter(
-    initialLocation: '/splash',
+    initialLocation: AppConfig.uiOnly ? '/home' : '/splash',
+    refreshListenable: refresh,
     redirect: (context, state) {
       final loc = state.matchedLocation;
+      final authState = ref.read(authNotifierProvider);
 
       return switch (authState) {
         // Still checking stored session — stay on splash.
@@ -49,44 +71,77 @@ final _routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/splash',
-        builder: (_, __) => const SplashScreen(),
+        builder: (context, state) => const SplashScreen(),
       ),
       GoRoute(
         path: '/login',
-        builder: (_, __) => const LoginScreen(),
+        builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
         path: '/register',
-        builder: (_, __) => const RegisterScreen(),
+        builder: (context, state) => const RegisterScreen(),
       ),
       GoRoute(
         path: '/otp',
-        builder: (_, __) => const OtpScreen(),
+        builder: (context, state) => const OtpScreen(),
       ),
       // ── Authenticated shell ─────────────────────────────────────────────
       GoRoute(
         path: '/home',
-        builder: (_, __) => const ShellScreen(),
+        builder: (context, state) => const ShellScreen(),
       ),
       // AddContact is a full-screen route pushed over the shell.
       GoRoute(
         path: '/contacts/add',
-        builder: (_, __) => const AddContactScreen(),
+        builder: (context, state) => const AddContactScreen(),
       ),
-      // ── Placeholders for later prompts ──────────────────────────────────
+      // ── Chats and Calls Routes ──────────────────────────────────────────
+      GoRoute(
+        path: '/chat/search',
+        builder: (context, state) => const SearchScreen(),
+      ),
       GoRoute(
         path: '/chat/:conversationId',
-        builder: (_, state) => _Placeholder(
-          'Chat ${state.pathParameters['conversationId']}',
+        builder: (_, state) => ChatRichScreen(
+          conversationId: state.pathParameters['conversationId'] ?? 'rose',
+        ),
+      ),
+      GoRoute(
+        path: '/media',
+        builder: (_, state) => MediaViewer(
+          kind: state.uri.queryParameters['kind'] ?? 'image',
+          sender: state.uri.queryParameters['sender'] ?? 'Grandma Rose',
+          when: state.uri.queryParameters['when'] ?? 'Today · 7:42 PM',
         ),
       ),
       GoRoute(
         path: '/call/incoming',
-        builder: (_, __) => const _Placeholder('Incoming Call'),
+        builder: (_, state) => IncomingCallScreen(
+          name: state.uri.queryParameters['name'] ?? 'Grandma Rose',
+          kind: state.uri.queryParameters['kind'] ?? 'video',
+        ),
+      ),
+      GoRoute(
+        path: '/call/outgoing',
+        builder: (_, state) => OutgoingCallScreen(
+          name: state.uri.queryParameters['name'] ?? 'Grandma Rose',
+          kind: state.uri.queryParameters['kind'] ?? 'video',
+        ),
       ),
       GoRoute(
         path: '/call/active',
-        builder: (_, __) => const _Placeholder('Active Call'),
+        builder: (_, state) => ActiveCallScreen(
+          name: state.uri.queryParameters['name'] ?? 'Grandma Rose',
+          kind: state.uri.queryParameters['kind'] ?? 'video',
+        ),
+      ),
+      GoRoute(
+        path: '/profile/change-number',
+        builder: (context, state) => const ChangeNumberScreen(),
+      ),
+      GoRoute(
+        path: '/profile/edit-name',
+        builder: (context, state) => const EditNameScreen(),
       ),
     ],
   );
@@ -94,39 +149,19 @@ final _routerProvider = Provider<GoRouter>((ref) {
 
 // ── App root ──────────────────────────────────────────────────────────────────
 
-class FamilyLinkApp extends ConsumerWidget {
-  const FamilyLinkApp({super.key});
+class LuminApp extends ConsumerWidget {
+  const LuminApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(_routerProvider);
     return MaterialApp.router(
-      title: 'FamilyLink',
-      theme: AppTheme.light,
-      darkTheme: AppTheme.dark,
+      title: 'Lumio',
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.system,
       routerConfig: router,
       debugShowCheckedModeBanner: false,
-    );
-  }
-}
-
-// ── Generic placeholder for routes built in later prompts ─────────────────────
-
-class _Placeholder extends StatelessWidget {
-  final String name;
-  const _Placeholder(this.name);
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text(name)),
-      body: Center(
-        child: Text(
-          name,
-          style: Theme.of(context).textTheme.headlineMedium,
-        ),
-      ),
     );
   }
 }

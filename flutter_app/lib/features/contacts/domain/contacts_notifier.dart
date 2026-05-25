@@ -1,6 +1,13 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import '../../../core/config/app_config.dart';
+import '../../../core/mock/mock_data.dart';
 import '../../../shared/models/user.dart';
 import '../data/contact_repository.dart';
+
+/// Thrown when adding a contact that is already in the list (UI-only mode).
+class DuplicateContactException implements Exception {
+  const DuplicateContactException();
+}
 
 class ContactsState {
   final List<User> contacts;
@@ -34,6 +41,10 @@ class ContactsNotifier extends StateNotifier<ContactsState> {
   }
 
   Future<void> load() async {
+    if (AppConfig.uiOnly) {
+      state = ContactsState(contacts: List.of(MockData.sampleContacts));
+      return;
+    }
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final contacts = await _repo.getContacts();
@@ -49,6 +60,20 @@ class ContactsNotifier extends StateNotifier<ContactsState> {
     required String phone,
     String? nickname,
   }) async {
+    if (AppConfig.uiOnly) {
+      final duplicate = state.contacts.any((c) => c.phone == phone);
+      if (duplicate) {
+        throw const DuplicateContactException();
+      }
+      final user = User(
+        id: 'mock-${phone.hashCode}',
+        name: nickname?.isNotEmpty == true ? nickname! : 'Family member',
+        phone: phone,
+        lastSeen: DateTime.now(),
+      );
+      state = state.copyWith(contacts: [user, ...state.contacts]);
+      return;
+    }
     final user = await _repo.addContact(phone: phone, nickname: nickname);
     // Optimistically prepend; reload to get server-sorted list.
     state = state.copyWith(contacts: [user, ...state.contacts]);
@@ -56,6 +81,12 @@ class ContactsNotifier extends StateNotifier<ContactsState> {
   }
 
   Future<void> removeContact(String userId) async {
+    if (AppConfig.uiOnly) {
+      state = state.copyWith(
+        contacts: state.contacts.where((c) => c.id != userId).toList(),
+      );
+      return;
+    }
     // Optimistic removal.
     state = state.copyWith(
       contacts: state.contacts.where((c) => c.id != userId).toList(),

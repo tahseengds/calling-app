@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import '../../core/config/app_colors.dart';
+import '../../core/theme/app_colors.dart';
 
-/// Pill-shaped primary action button (56 px tall, boxShadow on enabled state).
-/// Shows a [CircularProgressIndicator] when [isLoading] is true.
+/// Pill-shaped primary action button (52 px — Lumio design system).
 class FlButton extends StatelessWidget {
   final String label;
+  final String? loadingLabel;
   final VoidCallback? onPressed;
   final bool isLoading;
   final bool danger;
@@ -13,6 +13,7 @@ class FlButton extends StatelessWidget {
   const FlButton({
     super.key,
     required this.label,
+    this.loadingLabel,
     this.onPressed,
     this.isLoading = false,
     this.danger = false,
@@ -25,18 +26,18 @@ class FlButton extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       width: width ?? double.infinity,
-      height: 56,
+      height: 52,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
         boxShadow: (onPressed != null && !isLoading)
-            ? [
+            ? const [
                 BoxShadow(
-                  color: color.withAlpha(64),
+                  color: Color(0x475B7CFA),
                   blurRadius: 24,
-                  offset: const Offset(0, 8),
+                  offset: Offset(0, 8),
                 ),
               ]
-            : [],
+            : const [],
       ),
       child: ElevatedButton(
         onPressed: (isLoading || onPressed == null) ? null : onPressed,
@@ -44,13 +45,13 @@ class FlButton extends StatelessWidget {
           backgroundColor: color,
           disabledBackgroundColor: color.withAlpha(100),
           foregroundColor: Colors.white,
-          minimumSize: const Size(double.infinity, 56),
+          minimumSize: const Size(double.infinity, 52),
           shape: const StadiumBorder(),
           elevation: 0,
           textStyle: const TextStyle(
-            fontSize: 17,
+            fontSize: 16,
             fontWeight: FontWeight.w600,
-            letterSpacing: 0.3,
+            letterSpacing: 0.2,
           ),
         ),
         child: isLoading
@@ -62,13 +63,13 @@ class FlButton extends StatelessWidget {
                   valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                 ),
               )
-            : Text(label),
+            : Text(isLoading && loadingLabel != null ? loadingLabel! : label),
       ),
     );
   }
 }
 
-/// Smaller ghost/outline button for secondary actions.
+/// Secondary outline pill (48 px) — e.g. invite on add-contact.
 class FlOutlineButton extends StatelessWidget {
   final String label;
   final VoidCallback? onPressed;

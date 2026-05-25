@@ -5,21 +5,75 @@ part of 'local_db.dart';
 // ignore_for_file: type=lint
 mixin _$MessagesDaoMixin on DatabaseAccessor<AppDatabase> {
   $MessagesTableTable get messagesTable => attachedDatabase.messagesTable;
+  MessagesDaoManager get managers => MessagesDaoManager(this);
 }
+
+class MessagesDaoManager {
+  final _$MessagesDaoMixin _db;
+  MessagesDaoManager(this._db);
+  $$MessagesTableTableTableManager get messagesTable =>
+      $$MessagesTableTableTableManager(_db.attachedDatabase, _db.messagesTable);
+}
+
 mixin _$ConversationsDaoMixin on DatabaseAccessor<AppDatabase> {
   $ConversationsTableTable get conversationsTable =>
       attachedDatabase.conversationsTable;
+  ConversationsDaoManager get managers => ConversationsDaoManager(this);
 }
+
+class ConversationsDaoManager {
+  final _$ConversationsDaoMixin _db;
+  ConversationsDaoManager(this._db);
+  $$ConversationsTableTableTableManager get conversationsTable =>
+      $$ConversationsTableTableTableManager(
+        _db.attachedDatabase,
+        _db.conversationsTable,
+      );
+}
+
 mixin _$UsersDaoMixin on DatabaseAccessor<AppDatabase> {
   $UsersTableTable get usersTable => attachedDatabase.usersTable;
+  UsersDaoManager get managers => UsersDaoManager(this);
 }
+
+class UsersDaoManager {
+  final _$UsersDaoMixin _db;
+  UsersDaoManager(this._db);
+  $$UsersTableTableTableManager get usersTable =>
+      $$UsersTableTableTableManager(_db.attachedDatabase, _db.usersTable);
+}
+
 mixin _$CallRecordsDaoMixin on DatabaseAccessor<AppDatabase> {
   $CallRecordsTableTable get callRecordsTable =>
       attachedDatabase.callRecordsTable;
+  CallRecordsDaoManager get managers => CallRecordsDaoManager(this);
 }
+
+class CallRecordsDaoManager {
+  final _$CallRecordsDaoMixin _db;
+  CallRecordsDaoManager(this._db);
+  $$CallRecordsTableTableTableManager get callRecordsTable =>
+      $$CallRecordsTableTableTableManager(
+        _db.attachedDatabase,
+        _db.callRecordsTable,
+      );
+}
+
 mixin _$PendingMediaUploadsDaoMixin on DatabaseAccessor<AppDatabase> {
   $PendingMediaUploadsTableTable get pendingMediaUploadsTable =>
       attachedDatabase.pendingMediaUploadsTable;
+  PendingMediaUploadsDaoManager get managers =>
+      PendingMediaUploadsDaoManager(this);
+}
+
+class PendingMediaUploadsDaoManager {
+  final _$PendingMediaUploadsDaoMixin _db;
+  PendingMediaUploadsDaoManager(this._db);
+  $$PendingMediaUploadsTableTableTableManager get pendingMediaUploadsTable =>
+      $$PendingMediaUploadsTableTableTableManager(
+        _db.attachedDatabase,
+        _db.pendingMediaUploadsTable,
+      );
 }
 
 class $MessagesTableTable extends MessagesTable
@@ -31,113 +85,177 @@ class $MessagesTableTable extends MessagesTable
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
-      'id', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _conversationIdMeta =
-      const VerificationMeta('conversationId');
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _conversationIdMeta = const VerificationMeta(
+    'conversationId',
+  );
   @override
   late final GeneratedColumn<String> conversationId = GeneratedColumn<String>(
-      'conversation_id', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _senderIdMeta =
-      const VerificationMeta('senderId');
+    'conversation_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _senderIdMeta = const VerificationMeta(
+    'senderId',
+  );
   @override
   late final GeneratedColumn<String> senderId = GeneratedColumn<String>(
-      'sender_id', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _messageTypeMeta =
-      const VerificationMeta('messageType');
+    'sender_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _messageTypeMeta = const VerificationMeta(
+    'messageType',
+  );
   @override
   late final GeneratedColumn<String> messageType = GeneratedColumn<String>(
-      'message_type', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _contentMeta =
-      const VerificationMeta('content');
+    'message_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _contentMeta = const VerificationMeta(
+    'content',
+  );
   @override
   late final GeneratedColumn<String> content = GeneratedColumn<String>(
-      'content', aliasedName, true,
-      type: DriftSqlType.string, requiredDuringInsert: false);
-  static const VerificationMeta _mediaLocalPathMeta =
-      const VerificationMeta('mediaLocalPath');
+    'content',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _mediaLocalPathMeta = const VerificationMeta(
+    'mediaLocalPath',
+  );
   @override
   late final GeneratedColumn<String> mediaLocalPath = GeneratedColumn<String>(
-      'media_local_path', aliasedName, true,
-      type: DriftSqlType.string, requiredDuringInsert: false);
-  static const VerificationMeta _mediaRemoteUrlMeta =
-      const VerificationMeta('mediaRemoteUrl');
+    'media_local_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _mediaRemoteUrlMeta = const VerificationMeta(
+    'mediaRemoteUrl',
+  );
   @override
   late final GeneratedColumn<String> mediaRemoteUrl = GeneratedColumn<String>(
-      'media_remote_url', aliasedName, true,
-      type: DriftSqlType.string, requiredDuringInsert: false);
-  static const VerificationMeta _thumbnailUrlMeta =
-      const VerificationMeta('thumbnailUrl');
+    'media_remote_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _thumbnailUrlMeta = const VerificationMeta(
+    'thumbnailUrl',
+  );
   @override
   late final GeneratedColumn<String> thumbnailUrl = GeneratedColumn<String>(
-      'thumbnail_url', aliasedName, true,
-      type: DriftSqlType.string, requiredDuringInsert: false);
+    'thumbnail_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
   late final GeneratedColumn<String> status = GeneratedColumn<String>(
-      'status', aliasedName, false,
-      type: DriftSqlType.string,
-      requiredDuringInsert: false,
-      defaultValue: const Constant('sent'));
-  static const VerificationMeta _replyToIdMeta =
-      const VerificationMeta('replyToId');
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('sent'),
+  );
+  static const VerificationMeta _replyToIdMeta = const VerificationMeta(
+    'replyToId',
+  );
   @override
   late final GeneratedColumn<String> replyToId = GeneratedColumn<String>(
-      'reply_to_id', aliasedName, true,
-      type: DriftSqlType.string, requiredDuringInsert: false);
-  static const VerificationMeta _createdAtMeta =
-      const VerificationMeta('createdAt');
+    'reply_to_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
   @override
   late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
-      'created_at', aliasedName, false,
-      type: DriftSqlType.dateTime, requiredDuringInsert: true);
-  static const VerificationMeta _isSyncedMeta =
-      const VerificationMeta('isSynced');
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _isSyncedMeta = const VerificationMeta(
+    'isSynced',
+  );
   @override
   late final GeneratedColumn<bool> isSynced = GeneratedColumn<bool>(
-      'is_synced', aliasedName, false,
-      type: DriftSqlType.bool,
-      requiredDuringInsert: false,
-      defaultConstraints:
-          GeneratedColumn.constraintIsAlways('CHECK ("is_synced" IN (0, 1))'),
-      defaultValue: const Constant(false));
-  static const VerificationMeta _isDeletedMeta =
-      const VerificationMeta('isDeleted');
+    'is_synced',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_synced" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _isDeletedMeta = const VerificationMeta(
+    'isDeleted',
+  );
   @override
   late final GeneratedColumn<bool> isDeleted = GeneratedColumn<bool>(
-      'is_deleted', aliasedName, false,
-      type: DriftSqlType.bool,
-      requiredDuringInsert: false,
-      defaultConstraints:
-          GeneratedColumn.constraintIsAlways('CHECK ("is_deleted" IN (0, 1))'),
-      defaultValue: const Constant(false));
+    'is_deleted',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("is_deleted" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
-        id,
-        conversationId,
-        senderId,
-        messageType,
-        content,
-        mediaLocalPath,
-        mediaRemoteUrl,
-        thumbnailUrl,
-        status,
-        replyToId,
-        createdAt,
-        isSynced,
-        isDeleted
-      ];
+    id,
+    conversationId,
+    senderId,
+    messageType,
+    content,
+    mediaLocalPath,
+    mediaRemoteUrl,
+    thumbnailUrl,
+    status,
+    replyToId,
+    createdAt,
+    isSynced,
+    isDeleted,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
   static const String $name = 'messages_table';
   @override
-  VerificationContext validateIntegrity(Insertable<MessageRow> instance,
-      {bool isInserting = false}) {
+  VerificationContext validateIntegrity(
+    Insertable<MessageRow> instance, {
+    bool isInserting = false,
+  }) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
@@ -147,71 +265,98 @@ class $MessagesTableTable extends MessagesTable
     }
     if (data.containsKey('conversation_id')) {
       context.handle(
+        _conversationIdMeta,
+        conversationId.isAcceptableOrUnknown(
+          data['conversation_id']!,
           _conversationIdMeta,
-          conversationId.isAcceptableOrUnknown(
-              data['conversation_id']!, _conversationIdMeta));
+        ),
+      );
     } else if (isInserting) {
       context.missing(_conversationIdMeta);
     }
     if (data.containsKey('sender_id')) {
-      context.handle(_senderIdMeta,
-          senderId.isAcceptableOrUnknown(data['sender_id']!, _senderIdMeta));
+      context.handle(
+        _senderIdMeta,
+        senderId.isAcceptableOrUnknown(data['sender_id']!, _senderIdMeta),
+      );
     } else if (isInserting) {
       context.missing(_senderIdMeta);
     }
     if (data.containsKey('message_type')) {
       context.handle(
+        _messageTypeMeta,
+        messageType.isAcceptableOrUnknown(
+          data['message_type']!,
           _messageTypeMeta,
-          messageType.isAcceptableOrUnknown(
-              data['message_type']!, _messageTypeMeta));
+        ),
+      );
     } else if (isInserting) {
       context.missing(_messageTypeMeta);
     }
     if (data.containsKey('content')) {
-      context.handle(_contentMeta,
-          content.isAcceptableOrUnknown(data['content']!, _contentMeta));
+      context.handle(
+        _contentMeta,
+        content.isAcceptableOrUnknown(data['content']!, _contentMeta),
+      );
     }
     if (data.containsKey('media_local_path')) {
       context.handle(
+        _mediaLocalPathMeta,
+        mediaLocalPath.isAcceptableOrUnknown(
+          data['media_local_path']!,
           _mediaLocalPathMeta,
-          mediaLocalPath.isAcceptableOrUnknown(
-              data['media_local_path']!, _mediaLocalPathMeta));
+        ),
+      );
     }
     if (data.containsKey('media_remote_url')) {
       context.handle(
+        _mediaRemoteUrlMeta,
+        mediaRemoteUrl.isAcceptableOrUnknown(
+          data['media_remote_url']!,
           _mediaRemoteUrlMeta,
-          mediaRemoteUrl.isAcceptableOrUnknown(
-              data['media_remote_url']!, _mediaRemoteUrlMeta));
+        ),
+      );
     }
     if (data.containsKey('thumbnail_url')) {
       context.handle(
+        _thumbnailUrlMeta,
+        thumbnailUrl.isAcceptableOrUnknown(
+          data['thumbnail_url']!,
           _thumbnailUrlMeta,
-          thumbnailUrl.isAcceptableOrUnknown(
-              data['thumbnail_url']!, _thumbnailUrlMeta));
+        ),
+      );
     }
     if (data.containsKey('status')) {
-      context.handle(_statusMeta,
-          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
     }
     if (data.containsKey('reply_to_id')) {
       context.handle(
-          _replyToIdMeta,
-          replyToId.isAcceptableOrUnknown(
-              data['reply_to_id']!, _replyToIdMeta));
+        _replyToIdMeta,
+        replyToId.isAcceptableOrUnknown(data['reply_to_id']!, _replyToIdMeta),
+      );
     }
     if (data.containsKey('created_at')) {
-      context.handle(_createdAtMeta,
-          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
     } else if (isInserting) {
       context.missing(_createdAtMeta);
     }
     if (data.containsKey('is_synced')) {
-      context.handle(_isSyncedMeta,
-          isSynced.isAcceptableOrUnknown(data['is_synced']!, _isSyncedMeta));
+      context.handle(
+        _isSyncedMeta,
+        isSynced.isAcceptableOrUnknown(data['is_synced']!, _isSyncedMeta),
+      );
     }
     if (data.containsKey('is_deleted')) {
-      context.handle(_isDeletedMeta,
-          isDeleted.isAcceptableOrUnknown(data['is_deleted']!, _isDeletedMeta));
+      context.handle(
+        _isDeletedMeta,
+        isDeleted.isAcceptableOrUnknown(data['is_deleted']!, _isDeletedMeta),
+      );
     }
     return context;
   }
@@ -222,32 +367,58 @@ class $MessagesTableTable extends MessagesTable
   MessageRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return MessageRow(
-      id: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
       conversationId: attachedDatabase.typeMapping.read(
-          DriftSqlType.string, data['${effectivePrefix}conversation_id'])!,
-      senderId: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}sender_id'])!,
-      messageType: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}message_type'])!,
-      content: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}content']),
+        DriftSqlType.string,
+        data['${effectivePrefix}conversation_id'],
+      )!,
+      senderId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sender_id'],
+      )!,
+      messageType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}message_type'],
+      )!,
+      content: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}content'],
+      ),
       mediaLocalPath: attachedDatabase.typeMapping.read(
-          DriftSqlType.string, data['${effectivePrefix}media_local_path']),
+        DriftSqlType.string,
+        data['${effectivePrefix}media_local_path'],
+      ),
       mediaRemoteUrl: attachedDatabase.typeMapping.read(
-          DriftSqlType.string, data['${effectivePrefix}media_remote_url']),
-      thumbnailUrl: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}thumbnail_url']),
-      status: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
-      replyToId: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}reply_to_id']),
-      createdAt: attachedDatabase.typeMapping
-          .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
-      isSynced: attachedDatabase.typeMapping
-          .read(DriftSqlType.bool, data['${effectivePrefix}is_synced'])!,
-      isDeleted: attachedDatabase.typeMapping
-          .read(DriftSqlType.bool, data['${effectivePrefix}is_deleted'])!,
+        DriftSqlType.string,
+        data['${effectivePrefix}media_remote_url'],
+      ),
+      thumbnailUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}thumbnail_url'],
+      ),
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      replyToId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reply_to_id'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+      isSynced: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_synced'],
+      )!,
+      isDeleted: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}is_deleted'],
+      )!,
     );
   }
 
@@ -271,20 +442,21 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
   final DateTime createdAt;
   final bool isSynced;
   final bool isDeleted;
-  const MessageRow(
-      {required this.id,
-      required this.conversationId,
-      required this.senderId,
-      required this.messageType,
-      this.content,
-      this.mediaLocalPath,
-      this.mediaRemoteUrl,
-      this.thumbnailUrl,
-      required this.status,
-      this.replyToId,
-      required this.createdAt,
-      required this.isSynced,
-      required this.isDeleted});
+  const MessageRow({
+    required this.id,
+    required this.conversationId,
+    required this.senderId,
+    required this.messageType,
+    this.content,
+    this.mediaLocalPath,
+    this.mediaRemoteUrl,
+    this.thumbnailUrl,
+    required this.status,
+    this.replyToId,
+    required this.createdAt,
+    required this.isSynced,
+    required this.isDeleted,
+  });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -342,8 +514,10 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     );
   }
 
-  factory MessageRow.fromJson(Map<String, dynamic> json,
-      {ValueSerializer? serializer}) {
+  factory MessageRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return MessageRow(
       id: serializer.fromJson<String>(json['id']),
@@ -381,38 +555,39 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     };
   }
 
-  MessageRow copyWith(
-          {String? id,
-          String? conversationId,
-          String? senderId,
-          String? messageType,
-          Value<String?> content = const Value.absent(),
-          Value<String?> mediaLocalPath = const Value.absent(),
-          Value<String?> mediaRemoteUrl = const Value.absent(),
-          Value<String?> thumbnailUrl = const Value.absent(),
-          String? status,
-          Value<String?> replyToId = const Value.absent(),
-          DateTime? createdAt,
-          bool? isSynced,
-          bool? isDeleted}) =>
-      MessageRow(
-        id: id ?? this.id,
-        conversationId: conversationId ?? this.conversationId,
-        senderId: senderId ?? this.senderId,
-        messageType: messageType ?? this.messageType,
-        content: content.present ? content.value : this.content,
-        mediaLocalPath:
-            mediaLocalPath.present ? mediaLocalPath.value : this.mediaLocalPath,
-        mediaRemoteUrl:
-            mediaRemoteUrl.present ? mediaRemoteUrl.value : this.mediaRemoteUrl,
-        thumbnailUrl:
-            thumbnailUrl.present ? thumbnailUrl.value : this.thumbnailUrl,
-        status: status ?? this.status,
-        replyToId: replyToId.present ? replyToId.value : this.replyToId,
-        createdAt: createdAt ?? this.createdAt,
-        isSynced: isSynced ?? this.isSynced,
-        isDeleted: isDeleted ?? this.isDeleted,
-      );
+  MessageRow copyWith({
+    String? id,
+    String? conversationId,
+    String? senderId,
+    String? messageType,
+    Value<String?> content = const Value.absent(),
+    Value<String?> mediaLocalPath = const Value.absent(),
+    Value<String?> mediaRemoteUrl = const Value.absent(),
+    Value<String?> thumbnailUrl = const Value.absent(),
+    String? status,
+    Value<String?> replyToId = const Value.absent(),
+    DateTime? createdAt,
+    bool? isSynced,
+    bool? isDeleted,
+  }) => MessageRow(
+    id: id ?? this.id,
+    conversationId: conversationId ?? this.conversationId,
+    senderId: senderId ?? this.senderId,
+    messageType: messageType ?? this.messageType,
+    content: content.present ? content.value : this.content,
+    mediaLocalPath: mediaLocalPath.present
+        ? mediaLocalPath.value
+        : this.mediaLocalPath,
+    mediaRemoteUrl: mediaRemoteUrl.present
+        ? mediaRemoteUrl.value
+        : this.mediaRemoteUrl,
+    thumbnailUrl: thumbnailUrl.present ? thumbnailUrl.value : this.thumbnailUrl,
+    status: status ?? this.status,
+    replyToId: replyToId.present ? replyToId.value : this.replyToId,
+    createdAt: createdAt ?? this.createdAt,
+    isSynced: isSynced ?? this.isSynced,
+    isDeleted: isDeleted ?? this.isDeleted,
+  );
   MessageRow copyWithCompanion(MessagesTableCompanion data) {
     return MessageRow(
       id: data.id.present ? data.id.value : this.id,
@@ -420,8 +595,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
           ? data.conversationId.value
           : this.conversationId,
       senderId: data.senderId.present ? data.senderId.value : this.senderId,
-      messageType:
-          data.messageType.present ? data.messageType.value : this.messageType,
+      messageType: data.messageType.present
+          ? data.messageType.value
+          : this.messageType,
       content: data.content.present ? data.content.value : this.content,
       mediaLocalPath: data.mediaLocalPath.present
           ? data.mediaLocalPath.value
@@ -462,19 +638,20 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
 
   @override
   int get hashCode => Object.hash(
-      id,
-      conversationId,
-      senderId,
-      messageType,
-      content,
-      mediaLocalPath,
-      mediaRemoteUrl,
-      thumbnailUrl,
-      status,
-      replyToId,
-      createdAt,
-      isSynced,
-      isDeleted);
+    id,
+    conversationId,
+    senderId,
+    messageType,
+    content,
+    mediaLocalPath,
+    mediaRemoteUrl,
+    thumbnailUrl,
+    status,
+    replyToId,
+    createdAt,
+    isSynced,
+    isDeleted,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -540,11 +717,11 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
     this.isSynced = const Value.absent(),
     this.isDeleted = const Value.absent(),
     this.rowid = const Value.absent(),
-  })  : id = Value(id),
-        conversationId = Value(conversationId),
-        senderId = Value(senderId),
-        messageType = Value(messageType),
-        createdAt = Value(createdAt);
+  }) : id = Value(id),
+       conversationId = Value(conversationId),
+       senderId = Value(senderId),
+       messageType = Value(messageType),
+       createdAt = Value(createdAt);
   static Insertable<MessageRow> custom({
     Expression<String>? id,
     Expression<String>? conversationId,
@@ -579,21 +756,22 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
     });
   }
 
-  MessagesTableCompanion copyWith(
-      {Value<String>? id,
-      Value<String>? conversationId,
-      Value<String>? senderId,
-      Value<String>? messageType,
-      Value<String?>? content,
-      Value<String?>? mediaLocalPath,
-      Value<String?>? mediaRemoteUrl,
-      Value<String?>? thumbnailUrl,
-      Value<String>? status,
-      Value<String?>? replyToId,
-      Value<DateTime>? createdAt,
-      Value<bool>? isSynced,
-      Value<bool>? isDeleted,
-      Value<int>? rowid}) {
+  MessagesTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? conversationId,
+    Value<String>? senderId,
+    Value<String>? messageType,
+    Value<String?>? content,
+    Value<String?>? mediaLocalPath,
+    Value<String?>? mediaRemoteUrl,
+    Value<String?>? thumbnailUrl,
+    Value<String>? status,
+    Value<String?>? replyToId,
+    Value<DateTime>? createdAt,
+    Value<bool>? isSynced,
+    Value<bool>? isDeleted,
+    Value<int>? rowid,
+  }) {
     return MessagesTableCompanion(
       id: id ?? this.id,
       conversationId: conversationId ?? this.conversationId,
@@ -691,45 +869,75 @@ class $ConversationsTableTable extends ConversationsTable
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
-      'id', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _otherUserIdMeta =
-      const VerificationMeta('otherUserId');
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _otherUserIdMeta = const VerificationMeta(
+    'otherUserId',
+  );
   @override
   late final GeneratedColumn<String> otherUserId = GeneratedColumn<String>(
-      'other_user_id', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _lastMessageIdMeta =
-      const VerificationMeta('lastMessageId');
+    'other_user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _lastMessageIdMeta = const VerificationMeta(
+    'lastMessageId',
+  );
   @override
   late final GeneratedColumn<String> lastMessageId = GeneratedColumn<String>(
-      'last_message_id', aliasedName, true,
-      type: DriftSqlType.string, requiredDuringInsert: false);
-  static const VerificationMeta _lastActivityMeta =
-      const VerificationMeta('lastActivity');
+    'last_message_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastActivityMeta = const VerificationMeta(
+    'lastActivity',
+  );
   @override
   late final GeneratedColumn<DateTime> lastActivity = GeneratedColumn<DateTime>(
-      'last_activity', aliasedName, false,
-      type: DriftSqlType.dateTime, requiredDuringInsert: true);
-  static const VerificationMeta _unreadCountMeta =
-      const VerificationMeta('unreadCount');
+    'last_activity',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _unreadCountMeta = const VerificationMeta(
+    'unreadCount',
+  );
   @override
   late final GeneratedColumn<int> unreadCount = GeneratedColumn<int>(
-      'unread_count', aliasedName, false,
-      type: DriftSqlType.int,
-      requiredDuringInsert: false,
-      defaultValue: const Constant(0));
+    'unread_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, otherUserId, lastMessageId, lastActivity, unreadCount];
+  List<GeneratedColumn> get $columns => [
+    id,
+    otherUserId,
+    lastMessageId,
+    lastActivity,
+    unreadCount,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
   static const String $name = 'conversations_table';
   @override
-  VerificationContext validateIntegrity(Insertable<ConversationRow> instance,
-      {bool isInserting = false}) {
+  VerificationContext validateIntegrity(
+    Insertable<ConversationRow> instance, {
+    bool isInserting = false,
+  }) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
@@ -739,31 +947,43 @@ class $ConversationsTableTable extends ConversationsTable
     }
     if (data.containsKey('other_user_id')) {
       context.handle(
+        _otherUserIdMeta,
+        otherUserId.isAcceptableOrUnknown(
+          data['other_user_id']!,
           _otherUserIdMeta,
-          otherUserId.isAcceptableOrUnknown(
-              data['other_user_id']!, _otherUserIdMeta));
+        ),
+      );
     } else if (isInserting) {
       context.missing(_otherUserIdMeta);
     }
     if (data.containsKey('last_message_id')) {
       context.handle(
+        _lastMessageIdMeta,
+        lastMessageId.isAcceptableOrUnknown(
+          data['last_message_id']!,
           _lastMessageIdMeta,
-          lastMessageId.isAcceptableOrUnknown(
-              data['last_message_id']!, _lastMessageIdMeta));
+        ),
+      );
     }
     if (data.containsKey('last_activity')) {
       context.handle(
+        _lastActivityMeta,
+        lastActivity.isAcceptableOrUnknown(
+          data['last_activity']!,
           _lastActivityMeta,
-          lastActivity.isAcceptableOrUnknown(
-              data['last_activity']!, _lastActivityMeta));
+        ),
+      );
     } else if (isInserting) {
       context.missing(_lastActivityMeta);
     }
     if (data.containsKey('unread_count')) {
       context.handle(
+        _unreadCountMeta,
+        unreadCount.isAcceptableOrUnknown(
+          data['unread_count']!,
           _unreadCountMeta,
-          unreadCount.isAcceptableOrUnknown(
-              data['unread_count']!, _unreadCountMeta));
+        ),
+      );
     }
     return context;
   }
@@ -774,16 +994,26 @@ class $ConversationsTableTable extends ConversationsTable
   ConversationRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return ConversationRow(
-      id: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
-      otherUserId: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}other_user_id'])!,
-      lastMessageId: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}last_message_id']),
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      otherUserId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}other_user_id'],
+      )!,
+      lastMessageId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}last_message_id'],
+      ),
       lastActivity: attachedDatabase.typeMapping.read(
-          DriftSqlType.dateTime, data['${effectivePrefix}last_activity'])!,
-      unreadCount: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}unread_count'])!,
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_activity'],
+      )!,
+      unreadCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}unread_count'],
+      )!,
     );
   }
 
@@ -799,12 +1029,13 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
   final String? lastMessageId;
   final DateTime lastActivity;
   final int unreadCount;
-  const ConversationRow(
-      {required this.id,
-      required this.otherUserId,
-      this.lastMessageId,
-      required this.lastActivity,
-      required this.unreadCount});
+  const ConversationRow({
+    required this.id,
+    required this.otherUserId,
+    this.lastMessageId,
+    required this.lastActivity,
+    required this.unreadCount,
+  });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -830,8 +1061,10 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
     );
   }
 
-  factory ConversationRow.fromJson(Map<String, dynamic> json,
-      {ValueSerializer? serializer}) {
+  factory ConversationRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return ConversationRow(
       id: serializer.fromJson<String>(json['id']),
@@ -853,33 +1086,36 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
     };
   }
 
-  ConversationRow copyWith(
-          {String? id,
-          String? otherUserId,
-          Value<String?> lastMessageId = const Value.absent(),
-          DateTime? lastActivity,
-          int? unreadCount}) =>
-      ConversationRow(
-        id: id ?? this.id,
-        otherUserId: otherUserId ?? this.otherUserId,
-        lastMessageId:
-            lastMessageId.present ? lastMessageId.value : this.lastMessageId,
-        lastActivity: lastActivity ?? this.lastActivity,
-        unreadCount: unreadCount ?? this.unreadCount,
-      );
+  ConversationRow copyWith({
+    String? id,
+    String? otherUserId,
+    Value<String?> lastMessageId = const Value.absent(),
+    DateTime? lastActivity,
+    int? unreadCount,
+  }) => ConversationRow(
+    id: id ?? this.id,
+    otherUserId: otherUserId ?? this.otherUserId,
+    lastMessageId: lastMessageId.present
+        ? lastMessageId.value
+        : this.lastMessageId,
+    lastActivity: lastActivity ?? this.lastActivity,
+    unreadCount: unreadCount ?? this.unreadCount,
+  );
   ConversationRow copyWithCompanion(ConversationsTableCompanion data) {
     return ConversationRow(
       id: data.id.present ? data.id.value : this.id,
-      otherUserId:
-          data.otherUserId.present ? data.otherUserId.value : this.otherUserId,
+      otherUserId: data.otherUserId.present
+          ? data.otherUserId.value
+          : this.otherUserId,
       lastMessageId: data.lastMessageId.present
           ? data.lastMessageId.value
           : this.lastMessageId,
       lastActivity: data.lastActivity.present
           ? data.lastActivity.value
           : this.lastActivity,
-      unreadCount:
-          data.unreadCount.present ? data.unreadCount.value : this.unreadCount,
+      unreadCount: data.unreadCount.present
+          ? data.unreadCount.value
+          : this.unreadCount,
     );
   }
 
@@ -931,9 +1167,9 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
     required DateTime lastActivity,
     this.unreadCount = const Value.absent(),
     this.rowid = const Value.absent(),
-  })  : id = Value(id),
-        otherUserId = Value(otherUserId),
-        lastActivity = Value(lastActivity);
+  }) : id = Value(id),
+       otherUserId = Value(otherUserId),
+       lastActivity = Value(lastActivity);
   static Insertable<ConversationRow> custom({
     Expression<String>? id,
     Expression<String>? otherUserId,
@@ -952,13 +1188,14 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
     });
   }
 
-  ConversationsTableCompanion copyWith(
-      {Value<String>? id,
-      Value<String>? otherUserId,
-      Value<String?>? lastMessageId,
-      Value<DateTime>? lastActivity,
-      Value<int>? unreadCount,
-      Value<int>? rowid}) {
+  ConversationsTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? otherUserId,
+    Value<String?>? lastMessageId,
+    Value<DateTime>? lastActivity,
+    Value<int>? unreadCount,
+    Value<int>? rowid,
+  }) {
     return ConversationsTableCompanion(
       id: id ?? this.id,
       otherUserId: otherUserId ?? this.otherUserId,
@@ -1016,49 +1253,83 @@ class $UsersTableTable extends UsersTable
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
-      'id', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
   static const VerificationMeta _nameMeta = const VerificationMeta('name');
   @override
   late final GeneratedColumn<String> name = GeneratedColumn<String>(
-      'name', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
   static const VerificationMeta _phoneMeta = const VerificationMeta('phone');
   @override
   late final GeneratedColumn<String> phone = GeneratedColumn<String>(
-      'phone', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _avatarUrlMeta =
-      const VerificationMeta('avatarUrl');
+    'phone',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _avatarUrlMeta = const VerificationMeta(
+    'avatarUrl',
+  );
   @override
   late final GeneratedColumn<String> avatarUrl = GeneratedColumn<String>(
-      'avatar_url', aliasedName, true,
-      type: DriftSqlType.string, requiredDuringInsert: false);
-  static const VerificationMeta _lastSeenMeta =
-      const VerificationMeta('lastSeen');
+    'avatar_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastSeenMeta = const VerificationMeta(
+    'lastSeen',
+  );
   @override
   late final GeneratedColumn<DateTime> lastSeen = GeneratedColumn<DateTime>(
-      'last_seen', aliasedName, false,
-      type: DriftSqlType.dateTime, requiredDuringInsert: true);
-  static const VerificationMeta _presenceMeta =
-      const VerificationMeta('presence');
+    'last_seen',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _presenceMeta = const VerificationMeta(
+    'presence',
+  );
   @override
   late final GeneratedColumn<String> presence = GeneratedColumn<String>(
-      'presence', aliasedName, false,
-      type: DriftSqlType.string,
-      requiredDuringInsert: false,
-      defaultValue: const Constant('offline'));
+    'presence',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('offline'),
+  );
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, name, phone, avatarUrl, lastSeen, presence];
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    phone,
+    avatarUrl,
+    lastSeen,
+    presence,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
   static const String $name = 'users_table';
   @override
-  VerificationContext validateIntegrity(Insertable<UserRow> instance,
-      {bool isInserting = false}) {
+  VerificationContext validateIntegrity(
+    Insertable<UserRow> instance, {
+    bool isInserting = false,
+  }) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
@@ -1068,29 +1339,39 @@ class $UsersTableTable extends UsersTable
     }
     if (data.containsKey('name')) {
       context.handle(
-          _nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
     } else if (isInserting) {
       context.missing(_nameMeta);
     }
     if (data.containsKey('phone')) {
       context.handle(
-          _phoneMeta, phone.isAcceptableOrUnknown(data['phone']!, _phoneMeta));
+        _phoneMeta,
+        phone.isAcceptableOrUnknown(data['phone']!, _phoneMeta),
+      );
     } else if (isInserting) {
       context.missing(_phoneMeta);
     }
     if (data.containsKey('avatar_url')) {
-      context.handle(_avatarUrlMeta,
-          avatarUrl.isAcceptableOrUnknown(data['avatar_url']!, _avatarUrlMeta));
+      context.handle(
+        _avatarUrlMeta,
+        avatarUrl.isAcceptableOrUnknown(data['avatar_url']!, _avatarUrlMeta),
+      );
     }
     if (data.containsKey('last_seen')) {
-      context.handle(_lastSeenMeta,
-          lastSeen.isAcceptableOrUnknown(data['last_seen']!, _lastSeenMeta));
+      context.handle(
+        _lastSeenMeta,
+        lastSeen.isAcceptableOrUnknown(data['last_seen']!, _lastSeenMeta),
+      );
     } else if (isInserting) {
       context.missing(_lastSeenMeta);
     }
     if (data.containsKey('presence')) {
-      context.handle(_presenceMeta,
-          presence.isAcceptableOrUnknown(data['presence']!, _presenceMeta));
+      context.handle(
+        _presenceMeta,
+        presence.isAcceptableOrUnknown(data['presence']!, _presenceMeta),
+      );
     }
     return context;
   }
@@ -1101,18 +1382,30 @@ class $UsersTableTable extends UsersTable
   UserRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return UserRow(
-      id: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
-      name: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}name'])!,
-      phone: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}phone'])!,
-      avatarUrl: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}avatar_url']),
-      lastSeen: attachedDatabase.typeMapping
-          .read(DriftSqlType.dateTime, data['${effectivePrefix}last_seen'])!,
-      presence: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}presence'])!,
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      phone: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}phone'],
+      )!,
+      avatarUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}avatar_url'],
+      ),
+      lastSeen: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_seen'],
+      )!,
+      presence: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}presence'],
+      )!,
     );
   }
 
@@ -1129,13 +1422,14 @@ class UserRow extends DataClass implements Insertable<UserRow> {
   final String? avatarUrl;
   final DateTime lastSeen;
   final String presence;
-  const UserRow(
-      {required this.id,
-      required this.name,
-      required this.phone,
-      this.avatarUrl,
-      required this.lastSeen,
-      required this.presence});
+  const UserRow({
+    required this.id,
+    required this.name,
+    required this.phone,
+    this.avatarUrl,
+    required this.lastSeen,
+    required this.presence,
+  });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -1163,8 +1457,10 @@ class UserRow extends DataClass implements Insertable<UserRow> {
     );
   }
 
-  factory UserRow.fromJson(Map<String, dynamic> json,
-      {ValueSerializer? serializer}) {
+  factory UserRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return UserRow(
       id: serializer.fromJson<String>(json['id']),
@@ -1188,21 +1484,21 @@ class UserRow extends DataClass implements Insertable<UserRow> {
     };
   }
 
-  UserRow copyWith(
-          {String? id,
-          String? name,
-          String? phone,
-          Value<String?> avatarUrl = const Value.absent(),
-          DateTime? lastSeen,
-          String? presence}) =>
-      UserRow(
-        id: id ?? this.id,
-        name: name ?? this.name,
-        phone: phone ?? this.phone,
-        avatarUrl: avatarUrl.present ? avatarUrl.value : this.avatarUrl,
-        lastSeen: lastSeen ?? this.lastSeen,
-        presence: presence ?? this.presence,
-      );
+  UserRow copyWith({
+    String? id,
+    String? name,
+    String? phone,
+    Value<String?> avatarUrl = const Value.absent(),
+    DateTime? lastSeen,
+    String? presence,
+  }) => UserRow(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    phone: phone ?? this.phone,
+    avatarUrl: avatarUrl.present ? avatarUrl.value : this.avatarUrl,
+    lastSeen: lastSeen ?? this.lastSeen,
+    presence: presence ?? this.presence,
+  );
   UserRow copyWithCompanion(UsersTableCompanion data) {
     return UserRow(
       id: data.id.present ? data.id.value : this.id,
@@ -1267,10 +1563,10 @@ class UsersTableCompanion extends UpdateCompanion<UserRow> {
     required DateTime lastSeen,
     this.presence = const Value.absent(),
     this.rowid = const Value.absent(),
-  })  : id = Value(id),
-        name = Value(name),
-        phone = Value(phone),
-        lastSeen = Value(lastSeen);
+  }) : id = Value(id),
+       name = Value(name),
+       phone = Value(phone),
+       lastSeen = Value(lastSeen);
   static Insertable<UserRow> custom({
     Expression<String>? id,
     Expression<String>? name,
@@ -1291,14 +1587,15 @@ class UsersTableCompanion extends UpdateCompanion<UserRow> {
     });
   }
 
-  UsersTableCompanion copyWith(
-      {Value<String>? id,
-      Value<String>? name,
-      Value<String>? phone,
-      Value<String?>? avatarUrl,
-      Value<DateTime>? lastSeen,
-      Value<String>? presence,
-      Value<int>? rowid}) {
+  UsersTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? name,
+    Value<String>? phone,
+    Value<String?>? avatarUrl,
+    Value<DateTime>? lastSeen,
+    Value<String>? presence,
+    Value<int>? rowid,
+  }) {
     return UsersTableCompanion(
       id: id ?? this.id,
       name: name ?? this.name,
@@ -1361,48 +1658,84 @@ class $CallRecordsTableTable extends CallRecordsTable
   static const VerificationMeta _idMeta = const VerificationMeta('id');
   @override
   late final GeneratedColumn<String> id = GeneratedColumn<String>(
-      'id', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _otherUserIdMeta =
-      const VerificationMeta('otherUserId');
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _otherUserIdMeta = const VerificationMeta(
+    'otherUserId',
+  );
   @override
   late final GeneratedColumn<String> otherUserId = GeneratedColumn<String>(
-      'other_user_id', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _callTypeMeta =
-      const VerificationMeta('callType');
+    'other_user_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _callTypeMeta = const VerificationMeta(
+    'callType',
+  );
   @override
   late final GeneratedColumn<String> callType = GeneratedColumn<String>(
-      'call_type', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
+    'call_type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
   late final GeneratedColumn<String> status = GeneratedColumn<String>(
-      'status', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _startedAtMeta =
-      const VerificationMeta('startedAt');
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startedAtMeta = const VerificationMeta(
+    'startedAt',
+  );
   @override
   late final GeneratedColumn<DateTime> startedAt = GeneratedColumn<DateTime>(
-      'started_at', aliasedName, false,
-      type: DriftSqlType.dateTime, requiredDuringInsert: true);
-  static const VerificationMeta _durationSecondsMeta =
-      const VerificationMeta('durationSeconds');
+    'started_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _durationSecondsMeta = const VerificationMeta(
+    'durationSeconds',
+  );
   @override
   late final GeneratedColumn<int> durationSeconds = GeneratedColumn<int>(
-      'duration_seconds', aliasedName, true,
-      type: DriftSqlType.int, requiredDuringInsert: false);
+    'duration_seconds',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
-  List<GeneratedColumn> get $columns =>
-      [id, otherUserId, callType, status, startedAt, durationSeconds];
+  List<GeneratedColumn> get $columns => [
+    id,
+    otherUserId,
+    callType,
+    status,
+    startedAt,
+    durationSeconds,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
   String get actualTableName => $name;
   static const String $name = 'call_records_table';
   @override
-  VerificationContext validateIntegrity(Insertable<CallRecordRow> instance,
-      {bool isInserting = false}) {
+  VerificationContext validateIntegrity(
+    Insertable<CallRecordRow> instance, {
+    bool isInserting = false,
+  }) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('id')) {
@@ -1412,35 +1745,47 @@ class $CallRecordsTableTable extends CallRecordsTable
     }
     if (data.containsKey('other_user_id')) {
       context.handle(
+        _otherUserIdMeta,
+        otherUserId.isAcceptableOrUnknown(
+          data['other_user_id']!,
           _otherUserIdMeta,
-          otherUserId.isAcceptableOrUnknown(
-              data['other_user_id']!, _otherUserIdMeta));
+        ),
+      );
     } else if (isInserting) {
       context.missing(_otherUserIdMeta);
     }
     if (data.containsKey('call_type')) {
-      context.handle(_callTypeMeta,
-          callType.isAcceptableOrUnknown(data['call_type']!, _callTypeMeta));
+      context.handle(
+        _callTypeMeta,
+        callType.isAcceptableOrUnknown(data['call_type']!, _callTypeMeta),
+      );
     } else if (isInserting) {
       context.missing(_callTypeMeta);
     }
     if (data.containsKey('status')) {
-      context.handle(_statusMeta,
-          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
     } else if (isInserting) {
       context.missing(_statusMeta);
     }
     if (data.containsKey('started_at')) {
-      context.handle(_startedAtMeta,
-          startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta));
+      context.handle(
+        _startedAtMeta,
+        startedAt.isAcceptableOrUnknown(data['started_at']!, _startedAtMeta),
+      );
     } else if (isInserting) {
       context.missing(_startedAtMeta);
     }
     if (data.containsKey('duration_seconds')) {
       context.handle(
+        _durationSecondsMeta,
+        durationSeconds.isAcceptableOrUnknown(
+          data['duration_seconds']!,
           _durationSecondsMeta,
-          durationSeconds.isAcceptableOrUnknown(
-              data['duration_seconds']!, _durationSecondsMeta));
+        ),
+      );
     }
     return context;
   }
@@ -1451,18 +1796,30 @@ class $CallRecordsTableTable extends CallRecordsTable
   CallRecordRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return CallRecordRow(
-      id: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}id'])!,
-      otherUserId: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}other_user_id'])!,
-      callType: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}call_type'])!,
-      status: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
-      startedAt: attachedDatabase.typeMapping
-          .read(DriftSqlType.dateTime, data['${effectivePrefix}started_at'])!,
-      durationSeconds: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}duration_seconds']),
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      otherUserId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}other_user_id'],
+      )!,
+      callType: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}call_type'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
+      startedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}started_at'],
+      )!,
+      durationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_seconds'],
+      ),
     );
   }
 
@@ -1479,13 +1836,14 @@ class CallRecordRow extends DataClass implements Insertable<CallRecordRow> {
   final String status;
   final DateTime startedAt;
   final int? durationSeconds;
-  const CallRecordRow(
-      {required this.id,
-      required this.otherUserId,
-      required this.callType,
-      required this.status,
-      required this.startedAt,
-      this.durationSeconds});
+  const CallRecordRow({
+    required this.id,
+    required this.otherUserId,
+    required this.callType,
+    required this.status,
+    required this.startedAt,
+    this.durationSeconds,
+  });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -1513,8 +1871,10 @@ class CallRecordRow extends DataClass implements Insertable<CallRecordRow> {
     );
   }
 
-  factory CallRecordRow.fromJson(Map<String, dynamic> json,
-      {ValueSerializer? serializer}) {
+  factory CallRecordRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return CallRecordRow(
       id: serializer.fromJson<String>(json['id']),
@@ -1538,28 +1898,29 @@ class CallRecordRow extends DataClass implements Insertable<CallRecordRow> {
     };
   }
 
-  CallRecordRow copyWith(
-          {String? id,
-          String? otherUserId,
-          String? callType,
-          String? status,
-          DateTime? startedAt,
-          Value<int?> durationSeconds = const Value.absent()}) =>
-      CallRecordRow(
-        id: id ?? this.id,
-        otherUserId: otherUserId ?? this.otherUserId,
-        callType: callType ?? this.callType,
-        status: status ?? this.status,
-        startedAt: startedAt ?? this.startedAt,
-        durationSeconds: durationSeconds.present
-            ? durationSeconds.value
-            : this.durationSeconds,
-      );
+  CallRecordRow copyWith({
+    String? id,
+    String? otherUserId,
+    String? callType,
+    String? status,
+    DateTime? startedAt,
+    Value<int?> durationSeconds = const Value.absent(),
+  }) => CallRecordRow(
+    id: id ?? this.id,
+    otherUserId: otherUserId ?? this.otherUserId,
+    callType: callType ?? this.callType,
+    status: status ?? this.status,
+    startedAt: startedAt ?? this.startedAt,
+    durationSeconds: durationSeconds.present
+        ? durationSeconds.value
+        : this.durationSeconds,
+  );
   CallRecordRow copyWithCompanion(CallRecordsTableCompanion data) {
     return CallRecordRow(
       id: data.id.present ? data.id.value : this.id,
-      otherUserId:
-          data.otherUserId.present ? data.otherUserId.value : this.otherUserId,
+      otherUserId: data.otherUserId.present
+          ? data.otherUserId.value
+          : this.otherUserId,
       callType: data.callType.present ? data.callType.value : this.callType,
       status: data.status.present ? data.status.value : this.status,
       startedAt: data.startedAt.present ? data.startedAt.value : this.startedAt,
@@ -1584,7 +1945,13 @@ class CallRecordRow extends DataClass implements Insertable<CallRecordRow> {
 
   @override
   int get hashCode => Object.hash(
-      id, otherUserId, callType, status, startedAt, durationSeconds);
+    id,
+    otherUserId,
+    callType,
+    status,
+    startedAt,
+    durationSeconds,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1622,11 +1989,11 @@ class CallRecordsTableCompanion extends UpdateCompanion<CallRecordRow> {
     required DateTime startedAt,
     this.durationSeconds = const Value.absent(),
     this.rowid = const Value.absent(),
-  })  : id = Value(id),
-        otherUserId = Value(otherUserId),
-        callType = Value(callType),
-        status = Value(status),
-        startedAt = Value(startedAt);
+  }) : id = Value(id),
+       otherUserId = Value(otherUserId),
+       callType = Value(callType),
+       status = Value(status),
+       startedAt = Value(startedAt);
   static Insertable<CallRecordRow> custom({
     Expression<String>? id,
     Expression<String>? otherUserId,
@@ -1647,14 +2014,15 @@ class CallRecordsTableCompanion extends UpdateCompanion<CallRecordRow> {
     });
   }
 
-  CallRecordsTableCompanion copyWith(
-      {Value<String>? id,
-      Value<String>? otherUserId,
-      Value<String>? callType,
-      Value<String>? status,
-      Value<DateTime>? startedAt,
-      Value<int?>? durationSeconds,
-      Value<int>? rowid}) {
+  CallRecordsTableCompanion copyWith({
+    Value<String>? id,
+    Value<String>? otherUserId,
+    Value<String>? callType,
+    Value<String>? status,
+    Value<DateTime>? startedAt,
+    Value<int?>? durationSeconds,
+    Value<int>? rowid,
+  }) {
     return CallRecordsTableCompanion(
       id: id ?? this.id,
       otherUserId: otherUserId ?? this.otherUserId,
@@ -1714,60 +2082,91 @@ class $PendingMediaUploadsTableTable extends PendingMediaUploadsTable
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
   $PendingMediaUploadsTableTable(this.attachedDatabase, [this._alias]);
-  static const VerificationMeta _localIdMeta =
-      const VerificationMeta('localId');
+  static const VerificationMeta _localIdMeta = const VerificationMeta(
+    'localId',
+  );
   @override
   late final GeneratedColumn<String> localId = GeneratedColumn<String>(
-      'local_id', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _filePathMeta =
-      const VerificationMeta('filePath');
+    'local_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _filePathMeta = const VerificationMeta(
+    'filePath',
+  );
   @override
   late final GeneratedColumn<String> filePath = GeneratedColumn<String>(
-      'file_path', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
+    'file_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
   static const VerificationMeta _typeMeta = const VerificationMeta('type');
   @override
   late final GeneratedColumn<String> type = GeneratedColumn<String>(
-      'type', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _conversationIdMeta =
-      const VerificationMeta('conversationId');
+    'type',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _conversationIdMeta = const VerificationMeta(
+    'conversationId',
+  );
   @override
   late final GeneratedColumn<String> conversationId = GeneratedColumn<String>(
-      'conversation_id', aliasedName, false,
-      type: DriftSqlType.string, requiredDuringInsert: true);
-  static const VerificationMeta _uploadedBytesMeta =
-      const VerificationMeta('uploadedBytes');
+    'conversation_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _uploadedBytesMeta = const VerificationMeta(
+    'uploadedBytes',
+  );
   @override
   late final GeneratedColumn<int> uploadedBytes = GeneratedColumn<int>(
-      'uploaded_bytes', aliasedName, false,
-      type: DriftSqlType.int,
-      requiredDuringInsert: false,
-      defaultValue: const Constant(0));
-  static const VerificationMeta _totalBytesMeta =
-      const VerificationMeta('totalBytes');
+    'uploaded_bytes',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _totalBytesMeta = const VerificationMeta(
+    'totalBytes',
+  );
   @override
   late final GeneratedColumn<int> totalBytes = GeneratedColumn<int>(
-      'total_bytes', aliasedName, false,
-      type: DriftSqlType.int, requiredDuringInsert: true);
+    'total_bytes',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
   late final GeneratedColumn<String> status = GeneratedColumn<String>(
-      'status', aliasedName, false,
-      type: DriftSqlType.string,
-      requiredDuringInsert: false,
-      defaultValue: const Constant('pending'));
+    'status',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('pending'),
+  );
   @override
   List<GeneratedColumn> get $columns => [
-        localId,
-        filePath,
-        type,
-        conversationId,
-        uploadedBytes,
-        totalBytes,
-        status
-      ];
+    localId,
+    filePath,
+    type,
+    conversationId,
+    uploadedBytes,
+    totalBytes,
+    status,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -1775,53 +2174,68 @@ class $PendingMediaUploadsTableTable extends PendingMediaUploadsTable
   static const String $name = 'pending_media_uploads_table';
   @override
   VerificationContext validateIntegrity(
-      Insertable<PendingMediaUploadRow> instance,
-      {bool isInserting = false}) {
+    Insertable<PendingMediaUploadRow> instance, {
+    bool isInserting = false,
+  }) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
     if (data.containsKey('local_id')) {
-      context.handle(_localIdMeta,
-          localId.isAcceptableOrUnknown(data['local_id']!, _localIdMeta));
+      context.handle(
+        _localIdMeta,
+        localId.isAcceptableOrUnknown(data['local_id']!, _localIdMeta),
+      );
     } else if (isInserting) {
       context.missing(_localIdMeta);
     }
     if (data.containsKey('file_path')) {
-      context.handle(_filePathMeta,
-          filePath.isAcceptableOrUnknown(data['file_path']!, _filePathMeta));
+      context.handle(
+        _filePathMeta,
+        filePath.isAcceptableOrUnknown(data['file_path']!, _filePathMeta),
+      );
     } else if (isInserting) {
       context.missing(_filePathMeta);
     }
     if (data.containsKey('type')) {
       context.handle(
-          _typeMeta, type.isAcceptableOrUnknown(data['type']!, _typeMeta));
+        _typeMeta,
+        type.isAcceptableOrUnknown(data['type']!, _typeMeta),
+      );
     } else if (isInserting) {
       context.missing(_typeMeta);
     }
     if (data.containsKey('conversation_id')) {
       context.handle(
+        _conversationIdMeta,
+        conversationId.isAcceptableOrUnknown(
+          data['conversation_id']!,
           _conversationIdMeta,
-          conversationId.isAcceptableOrUnknown(
-              data['conversation_id']!, _conversationIdMeta));
+        ),
+      );
     } else if (isInserting) {
       context.missing(_conversationIdMeta);
     }
     if (data.containsKey('uploaded_bytes')) {
       context.handle(
+        _uploadedBytesMeta,
+        uploadedBytes.isAcceptableOrUnknown(
+          data['uploaded_bytes']!,
           _uploadedBytesMeta,
-          uploadedBytes.isAcceptableOrUnknown(
-              data['uploaded_bytes']!, _uploadedBytesMeta));
+        ),
+      );
     }
     if (data.containsKey('total_bytes')) {
       context.handle(
-          _totalBytesMeta,
-          totalBytes.isAcceptableOrUnknown(
-              data['total_bytes']!, _totalBytesMeta));
+        _totalBytesMeta,
+        totalBytes.isAcceptableOrUnknown(data['total_bytes']!, _totalBytesMeta),
+      );
     } else if (isInserting) {
       context.missing(_totalBytesMeta);
     }
     if (data.containsKey('status')) {
-      context.handle(_statusMeta,
-          status.isAcceptableOrUnknown(data['status']!, _statusMeta));
+      context.handle(
+        _statusMeta,
+        status.isAcceptableOrUnknown(data['status']!, _statusMeta),
+      );
     }
     return context;
   }
@@ -1832,20 +2246,34 @@ class $PendingMediaUploadsTableTable extends PendingMediaUploadsTable
   PendingMediaUploadRow map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return PendingMediaUploadRow(
-      localId: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}local_id'])!,
-      filePath: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}file_path'])!,
-      type: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}type'])!,
+      localId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}local_id'],
+      )!,
+      filePath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}file_path'],
+      )!,
+      type: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}type'],
+      )!,
       conversationId: attachedDatabase.typeMapping.read(
-          DriftSqlType.string, data['${effectivePrefix}conversation_id'])!,
-      uploadedBytes: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}uploaded_bytes'])!,
-      totalBytes: attachedDatabase.typeMapping
-          .read(DriftSqlType.int, data['${effectivePrefix}total_bytes'])!,
-      status: attachedDatabase.typeMapping
-          .read(DriftSqlType.string, data['${effectivePrefix}status'])!,
+        DriftSqlType.string,
+        data['${effectivePrefix}conversation_id'],
+      )!,
+      uploadedBytes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}uploaded_bytes'],
+      )!,
+      totalBytes: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}total_bytes'],
+      )!,
+      status: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}status'],
+      )!,
     );
   }
 
@@ -1864,14 +2292,15 @@ class PendingMediaUploadRow extends DataClass
   final int uploadedBytes;
   final int totalBytes;
   final String status;
-  const PendingMediaUploadRow(
-      {required this.localId,
-      required this.filePath,
-      required this.type,
-      required this.conversationId,
-      required this.uploadedBytes,
-      required this.totalBytes,
-      required this.status});
+  const PendingMediaUploadRow({
+    required this.localId,
+    required this.filePath,
+    required this.type,
+    required this.conversationId,
+    required this.uploadedBytes,
+    required this.totalBytes,
+    required this.status,
+  });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -1897,8 +2326,10 @@ class PendingMediaUploadRow extends DataClass
     );
   }
 
-  factory PendingMediaUploadRow.fromJson(Map<String, dynamic> json,
-      {ValueSerializer? serializer}) {
+  factory PendingMediaUploadRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return PendingMediaUploadRow(
       localId: serializer.fromJson<String>(json['localId']),
@@ -1924,25 +2355,26 @@ class PendingMediaUploadRow extends DataClass
     };
   }
 
-  PendingMediaUploadRow copyWith(
-          {String? localId,
-          String? filePath,
-          String? type,
-          String? conversationId,
-          int? uploadedBytes,
-          int? totalBytes,
-          String? status}) =>
-      PendingMediaUploadRow(
-        localId: localId ?? this.localId,
-        filePath: filePath ?? this.filePath,
-        type: type ?? this.type,
-        conversationId: conversationId ?? this.conversationId,
-        uploadedBytes: uploadedBytes ?? this.uploadedBytes,
-        totalBytes: totalBytes ?? this.totalBytes,
-        status: status ?? this.status,
-      );
+  PendingMediaUploadRow copyWith({
+    String? localId,
+    String? filePath,
+    String? type,
+    String? conversationId,
+    int? uploadedBytes,
+    int? totalBytes,
+    String? status,
+  }) => PendingMediaUploadRow(
+    localId: localId ?? this.localId,
+    filePath: filePath ?? this.filePath,
+    type: type ?? this.type,
+    conversationId: conversationId ?? this.conversationId,
+    uploadedBytes: uploadedBytes ?? this.uploadedBytes,
+    totalBytes: totalBytes ?? this.totalBytes,
+    status: status ?? this.status,
+  );
   PendingMediaUploadRow copyWithCompanion(
-      PendingMediaUploadsTableCompanion data) {
+    PendingMediaUploadsTableCompanion data,
+  ) {
     return PendingMediaUploadRow(
       localId: data.localId.present ? data.localId.value : this.localId,
       filePath: data.filePath.present ? data.filePath.value : this.filePath,
@@ -1953,8 +2385,9 @@ class PendingMediaUploadRow extends DataClass
       uploadedBytes: data.uploadedBytes.present
           ? data.uploadedBytes.value
           : this.uploadedBytes,
-      totalBytes:
-          data.totalBytes.present ? data.totalBytes.value : this.totalBytes,
+      totalBytes: data.totalBytes.present
+          ? data.totalBytes.value
+          : this.totalBytes,
       status: data.status.present ? data.status.value : this.status,
     );
   }
@@ -1974,8 +2407,15 @@ class PendingMediaUploadRow extends DataClass
   }
 
   @override
-  int get hashCode => Object.hash(localId, filePath, type, conversationId,
-      uploadedBytes, totalBytes, status);
+  int get hashCode => Object.hash(
+    localId,
+    filePath,
+    type,
+    conversationId,
+    uploadedBytes,
+    totalBytes,
+    status,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2018,11 +2458,11 @@ class PendingMediaUploadsTableCompanion
     required int totalBytes,
     this.status = const Value.absent(),
     this.rowid = const Value.absent(),
-  })  : localId = Value(localId),
-        filePath = Value(filePath),
-        type = Value(type),
-        conversationId = Value(conversationId),
-        totalBytes = Value(totalBytes);
+  }) : localId = Value(localId),
+       filePath = Value(filePath),
+       type = Value(type),
+       conversationId = Value(conversationId),
+       totalBytes = Value(totalBytes);
   static Insertable<PendingMediaUploadRow> custom({
     Expression<String>? localId,
     Expression<String>? filePath,
@@ -2045,15 +2485,16 @@ class PendingMediaUploadsTableCompanion
     });
   }
 
-  PendingMediaUploadsTableCompanion copyWith(
-      {Value<String>? localId,
-      Value<String>? filePath,
-      Value<String>? type,
-      Value<String>? conversationId,
-      Value<int>? uploadedBytes,
-      Value<int>? totalBytes,
-      Value<String>? status,
-      Value<int>? rowid}) {
+  PendingMediaUploadsTableCompanion copyWith({
+    Value<String>? localId,
+    Value<String>? filePath,
+    Value<String>? type,
+    Value<String>? conversationId,
+    Value<int>? uploadedBytes,
+    Value<int>? totalBytes,
+    Value<String>? status,
+    Value<int>? rowid,
+  }) {
     return PendingMediaUploadsTableCompanion(
       localId: localId ?? this.localId,
       filePath: filePath ?? this.filePath,
@@ -2119,16 +2560,19 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ConversationsTableTable conversationsTable =
       $ConversationsTableTable(this);
   late final $UsersTableTable usersTable = $UsersTableTable(this);
-  late final $CallRecordsTableTable callRecordsTable =
-      $CallRecordsTableTable(this);
+  late final $CallRecordsTableTable callRecordsTable = $CallRecordsTableTable(
+    this,
+  );
   late final $PendingMediaUploadsTableTable pendingMediaUploadsTable =
       $PendingMediaUploadsTableTable(this);
   late final MessagesDao messagesDao = MessagesDao(this as AppDatabase);
-  late final ConversationsDao conversationsDao =
-      ConversationsDao(this as AppDatabase);
+  late final ConversationsDao conversationsDao = ConversationsDao(
+    this as AppDatabase,
+  );
   late final UsersDao usersDao = UsersDao(this as AppDatabase);
-  late final CallRecordsDao callRecordsDao =
-      CallRecordsDao(this as AppDatabase);
+  late final CallRecordsDao callRecordsDao = CallRecordsDao(
+    this as AppDatabase,
+  );
   late final PendingMediaUploadsDao pendingMediaUploadsDao =
       PendingMediaUploadsDao(this as AppDatabase);
   @override
@@ -2136,846 +2580,1302 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
-        messagesTable,
-        conversationsTable,
-        usersTable,
-        callRecordsTable,
-        pendingMediaUploadsTable
-      ];
+    messagesTable,
+    conversationsTable,
+    usersTable,
+    callRecordsTable,
+    pendingMediaUploadsTable,
+  ];
 }
 
-typedef $$MessagesTableTableCreateCompanionBuilder = MessagesTableCompanion
-    Function({
-  required String id,
-  required String conversationId,
-  required String senderId,
-  required String messageType,
-  Value<String?> content,
-  Value<String?> mediaLocalPath,
-  Value<String?> mediaRemoteUrl,
-  Value<String?> thumbnailUrl,
-  Value<String> status,
-  Value<String?> replyToId,
-  required DateTime createdAt,
-  Value<bool> isSynced,
-  Value<bool> isDeleted,
-  Value<int> rowid,
-});
-typedef $$MessagesTableTableUpdateCompanionBuilder = MessagesTableCompanion
-    Function({
-  Value<String> id,
-  Value<String> conversationId,
-  Value<String> senderId,
-  Value<String> messageType,
-  Value<String?> content,
-  Value<String?> mediaLocalPath,
-  Value<String?> mediaRemoteUrl,
-  Value<String?> thumbnailUrl,
-  Value<String> status,
-  Value<String?> replyToId,
-  Value<DateTime> createdAt,
-  Value<bool> isSynced,
-  Value<bool> isDeleted,
-  Value<int> rowid,
-});
-
-class $$MessagesTableTableTableManager extends RootTableManager<
-    _$AppDatabase,
-    $MessagesTableTable,
-    MessageRow,
-    $$MessagesTableTableFilterComposer,
-    $$MessagesTableTableOrderingComposer,
-    $$MessagesTableTableCreateCompanionBuilder,
-    $$MessagesTableTableUpdateCompanionBuilder> {
-  $$MessagesTableTableTableManager(_$AppDatabase db, $MessagesTableTable table)
-      : super(TableManagerState(
-          db: db,
-          table: table,
-          filteringComposer:
-              $$MessagesTableTableFilterComposer(ComposerState(db, table)),
-          orderingComposer:
-              $$MessagesTableTableOrderingComposer(ComposerState(db, table)),
-          updateCompanionCallback: ({
-            Value<String> id = const Value.absent(),
-            Value<String> conversationId = const Value.absent(),
-            Value<String> senderId = const Value.absent(),
-            Value<String> messageType = const Value.absent(),
-            Value<String?> content = const Value.absent(),
-            Value<String?> mediaLocalPath = const Value.absent(),
-            Value<String?> mediaRemoteUrl = const Value.absent(),
-            Value<String?> thumbnailUrl = const Value.absent(),
-            Value<String> status = const Value.absent(),
-            Value<String?> replyToId = const Value.absent(),
-            Value<DateTime> createdAt = const Value.absent(),
-            Value<bool> isSynced = const Value.absent(),
-            Value<bool> isDeleted = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) =>
-              MessagesTableCompanion(
-            id: id,
-            conversationId: conversationId,
-            senderId: senderId,
-            messageType: messageType,
-            content: content,
-            mediaLocalPath: mediaLocalPath,
-            mediaRemoteUrl: mediaRemoteUrl,
-            thumbnailUrl: thumbnailUrl,
-            status: status,
-            replyToId: replyToId,
-            createdAt: createdAt,
-            isSynced: isSynced,
-            isDeleted: isDeleted,
-            rowid: rowid,
-          ),
-          createCompanionCallback: ({
-            required String id,
-            required String conversationId,
-            required String senderId,
-            required String messageType,
-            Value<String?> content = const Value.absent(),
-            Value<String?> mediaLocalPath = const Value.absent(),
-            Value<String?> mediaRemoteUrl = const Value.absent(),
-            Value<String?> thumbnailUrl = const Value.absent(),
-            Value<String> status = const Value.absent(),
-            Value<String?> replyToId = const Value.absent(),
-            required DateTime createdAt,
-            Value<bool> isSynced = const Value.absent(),
-            Value<bool> isDeleted = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) =>
-              MessagesTableCompanion.insert(
-            id: id,
-            conversationId: conversationId,
-            senderId: senderId,
-            messageType: messageType,
-            content: content,
-            mediaLocalPath: mediaLocalPath,
-            mediaRemoteUrl: mediaRemoteUrl,
-            thumbnailUrl: thumbnailUrl,
-            status: status,
-            replyToId: replyToId,
-            createdAt: createdAt,
-            isSynced: isSynced,
-            isDeleted: isDeleted,
-            rowid: rowid,
-          ),
-        ));
-}
+typedef $$MessagesTableTableCreateCompanionBuilder =
+    MessagesTableCompanion Function({
+      required String id,
+      required String conversationId,
+      required String senderId,
+      required String messageType,
+      Value<String?> content,
+      Value<String?> mediaLocalPath,
+      Value<String?> mediaRemoteUrl,
+      Value<String?> thumbnailUrl,
+      Value<String> status,
+      Value<String?> replyToId,
+      required DateTime createdAt,
+      Value<bool> isSynced,
+      Value<bool> isDeleted,
+      Value<int> rowid,
+    });
+typedef $$MessagesTableTableUpdateCompanionBuilder =
+    MessagesTableCompanion Function({
+      Value<String> id,
+      Value<String> conversationId,
+      Value<String> senderId,
+      Value<String> messageType,
+      Value<String?> content,
+      Value<String?> mediaLocalPath,
+      Value<String?> mediaRemoteUrl,
+      Value<String?> thumbnailUrl,
+      Value<String> status,
+      Value<String?> replyToId,
+      Value<DateTime> createdAt,
+      Value<bool> isSynced,
+      Value<bool> isDeleted,
+      Value<int> rowid,
+    });
 
 class $$MessagesTableTableFilterComposer
-    extends FilterComposer<_$AppDatabase, $MessagesTableTable> {
-  $$MessagesTableTableFilterComposer(super.$state);
-  ColumnFilters<String> get id => $state.composableBuilder(
-      column: $state.table.id,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+    extends Composer<_$AppDatabase, $MessagesTableTable> {
+  $$MessagesTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get conversationId => $state.composableBuilder(
-      column: $state.table.conversationId,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get conversationId => $composableBuilder(
+    column: $table.conversationId,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get senderId => $state.composableBuilder(
-      column: $state.table.senderId,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get senderId => $composableBuilder(
+    column: $table.senderId,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get messageType => $state.composableBuilder(
-      column: $state.table.messageType,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get messageType => $composableBuilder(
+    column: $table.messageType,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get content => $state.composableBuilder(
-      column: $state.table.content,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get mediaLocalPath => $state.composableBuilder(
-      column: $state.table.mediaLocalPath,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get mediaLocalPath => $composableBuilder(
+    column: $table.mediaLocalPath,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get mediaRemoteUrl => $state.composableBuilder(
-      column: $state.table.mediaRemoteUrl,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get mediaRemoteUrl => $composableBuilder(
+    column: $table.mediaRemoteUrl,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get thumbnailUrl => $state.composableBuilder(
-      column: $state.table.thumbnailUrl,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get thumbnailUrl => $composableBuilder(
+    column: $table.thumbnailUrl,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get status => $state.composableBuilder(
-      column: $state.table.status,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get replyToId => $state.composableBuilder(
-      column: $state.table.replyToId,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get replyToId => $composableBuilder(
+    column: $table.replyToId,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<DateTime> get createdAt => $state.composableBuilder(
-      column: $state.table.createdAt,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<bool> get isSynced => $state.composableBuilder(
-      column: $state.table.isSynced,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<bool> get isSynced => $composableBuilder(
+    column: $table.isSynced,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<bool> get isDeleted => $state.composableBuilder(
-      column: $state.table.isDeleted,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$MessagesTableTableOrderingComposer
-    extends OrderingComposer<_$AppDatabase, $MessagesTableTable> {
-  $$MessagesTableTableOrderingComposer(super.$state);
-  ColumnOrderings<String> get id => $state.composableBuilder(
-      column: $state.table.id,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+    extends Composer<_$AppDatabase, $MessagesTableTable> {
+  $$MessagesTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get conversationId => $state.composableBuilder(
-      column: $state.table.conversationId,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get conversationId => $composableBuilder(
+    column: $table.conversationId,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get senderId => $state.composableBuilder(
-      column: $state.table.senderId,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get senderId => $composableBuilder(
+    column: $table.senderId,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get messageType => $state.composableBuilder(
-      column: $state.table.messageType,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get messageType => $composableBuilder(
+    column: $table.messageType,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get content => $state.composableBuilder(
-      column: $state.table.content,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get content => $composableBuilder(
+    column: $table.content,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get mediaLocalPath => $state.composableBuilder(
-      column: $state.table.mediaLocalPath,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get mediaLocalPath => $composableBuilder(
+    column: $table.mediaLocalPath,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get mediaRemoteUrl => $state.composableBuilder(
-      column: $state.table.mediaRemoteUrl,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get mediaRemoteUrl => $composableBuilder(
+    column: $table.mediaRemoteUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get thumbnailUrl => $state.composableBuilder(
-      column: $state.table.thumbnailUrl,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get thumbnailUrl => $composableBuilder(
+    column: $table.thumbnailUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get status => $state.composableBuilder(
-      column: $state.table.status,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get replyToId => $state.composableBuilder(
-      column: $state.table.replyToId,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get replyToId => $composableBuilder(
+    column: $table.replyToId,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<DateTime> get createdAt => $state.composableBuilder(
-      column: $state.table.createdAt,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<bool> get isSynced => $state.composableBuilder(
-      column: $state.table.isSynced,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<bool> get isSynced => $composableBuilder(
+    column: $table.isSynced,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<bool> get isDeleted => $state.composableBuilder(
-      column: $state.table.isDeleted,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<bool> get isDeleted => $composableBuilder(
+    column: $table.isDeleted,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
-typedef $$ConversationsTableTableCreateCompanionBuilder
-    = ConversationsTableCompanion Function({
-  required String id,
-  required String otherUserId,
-  Value<String?> lastMessageId,
-  required DateTime lastActivity,
-  Value<int> unreadCount,
-  Value<int> rowid,
-});
-typedef $$ConversationsTableTableUpdateCompanionBuilder
-    = ConversationsTableCompanion Function({
-  Value<String> id,
-  Value<String> otherUserId,
-  Value<String?> lastMessageId,
-  Value<DateTime> lastActivity,
-  Value<int> unreadCount,
-  Value<int> rowid,
-});
+class $$MessagesTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $MessagesTableTable> {
+  $$MessagesTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
 
-class $$ConversationsTableTableTableManager extends RootTableManager<
-    _$AppDatabase,
-    $ConversationsTableTable,
-    ConversationRow,
-    $$ConversationsTableTableFilterComposer,
-    $$ConversationsTableTableOrderingComposer,
-    $$ConversationsTableTableCreateCompanionBuilder,
-    $$ConversationsTableTableUpdateCompanionBuilder> {
-  $$ConversationsTableTableTableManager(
-      _$AppDatabase db, $ConversationsTableTable table)
-      : super(TableManagerState(
+  GeneratedColumn<String> get conversationId => $composableBuilder(
+    column: $table.conversationId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get senderId =>
+      $composableBuilder(column: $table.senderId, builder: (column) => column);
+
+  GeneratedColumn<String> get messageType => $composableBuilder(
+    column: $table.messageType,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get content =>
+      $composableBuilder(column: $table.content, builder: (column) => column);
+
+  GeneratedColumn<String> get mediaLocalPath => $composableBuilder(
+    column: $table.mediaLocalPath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get mediaRemoteUrl => $composableBuilder(
+    column: $table.mediaRemoteUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get thumbnailUrl => $composableBuilder(
+    column: $table.thumbnailUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<String> get replyToId =>
+      $composableBuilder(column: $table.replyToId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get isSynced =>
+      $composableBuilder(column: $table.isSynced, builder: (column) => column);
+
+  GeneratedColumn<bool> get isDeleted =>
+      $composableBuilder(column: $table.isDeleted, builder: (column) => column);
+}
+
+class $$MessagesTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $MessagesTableTable,
+          MessageRow,
+          $$MessagesTableTableFilterComposer,
+          $$MessagesTableTableOrderingComposer,
+          $$MessagesTableTableAnnotationComposer,
+          $$MessagesTableTableCreateCompanionBuilder,
+          $$MessagesTableTableUpdateCompanionBuilder,
+          (
+            MessageRow,
+            BaseReferences<_$AppDatabase, $MessagesTableTable, MessageRow>,
+          ),
+          MessageRow,
+          PrefetchHooks Function()
+        > {
+  $$MessagesTableTableTableManager(_$AppDatabase db, $MessagesTableTable table)
+    : super(
+        TableManagerState(
           db: db,
           table: table,
-          filteringComposer:
-              $$ConversationsTableTableFilterComposer(ComposerState(db, table)),
-          orderingComposer: $$ConversationsTableTableOrderingComposer(
-              ComposerState(db, table)),
-          updateCompanionCallback: ({
-            Value<String> id = const Value.absent(),
-            Value<String> otherUserId = const Value.absent(),
-            Value<String?> lastMessageId = const Value.absent(),
-            Value<DateTime> lastActivity = const Value.absent(),
-            Value<int> unreadCount = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) =>
-              ConversationsTableCompanion(
-            id: id,
-            otherUserId: otherUserId,
-            lastMessageId: lastMessageId,
-            lastActivity: lastActivity,
-            unreadCount: unreadCount,
-            rowid: rowid,
-          ),
-          createCompanionCallback: ({
-            required String id,
-            required String otherUserId,
-            Value<String?> lastMessageId = const Value.absent(),
-            required DateTime lastActivity,
-            Value<int> unreadCount = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) =>
-              ConversationsTableCompanion.insert(
-            id: id,
-            otherUserId: otherUserId,
-            lastMessageId: lastMessageId,
-            lastActivity: lastActivity,
-            unreadCount: unreadCount,
-            rowid: rowid,
-          ),
-        ));
+          createFilteringComposer: () =>
+              $$MessagesTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$MessagesTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$MessagesTableTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> conversationId = const Value.absent(),
+                Value<String> senderId = const Value.absent(),
+                Value<String> messageType = const Value.absent(),
+                Value<String?> content = const Value.absent(),
+                Value<String?> mediaLocalPath = const Value.absent(),
+                Value<String?> mediaRemoteUrl = const Value.absent(),
+                Value<String?> thumbnailUrl = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String?> replyToId = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+                Value<bool> isSynced = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => MessagesTableCompanion(
+                id: id,
+                conversationId: conversationId,
+                senderId: senderId,
+                messageType: messageType,
+                content: content,
+                mediaLocalPath: mediaLocalPath,
+                mediaRemoteUrl: mediaRemoteUrl,
+                thumbnailUrl: thumbnailUrl,
+                status: status,
+                replyToId: replyToId,
+                createdAt: createdAt,
+                isSynced: isSynced,
+                isDeleted: isDeleted,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String conversationId,
+                required String senderId,
+                required String messageType,
+                Value<String?> content = const Value.absent(),
+                Value<String?> mediaLocalPath = const Value.absent(),
+                Value<String?> mediaRemoteUrl = const Value.absent(),
+                Value<String?> thumbnailUrl = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<String?> replyToId = const Value.absent(),
+                required DateTime createdAt,
+                Value<bool> isSynced = const Value.absent(),
+                Value<bool> isDeleted = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => MessagesTableCompanion.insert(
+                id: id,
+                conversationId: conversationId,
+                senderId: senderId,
+                messageType: messageType,
+                content: content,
+                mediaLocalPath: mediaLocalPath,
+                mediaRemoteUrl: mediaRemoteUrl,
+                thumbnailUrl: thumbnailUrl,
+                status: status,
+                replyToId: replyToId,
+                createdAt: createdAt,
+                isSynced: isSynced,
+                isDeleted: isDeleted,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
 }
 
+typedef $$MessagesTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $MessagesTableTable,
+      MessageRow,
+      $$MessagesTableTableFilterComposer,
+      $$MessagesTableTableOrderingComposer,
+      $$MessagesTableTableAnnotationComposer,
+      $$MessagesTableTableCreateCompanionBuilder,
+      $$MessagesTableTableUpdateCompanionBuilder,
+      (
+        MessageRow,
+        BaseReferences<_$AppDatabase, $MessagesTableTable, MessageRow>,
+      ),
+      MessageRow,
+      PrefetchHooks Function()
+    >;
+typedef $$ConversationsTableTableCreateCompanionBuilder =
+    ConversationsTableCompanion Function({
+      required String id,
+      required String otherUserId,
+      Value<String?> lastMessageId,
+      required DateTime lastActivity,
+      Value<int> unreadCount,
+      Value<int> rowid,
+    });
+typedef $$ConversationsTableTableUpdateCompanionBuilder =
+    ConversationsTableCompanion Function({
+      Value<String> id,
+      Value<String> otherUserId,
+      Value<String?> lastMessageId,
+      Value<DateTime> lastActivity,
+      Value<int> unreadCount,
+      Value<int> rowid,
+    });
+
 class $$ConversationsTableTableFilterComposer
-    extends FilterComposer<_$AppDatabase, $ConversationsTableTable> {
-  $$ConversationsTableTableFilterComposer(super.$state);
-  ColumnFilters<String> get id => $state.composableBuilder(
-      column: $state.table.id,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+    extends Composer<_$AppDatabase, $ConversationsTableTable> {
+  $$ConversationsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get otherUserId => $state.composableBuilder(
-      column: $state.table.otherUserId,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get otherUserId => $composableBuilder(
+    column: $table.otherUserId,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get lastMessageId => $state.composableBuilder(
-      column: $state.table.lastMessageId,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get lastMessageId => $composableBuilder(
+    column: $table.lastMessageId,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<DateTime> get lastActivity => $state.composableBuilder(
-      column: $state.table.lastActivity,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<DateTime> get lastActivity => $composableBuilder(
+    column: $table.lastActivity,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<int> get unreadCount => $state.composableBuilder(
-      column: $state.table.unreadCount,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<int> get unreadCount => $composableBuilder(
+    column: $table.unreadCount,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$ConversationsTableTableOrderingComposer
-    extends OrderingComposer<_$AppDatabase, $ConversationsTableTable> {
-  $$ConversationsTableTableOrderingComposer(super.$state);
-  ColumnOrderings<String> get id => $state.composableBuilder(
-      column: $state.table.id,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+    extends Composer<_$AppDatabase, $ConversationsTableTable> {
+  $$ConversationsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get otherUserId => $state.composableBuilder(
-      column: $state.table.otherUserId,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get otherUserId => $composableBuilder(
+    column: $table.otherUserId,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get lastMessageId => $state.composableBuilder(
-      column: $state.table.lastMessageId,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get lastMessageId => $composableBuilder(
+    column: $table.lastMessageId,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<DateTime> get lastActivity => $state.composableBuilder(
-      column: $state.table.lastActivity,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<DateTime> get lastActivity => $composableBuilder(
+    column: $table.lastActivity,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<int> get unreadCount => $state.composableBuilder(
-      column: $state.table.unreadCount,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<int> get unreadCount => $composableBuilder(
+    column: $table.unreadCount,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
-typedef $$UsersTableTableCreateCompanionBuilder = UsersTableCompanion Function({
-  required String id,
-  required String name,
-  required String phone,
-  Value<String?> avatarUrl,
-  required DateTime lastSeen,
-  Value<String> presence,
-  Value<int> rowid,
-});
-typedef $$UsersTableTableUpdateCompanionBuilder = UsersTableCompanion Function({
-  Value<String> id,
-  Value<String> name,
-  Value<String> phone,
-  Value<String?> avatarUrl,
-  Value<DateTime> lastSeen,
-  Value<String> presence,
-  Value<int> rowid,
-});
+class $$ConversationsTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ConversationsTableTable> {
+  $$ConversationsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
 
-class $$UsersTableTableTableManager extends RootTableManager<
-    _$AppDatabase,
-    $UsersTableTable,
-    UserRow,
-    $$UsersTableTableFilterComposer,
-    $$UsersTableTableOrderingComposer,
-    $$UsersTableTableCreateCompanionBuilder,
-    $$UsersTableTableUpdateCompanionBuilder> {
-  $$UsersTableTableTableManager(_$AppDatabase db, $UsersTableTable table)
-      : super(TableManagerState(
+  GeneratedColumn<String> get otherUserId => $composableBuilder(
+    column: $table.otherUserId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get lastMessageId => $composableBuilder(
+    column: $table.lastMessageId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastActivity => $composableBuilder(
+    column: $table.lastActivity,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get unreadCount => $composableBuilder(
+    column: $table.unreadCount,
+    builder: (column) => column,
+  );
+}
+
+class $$ConversationsTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ConversationsTableTable,
+          ConversationRow,
+          $$ConversationsTableTableFilterComposer,
+          $$ConversationsTableTableOrderingComposer,
+          $$ConversationsTableTableAnnotationComposer,
+          $$ConversationsTableTableCreateCompanionBuilder,
+          $$ConversationsTableTableUpdateCompanionBuilder,
+          (
+            ConversationRow,
+            BaseReferences<
+              _$AppDatabase,
+              $ConversationsTableTable,
+              ConversationRow
+            >,
+          ),
+          ConversationRow,
+          PrefetchHooks Function()
+        > {
+  $$ConversationsTableTableTableManager(
+    _$AppDatabase db,
+    $ConversationsTableTable table,
+  ) : super(
+        TableManagerState(
           db: db,
           table: table,
-          filteringComposer:
-              $$UsersTableTableFilterComposer(ComposerState(db, table)),
-          orderingComposer:
-              $$UsersTableTableOrderingComposer(ComposerState(db, table)),
-          updateCompanionCallback: ({
-            Value<String> id = const Value.absent(),
-            Value<String> name = const Value.absent(),
-            Value<String> phone = const Value.absent(),
-            Value<String?> avatarUrl = const Value.absent(),
-            Value<DateTime> lastSeen = const Value.absent(),
-            Value<String> presence = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) =>
-              UsersTableCompanion(
-            id: id,
-            name: name,
-            phone: phone,
-            avatarUrl: avatarUrl,
-            lastSeen: lastSeen,
-            presence: presence,
-            rowid: rowid,
-          ),
-          createCompanionCallback: ({
-            required String id,
-            required String name,
-            required String phone,
-            Value<String?> avatarUrl = const Value.absent(),
-            required DateTime lastSeen,
-            Value<String> presence = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) =>
-              UsersTableCompanion.insert(
-            id: id,
-            name: name,
-            phone: phone,
-            avatarUrl: avatarUrl,
-            lastSeen: lastSeen,
-            presence: presence,
-            rowid: rowid,
-          ),
-        ));
+          createFilteringComposer: () =>
+              $$ConversationsTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ConversationsTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ConversationsTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> otherUserId = const Value.absent(),
+                Value<String?> lastMessageId = const Value.absent(),
+                Value<DateTime> lastActivity = const Value.absent(),
+                Value<int> unreadCount = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ConversationsTableCompanion(
+                id: id,
+                otherUserId: otherUserId,
+                lastMessageId: lastMessageId,
+                lastActivity: lastActivity,
+                unreadCount: unreadCount,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String otherUserId,
+                Value<String?> lastMessageId = const Value.absent(),
+                required DateTime lastActivity,
+                Value<int> unreadCount = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => ConversationsTableCompanion.insert(
+                id: id,
+                otherUserId: otherUserId,
+                lastMessageId: lastMessageId,
+                lastActivity: lastActivity,
+                unreadCount: unreadCount,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
 }
 
+typedef $$ConversationsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ConversationsTableTable,
+      ConversationRow,
+      $$ConversationsTableTableFilterComposer,
+      $$ConversationsTableTableOrderingComposer,
+      $$ConversationsTableTableAnnotationComposer,
+      $$ConversationsTableTableCreateCompanionBuilder,
+      $$ConversationsTableTableUpdateCompanionBuilder,
+      (
+        ConversationRow,
+        BaseReferences<
+          _$AppDatabase,
+          $ConversationsTableTable,
+          ConversationRow
+        >,
+      ),
+      ConversationRow,
+      PrefetchHooks Function()
+    >;
+typedef $$UsersTableTableCreateCompanionBuilder =
+    UsersTableCompanion Function({
+      required String id,
+      required String name,
+      required String phone,
+      Value<String?> avatarUrl,
+      required DateTime lastSeen,
+      Value<String> presence,
+      Value<int> rowid,
+    });
+typedef $$UsersTableTableUpdateCompanionBuilder =
+    UsersTableCompanion Function({
+      Value<String> id,
+      Value<String> name,
+      Value<String> phone,
+      Value<String?> avatarUrl,
+      Value<DateTime> lastSeen,
+      Value<String> presence,
+      Value<int> rowid,
+    });
+
 class $$UsersTableTableFilterComposer
-    extends FilterComposer<_$AppDatabase, $UsersTableTable> {
-  $$UsersTableTableFilterComposer(super.$state);
-  ColumnFilters<String> get id => $state.composableBuilder(
-      column: $state.table.id,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+    extends Composer<_$AppDatabase, $UsersTableTable> {
+  $$UsersTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get name => $state.composableBuilder(
-      column: $state.table.name,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get phone => $state.composableBuilder(
-      column: $state.table.phone,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get phone => $composableBuilder(
+    column: $table.phone,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get avatarUrl => $state.composableBuilder(
-      column: $state.table.avatarUrl,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get avatarUrl => $composableBuilder(
+    column: $table.avatarUrl,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<DateTime> get lastSeen => $state.composableBuilder(
-      column: $state.table.lastSeen,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<DateTime> get lastSeen => $composableBuilder(
+    column: $table.lastSeen,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get presence => $state.composableBuilder(
-      column: $state.table.presence,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get presence => $composableBuilder(
+    column: $table.presence,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$UsersTableTableOrderingComposer
-    extends OrderingComposer<_$AppDatabase, $UsersTableTable> {
-  $$UsersTableTableOrderingComposer(super.$state);
-  ColumnOrderings<String> get id => $state.composableBuilder(
-      column: $state.table.id,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+    extends Composer<_$AppDatabase, $UsersTableTable> {
+  $$UsersTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get name => $state.composableBuilder(
-      column: $state.table.name,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get phone => $state.composableBuilder(
-      column: $state.table.phone,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get phone => $composableBuilder(
+    column: $table.phone,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get avatarUrl => $state.composableBuilder(
-      column: $state.table.avatarUrl,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get avatarUrl => $composableBuilder(
+    column: $table.avatarUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<DateTime> get lastSeen => $state.composableBuilder(
-      column: $state.table.lastSeen,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<DateTime> get lastSeen => $composableBuilder(
+    column: $table.lastSeen,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get presence => $state.composableBuilder(
-      column: $state.table.presence,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get presence => $composableBuilder(
+    column: $table.presence,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
-typedef $$CallRecordsTableTableCreateCompanionBuilder
-    = CallRecordsTableCompanion Function({
-  required String id,
-  required String otherUserId,
-  required String callType,
-  required String status,
-  required DateTime startedAt,
-  Value<int?> durationSeconds,
-  Value<int> rowid,
-});
-typedef $$CallRecordsTableTableUpdateCompanionBuilder
-    = CallRecordsTableCompanion Function({
-  Value<String> id,
-  Value<String> otherUserId,
-  Value<String> callType,
-  Value<String> status,
-  Value<DateTime> startedAt,
-  Value<int?> durationSeconds,
-  Value<int> rowid,
-});
+class $$UsersTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $UsersTableTable> {
+  $$UsersTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
 
-class $$CallRecordsTableTableTableManager extends RootTableManager<
-    _$AppDatabase,
-    $CallRecordsTableTable,
-    CallRecordRow,
-    $$CallRecordsTableTableFilterComposer,
-    $$CallRecordsTableTableOrderingComposer,
-    $$CallRecordsTableTableCreateCompanionBuilder,
-    $$CallRecordsTableTableUpdateCompanionBuilder> {
-  $$CallRecordsTableTableTableManager(
-      _$AppDatabase db, $CallRecordsTableTable table)
-      : super(TableManagerState(
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get phone =>
+      $composableBuilder(column: $table.phone, builder: (column) => column);
+
+  GeneratedColumn<String> get avatarUrl =>
+      $composableBuilder(column: $table.avatarUrl, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastSeen =>
+      $composableBuilder(column: $table.lastSeen, builder: (column) => column);
+
+  GeneratedColumn<String> get presence =>
+      $composableBuilder(column: $table.presence, builder: (column) => column);
+}
+
+class $$UsersTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $UsersTableTable,
+          UserRow,
+          $$UsersTableTableFilterComposer,
+          $$UsersTableTableOrderingComposer,
+          $$UsersTableTableAnnotationComposer,
+          $$UsersTableTableCreateCompanionBuilder,
+          $$UsersTableTableUpdateCompanionBuilder,
+          (UserRow, BaseReferences<_$AppDatabase, $UsersTableTable, UserRow>),
+          UserRow,
+          PrefetchHooks Function()
+        > {
+  $$UsersTableTableTableManager(_$AppDatabase db, $UsersTableTable table)
+    : super(
+        TableManagerState(
           db: db,
           table: table,
-          filteringComposer:
-              $$CallRecordsTableTableFilterComposer(ComposerState(db, table)),
-          orderingComposer:
-              $$CallRecordsTableTableOrderingComposer(ComposerState(db, table)),
-          updateCompanionCallback: ({
-            Value<String> id = const Value.absent(),
-            Value<String> otherUserId = const Value.absent(),
-            Value<String> callType = const Value.absent(),
-            Value<String> status = const Value.absent(),
-            Value<DateTime> startedAt = const Value.absent(),
-            Value<int?> durationSeconds = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) =>
-              CallRecordsTableCompanion(
-            id: id,
-            otherUserId: otherUserId,
-            callType: callType,
-            status: status,
-            startedAt: startedAt,
-            durationSeconds: durationSeconds,
-            rowid: rowid,
-          ),
-          createCompanionCallback: ({
-            required String id,
-            required String otherUserId,
-            required String callType,
-            required String status,
-            required DateTime startedAt,
-            Value<int?> durationSeconds = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) =>
-              CallRecordsTableCompanion.insert(
-            id: id,
-            otherUserId: otherUserId,
-            callType: callType,
-            status: status,
-            startedAt: startedAt,
-            durationSeconds: durationSeconds,
-            rowid: rowid,
-          ),
-        ));
+          createFilteringComposer: () =>
+              $$UsersTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$UsersTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$UsersTableTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> phone = const Value.absent(),
+                Value<String?> avatarUrl = const Value.absent(),
+                Value<DateTime> lastSeen = const Value.absent(),
+                Value<String> presence = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => UsersTableCompanion(
+                id: id,
+                name: name,
+                phone: phone,
+                avatarUrl: avatarUrl,
+                lastSeen: lastSeen,
+                presence: presence,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String name,
+                required String phone,
+                Value<String?> avatarUrl = const Value.absent(),
+                required DateTime lastSeen,
+                Value<String> presence = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => UsersTableCompanion.insert(
+                id: id,
+                name: name,
+                phone: phone,
+                avatarUrl: avatarUrl,
+                lastSeen: lastSeen,
+                presence: presence,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
 }
 
+typedef $$UsersTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $UsersTableTable,
+      UserRow,
+      $$UsersTableTableFilterComposer,
+      $$UsersTableTableOrderingComposer,
+      $$UsersTableTableAnnotationComposer,
+      $$UsersTableTableCreateCompanionBuilder,
+      $$UsersTableTableUpdateCompanionBuilder,
+      (UserRow, BaseReferences<_$AppDatabase, $UsersTableTable, UserRow>),
+      UserRow,
+      PrefetchHooks Function()
+    >;
+typedef $$CallRecordsTableTableCreateCompanionBuilder =
+    CallRecordsTableCompanion Function({
+      required String id,
+      required String otherUserId,
+      required String callType,
+      required String status,
+      required DateTime startedAt,
+      Value<int?> durationSeconds,
+      Value<int> rowid,
+    });
+typedef $$CallRecordsTableTableUpdateCompanionBuilder =
+    CallRecordsTableCompanion Function({
+      Value<String> id,
+      Value<String> otherUserId,
+      Value<String> callType,
+      Value<String> status,
+      Value<DateTime> startedAt,
+      Value<int?> durationSeconds,
+      Value<int> rowid,
+    });
+
 class $$CallRecordsTableTableFilterComposer
-    extends FilterComposer<_$AppDatabase, $CallRecordsTableTable> {
-  $$CallRecordsTableTableFilterComposer(super.$state);
-  ColumnFilters<String> get id => $state.composableBuilder(
-      column: $state.table.id,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+    extends Composer<_$AppDatabase, $CallRecordsTableTable> {
+  $$CallRecordsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get otherUserId => $state.composableBuilder(
-      column: $state.table.otherUserId,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get otherUserId => $composableBuilder(
+    column: $table.otherUserId,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get callType => $state.composableBuilder(
-      column: $state.table.callType,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get callType => $composableBuilder(
+    column: $table.callType,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get status => $state.composableBuilder(
-      column: $state.table.status,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<DateTime> get startedAt => $state.composableBuilder(
-      column: $state.table.startedAt,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<int> get durationSeconds => $state.composableBuilder(
-      column: $state.table.durationSeconds,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$CallRecordsTableTableOrderingComposer
-    extends OrderingComposer<_$AppDatabase, $CallRecordsTableTable> {
-  $$CallRecordsTableTableOrderingComposer(super.$state);
-  ColumnOrderings<String> get id => $state.composableBuilder(
-      column: $state.table.id,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+    extends Composer<_$AppDatabase, $CallRecordsTableTable> {
+  $$CallRecordsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get otherUserId => $state.composableBuilder(
-      column: $state.table.otherUserId,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get otherUserId => $composableBuilder(
+    column: $table.otherUserId,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get callType => $state.composableBuilder(
-      column: $state.table.callType,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get callType => $composableBuilder(
+    column: $table.callType,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get status => $state.composableBuilder(
-      column: $state.table.status,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<DateTime> get startedAt => $state.composableBuilder(
-      column: $state.table.startedAt,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<DateTime> get startedAt => $composableBuilder(
+    column: $table.startedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<int> get durationSeconds => $state.composableBuilder(
-      column: $state.table.durationSeconds,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
-typedef $$PendingMediaUploadsTableTableCreateCompanionBuilder
-    = PendingMediaUploadsTableCompanion Function({
-  required String localId,
-  required String filePath,
-  required String type,
-  required String conversationId,
-  Value<int> uploadedBytes,
-  required int totalBytes,
-  Value<String> status,
-  Value<int> rowid,
-});
-typedef $$PendingMediaUploadsTableTableUpdateCompanionBuilder
-    = PendingMediaUploadsTableCompanion Function({
-  Value<String> localId,
-  Value<String> filePath,
-  Value<String> type,
-  Value<String> conversationId,
-  Value<int> uploadedBytes,
-  Value<int> totalBytes,
-  Value<String> status,
-  Value<int> rowid,
-});
+class $$CallRecordsTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CallRecordsTableTable> {
+  $$CallRecordsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
 
-class $$PendingMediaUploadsTableTableTableManager extends RootTableManager<
-    _$AppDatabase,
-    $PendingMediaUploadsTableTable,
-    PendingMediaUploadRow,
-    $$PendingMediaUploadsTableTableFilterComposer,
-    $$PendingMediaUploadsTableTableOrderingComposer,
-    $$PendingMediaUploadsTableTableCreateCompanionBuilder,
-    $$PendingMediaUploadsTableTableUpdateCompanionBuilder> {
-  $$PendingMediaUploadsTableTableTableManager(
-      _$AppDatabase db, $PendingMediaUploadsTableTable table)
-      : super(TableManagerState(
+  GeneratedColumn<String> get otherUserId => $composableBuilder(
+    column: $table.otherUserId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get callType =>
+      $composableBuilder(column: $table.callType, builder: (column) => column);
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get startedAt =>
+      $composableBuilder(column: $table.startedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => column,
+  );
+}
+
+class $$CallRecordsTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CallRecordsTableTable,
+          CallRecordRow,
+          $$CallRecordsTableTableFilterComposer,
+          $$CallRecordsTableTableOrderingComposer,
+          $$CallRecordsTableTableAnnotationComposer,
+          $$CallRecordsTableTableCreateCompanionBuilder,
+          $$CallRecordsTableTableUpdateCompanionBuilder,
+          (
+            CallRecordRow,
+            BaseReferences<
+              _$AppDatabase,
+              $CallRecordsTableTable,
+              CallRecordRow
+            >,
+          ),
+          CallRecordRow,
+          PrefetchHooks Function()
+        > {
+  $$CallRecordsTableTableTableManager(
+    _$AppDatabase db,
+    $CallRecordsTableTable table,
+  ) : super(
+        TableManagerState(
           db: db,
           table: table,
-          filteringComposer: $$PendingMediaUploadsTableTableFilterComposer(
-              ComposerState(db, table)),
-          orderingComposer: $$PendingMediaUploadsTableTableOrderingComposer(
-              ComposerState(db, table)),
-          updateCompanionCallback: ({
-            Value<String> localId = const Value.absent(),
-            Value<String> filePath = const Value.absent(),
-            Value<String> type = const Value.absent(),
-            Value<String> conversationId = const Value.absent(),
-            Value<int> uploadedBytes = const Value.absent(),
-            Value<int> totalBytes = const Value.absent(),
-            Value<String> status = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) =>
-              PendingMediaUploadsTableCompanion(
-            localId: localId,
-            filePath: filePath,
-            type: type,
-            conversationId: conversationId,
-            uploadedBytes: uploadedBytes,
-            totalBytes: totalBytes,
-            status: status,
-            rowid: rowid,
-          ),
-          createCompanionCallback: ({
-            required String localId,
-            required String filePath,
-            required String type,
-            required String conversationId,
-            Value<int> uploadedBytes = const Value.absent(),
-            required int totalBytes,
-            Value<String> status = const Value.absent(),
-            Value<int> rowid = const Value.absent(),
-          }) =>
-              PendingMediaUploadsTableCompanion.insert(
-            localId: localId,
-            filePath: filePath,
-            type: type,
-            conversationId: conversationId,
-            uploadedBytes: uploadedBytes,
-            totalBytes: totalBytes,
-            status: status,
-            rowid: rowid,
-          ),
-        ));
+          createFilteringComposer: () =>
+              $$CallRecordsTableTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CallRecordsTableTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$CallRecordsTableTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<String> otherUserId = const Value.absent(),
+                Value<String> callType = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<DateTime> startedAt = const Value.absent(),
+                Value<int?> durationSeconds = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CallRecordsTableCompanion(
+                id: id,
+                otherUserId: otherUserId,
+                callType: callType,
+                status: status,
+                startedAt: startedAt,
+                durationSeconds: durationSeconds,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required String otherUserId,
+                required String callType,
+                required String status,
+                required DateTime startedAt,
+                Value<int?> durationSeconds = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CallRecordsTableCompanion.insert(
+                id: id,
+                otherUserId: otherUserId,
+                callType: callType,
+                status: status,
+                startedAt: startedAt,
+                durationSeconds: durationSeconds,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
 }
 
+typedef $$CallRecordsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CallRecordsTableTable,
+      CallRecordRow,
+      $$CallRecordsTableTableFilterComposer,
+      $$CallRecordsTableTableOrderingComposer,
+      $$CallRecordsTableTableAnnotationComposer,
+      $$CallRecordsTableTableCreateCompanionBuilder,
+      $$CallRecordsTableTableUpdateCompanionBuilder,
+      (
+        CallRecordRow,
+        BaseReferences<_$AppDatabase, $CallRecordsTableTable, CallRecordRow>,
+      ),
+      CallRecordRow,
+      PrefetchHooks Function()
+    >;
+typedef $$PendingMediaUploadsTableTableCreateCompanionBuilder =
+    PendingMediaUploadsTableCompanion Function({
+      required String localId,
+      required String filePath,
+      required String type,
+      required String conversationId,
+      Value<int> uploadedBytes,
+      required int totalBytes,
+      Value<String> status,
+      Value<int> rowid,
+    });
+typedef $$PendingMediaUploadsTableTableUpdateCompanionBuilder =
+    PendingMediaUploadsTableCompanion Function({
+      Value<String> localId,
+      Value<String> filePath,
+      Value<String> type,
+      Value<String> conversationId,
+      Value<int> uploadedBytes,
+      Value<int> totalBytes,
+      Value<String> status,
+      Value<int> rowid,
+    });
+
 class $$PendingMediaUploadsTableTableFilterComposer
-    extends FilterComposer<_$AppDatabase, $PendingMediaUploadsTableTable> {
-  $$PendingMediaUploadsTableTableFilterComposer(super.$state);
-  ColumnFilters<String> get localId => $state.composableBuilder(
-      column: $state.table.localId,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+    extends Composer<_$AppDatabase, $PendingMediaUploadsTableTable> {
+  $$PendingMediaUploadsTableTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get localId => $composableBuilder(
+    column: $table.localId,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get filePath => $state.composableBuilder(
-      column: $state.table.filePath,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get filePath => $composableBuilder(
+    column: $table.filePath,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get type => $state.composableBuilder(
-      column: $state.table.type,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get conversationId => $state.composableBuilder(
-      column: $state.table.conversationId,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get conversationId => $composableBuilder(
+    column: $table.conversationId,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<int> get uploadedBytes => $state.composableBuilder(
-      column: $state.table.uploadedBytes,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<int> get uploadedBytes => $composableBuilder(
+    column: $table.uploadedBytes,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<int> get totalBytes => $state.composableBuilder(
-      column: $state.table.totalBytes,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<int> get totalBytes => $composableBuilder(
+    column: $table.totalBytes,
+    builder: (column) => ColumnFilters(column),
+  );
 
-  ColumnFilters<String> get status => $state.composableBuilder(
-      column: $state.table.status,
-      builder: (column, joinBuilders) =>
-          ColumnFilters(column, joinBuilders: joinBuilders));
+  ColumnFilters<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$PendingMediaUploadsTableTableOrderingComposer
-    extends OrderingComposer<_$AppDatabase, $PendingMediaUploadsTableTable> {
-  $$PendingMediaUploadsTableTableOrderingComposer(super.$state);
-  ColumnOrderings<String> get localId => $state.composableBuilder(
-      column: $state.table.localId,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+    extends Composer<_$AppDatabase, $PendingMediaUploadsTableTable> {
+  $$PendingMediaUploadsTableTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get localId => $composableBuilder(
+    column: $table.localId,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get filePath => $state.composableBuilder(
-      column: $state.table.filePath,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get filePath => $composableBuilder(
+    column: $table.filePath,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get type => $state.composableBuilder(
-      column: $state.table.type,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get type => $composableBuilder(
+    column: $table.type,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get conversationId => $state.composableBuilder(
-      column: $state.table.conversationId,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get conversationId => $composableBuilder(
+    column: $table.conversationId,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<int> get uploadedBytes => $state.composableBuilder(
-      column: $state.table.uploadedBytes,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<int> get uploadedBytes => $composableBuilder(
+    column: $table.uploadedBytes,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<int> get totalBytes => $state.composableBuilder(
-      column: $state.table.totalBytes,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<int> get totalBytes => $composableBuilder(
+    column: $table.totalBytes,
+    builder: (column) => ColumnOrderings(column),
+  );
 
-  ColumnOrderings<String> get status => $state.composableBuilder(
-      column: $state.table.status,
-      builder: (column, joinBuilders) =>
-          ColumnOrderings(column, joinBuilders: joinBuilders));
+  ColumnOrderings<String> get status => $composableBuilder(
+    column: $table.status,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
+
+class $$PendingMediaUploadsTableTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PendingMediaUploadsTableTable> {
+  $$PendingMediaUploadsTableTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get localId =>
+      $composableBuilder(column: $table.localId, builder: (column) => column);
+
+  GeneratedColumn<String> get filePath =>
+      $composableBuilder(column: $table.filePath, builder: (column) => column);
+
+  GeneratedColumn<String> get type =>
+      $composableBuilder(column: $table.type, builder: (column) => column);
+
+  GeneratedColumn<String> get conversationId => $composableBuilder(
+    column: $table.conversationId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get uploadedBytes => $composableBuilder(
+    column: $table.uploadedBytes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get totalBytes => $composableBuilder(
+    column: $table.totalBytes,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get status =>
+      $composableBuilder(column: $table.status, builder: (column) => column);
+}
+
+class $$PendingMediaUploadsTableTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PendingMediaUploadsTableTable,
+          PendingMediaUploadRow,
+          $$PendingMediaUploadsTableTableFilterComposer,
+          $$PendingMediaUploadsTableTableOrderingComposer,
+          $$PendingMediaUploadsTableTableAnnotationComposer,
+          $$PendingMediaUploadsTableTableCreateCompanionBuilder,
+          $$PendingMediaUploadsTableTableUpdateCompanionBuilder,
+          (
+            PendingMediaUploadRow,
+            BaseReferences<
+              _$AppDatabase,
+              $PendingMediaUploadsTableTable,
+              PendingMediaUploadRow
+            >,
+          ),
+          PendingMediaUploadRow,
+          PrefetchHooks Function()
+        > {
+  $$PendingMediaUploadsTableTableTableManager(
+    _$AppDatabase db,
+    $PendingMediaUploadsTableTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PendingMediaUploadsTableTableFilterComposer(
+                $db: db,
+                $table: table,
+              ),
+          createOrderingComposer: () =>
+              $$PendingMediaUploadsTableTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$PendingMediaUploadsTableTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> localId = const Value.absent(),
+                Value<String> filePath = const Value.absent(),
+                Value<String> type = const Value.absent(),
+                Value<String> conversationId = const Value.absent(),
+                Value<int> uploadedBytes = const Value.absent(),
+                Value<int> totalBytes = const Value.absent(),
+                Value<String> status = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PendingMediaUploadsTableCompanion(
+                localId: localId,
+                filePath: filePath,
+                type: type,
+                conversationId: conversationId,
+                uploadedBytes: uploadedBytes,
+                totalBytes: totalBytes,
+                status: status,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String localId,
+                required String filePath,
+                required String type,
+                required String conversationId,
+                Value<int> uploadedBytes = const Value.absent(),
+                required int totalBytes,
+                Value<String> status = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PendingMediaUploadsTableCompanion.insert(
+                localId: localId,
+                filePath: filePath,
+                type: type,
+                conversationId: conversationId,
+                uploadedBytes: uploadedBytes,
+                totalBytes: totalBytes,
+                status: status,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PendingMediaUploadsTableTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PendingMediaUploadsTableTable,
+      PendingMediaUploadRow,
+      $$PendingMediaUploadsTableTableFilterComposer,
+      $$PendingMediaUploadsTableTableOrderingComposer,
+      $$PendingMediaUploadsTableTableAnnotationComposer,
+      $$PendingMediaUploadsTableTableCreateCompanionBuilder,
+      $$PendingMediaUploadsTableTableUpdateCompanionBuilder,
+      (
+        PendingMediaUploadRow,
+        BaseReferences<
+          _$AppDatabase,
+          $PendingMediaUploadsTableTable,
+          PendingMediaUploadRow
+        >,
+      ),
+      PendingMediaUploadRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -2990,5 +3890,7 @@ class $AppDatabaseManager {
       $$CallRecordsTableTableTableManager(_db, _db.callRecordsTable);
   $$PendingMediaUploadsTableTableTableManager get pendingMediaUploadsTable =>
       $$PendingMediaUploadsTableTableTableManager(
-          _db, _db.pendingMediaUploadsTable);
+        _db,
+        _db.pendingMediaUploadsTable,
+      );
 }

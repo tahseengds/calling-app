@@ -1,6 +1,6 @@
-# ssl.conf.template — Full TLS reverse-proxy config for FamilyLink.
+# ssl.conf.template — Full TLS reverse-proxy config for Lumin.
 # Do NOT activate this file directly — it contains ${DOMAIN} placeholders.
-# Substituted by deploy/issue-cert.sh into nginx/conf.d/familyapp.conf.
+# Substituted by deploy/issue-cert.sh into nginx/conf.d/lumin.conf.
 
 upstream fastapi   { server fastapi:8000; }
 upstream signaling { server signaling:8001; }

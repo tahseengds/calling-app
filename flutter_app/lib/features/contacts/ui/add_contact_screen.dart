@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/config/app_colors.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/fl_button.dart';
 import '../../../shared/widgets/fl_text_field.dart';
+import '../../../shared/widgets/lumio_back_button.dart';
 import '../domain/contacts_notifier.dart';
 
 class AddContactScreen extends ConsumerStatefulWidget {
@@ -50,10 +52,12 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
           backgroundColor: AppColors.success,
         ),
       );
+    } on DuplicateContactException {
+      if (!mounted) return;
+      setState(() => _addError = const _Duplicate());
     } on DioException catch (e) {
       if (!mounted) return;
-      final code =
-          (e.response?.data as Map?)?['code'] as String? ?? '';
+      final code = (e.response?.data as Map?)?['code'] as String? ?? '';
       final msg = (e.response?.data as Map?)?['detail'] as String? ??
           'Could not add contact.';
       setState(() {
@@ -73,40 +77,37 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = context.lumioColors;
+    final fg1 = colors.fg1;
+    final fg2 = colors.fg2;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add family member'),
-      ),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 32),
+                LumioBackButton(onPressed: () => context.pop()),
+                const SizedBox(height: 20),
                 Text(
-                  'Enter their phone number',
+                  'Add a family member',
                   style: TextStyle(
-                    fontSize: 17,
+                    fontSize: 28,
                     fontWeight: FontWeight.w600,
-                    color: isDark ? AppColors.darkFg1 : AppColors.lightFg1,
+                    color: fg1,
+                    letterSpacing: -0.01,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Text(
-                  'They must already have a FamilyLink account.',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: isDark ? AppColors.darkFg2 : AppColors.lightFg2,
-                  ),
+                  "Enter their phone number. We'll find them on Lumio — or you can invite them by text.",
+                  style: TextStyle(fontSize: 15, color: fg2, height: 1.45),
                 ),
-                const SizedBox(height: 24),
-
-                // ── Phone ─────────────────────────────────────────────────
+                const SizedBox(height: 28),
                 FlTextField(
                   label: 'Phone number',
                   controller: _phoneCtrl,
@@ -126,29 +127,30 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                   onChanged: (_) => setState(() => _addError = null),
                 ),
                 const SizedBox(height: 16),
-
-                // ── Nickname ──────────────────────────────────────────────
                 FlTextField(
-                  label: 'Nickname (optional)',
+                  label: 'Nickname · optional',
                   controller: _nicknameCtrl,
                   hint: 'e.g. Mom, Dad, Uncle Joe',
                   textInputAction: TextInputAction.done,
                   onFieldSubmitted: (_) => _submit(),
                 ),
-
-                // ── Error messages ────────────────────────────────────────
                 if (_addError != null) ...[
                   const SizedBox(height: 16),
                   _ErrorBanner(error: _addError!),
                 ],
-
                 const SizedBox(height: 32),
                 FlButton(
-                  label: 'Add family member',
+                  label: 'Add',
                   onPressed: _isLoading ? null : _submit,
                   isLoading: _isLoading,
                 ),
-                const SizedBox(height: 24),
+                if (_addError is _NotFound) ...[
+                  const SizedBox(height: 12),
+                  FlOutlineButton(
+                    label: 'Send them an invite',
+                    onPressed: () {},
+                  ),
+                ],
               ],
             ),
           ),
@@ -157,8 +159,6 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
     );
   }
 }
-
-// ── Error types ───────────────────────────────────────────────────────────────
 
 sealed class _AddError {
   const _AddError();
@@ -177,7 +177,6 @@ final class _OtherError extends _AddError {
   const _OtherError(this.message);
 }
 
-
 class _ErrorBanner extends StatelessWidget {
   final _AddError error;
   const _ErrorBanner({required this.error});
@@ -187,8 +186,8 @@ class _ErrorBanner extends StatelessWidget {
     final (icon, title, subtitle) = switch (error) {
       _NotFound() => (
           Icons.person_search_outlined,
-          'User not found',
-          'No FamilyLink account exists for that number.',
+          'Not on Lumio yet',
+          'Send them an invite by text so they can join your family.',
         ),
       _Duplicate() => (
           Icons.people_outline,
@@ -207,9 +206,7 @@ class _ErrorBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.danger.withAlpha(20),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: AppColors.danger.withAlpha(80),
-        ),
+        border: Border.all(color: AppColors.danger.withAlpha(80)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -234,6 +231,7 @@ class _ErrorBanner extends StatelessWidget {
                   style: TextStyle(
                     color: AppColors.danger.withAlpha(200),
                     fontSize: 13,
+                    height: 1.35,
                   ),
                 ),
               ],

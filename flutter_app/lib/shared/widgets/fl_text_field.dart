@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../core/config/app_colors.dart';
+import '../../core/theme/app_colors.dart';
+import 'lumio_icons.dart';
 
-/// FamilyLink branded text field with floating label, 18 px radius, 60 px min
-/// height, optional prefix widget, and password visibility toggle.
+/// Lumio text field — floating label, 56 px min height, 16 px radius.
 class FlTextField extends StatefulWidget {
   final String label;
   final TextEditingController? controller;
   final FocusNode? focusNode;
   final bool obscureText;
-  final bool showToggle;       // show eye icon for password fields
-  final Widget? prefixWidget;  // e.g. flag + country-code prefix
+  final bool showToggle;
+  final Widget? prefixWidget;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
   final String? Function(String?)? validator;
@@ -56,8 +56,8 @@ class _FlTextFieldState extends State<FlTextField> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final fillColor =
-        isDark ? AppColors.darkSurfaceLo : AppColors.lightSurfaceLo;
+    final fillColor = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final fg3 = isDark ? AppColors.darkFg3 : AppColors.lightFg2;
 
     return TextFormField(
       controller: widget.controller,
@@ -78,10 +78,7 @@ class _FlTextFieldState extends State<FlTextField> {
       decoration: InputDecoration(
         labelText: widget.label,
         hintText: widget.hint,
-        hintStyle: TextStyle(
-          color: isDark ? AppColors.darkFg3 : AppColors.lightFg2,
-          fontSize: 15,
-        ),
+        hintStyle: TextStyle(color: fg3, fontSize: 15),
         fillColor: fillColor,
         prefixIcon: widget.prefixWidget != null
             ? Padding(
@@ -89,38 +86,43 @@ class _FlTextFieldState extends State<FlTextField> {
                 child: widget.prefixWidget,
               )
             : null,
-        prefixIconConstraints:
-            widget.prefixWidget != null
-                ? const BoxConstraints(minWidth: 0, minHeight: 0)
-                : null,
+        prefixIconConstraints: widget.prefixWidget != null
+            ? const BoxConstraints(minWidth: 0, minHeight: 0)
+            : null,
         suffixIcon: widget.showToggle
-            ? IconButton(
-                icon: Icon(
-                  _obscure
-                      ? Icons.visibility_outlined
-                      : Icons.visibility_off_outlined,
-                  color: isDark ? AppColors.darkFg3 : AppColors.lightFg2,
-                  size: 20,
+            ? Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Material(
+                  color: (isDark
+                          ? AppColors.darkSurfaceLo
+                          : AppColors.lightSurfaceLo)
+                      .withAlpha(180),
+                  shape: const CircleBorder(),
+                  child: InkWell(
+                    customBorder: const CircleBorder(),
+                    onTap: () => setState(() => _obscure = !_obscure),
+                    child: SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Icon(
+                        _obscure ? LumioIcons.eye : LumioIcons.eyeOff,
+                        size: 20,
+                        color: fg3,
+                      ),
+                    ),
+                  ),
                 ),
-                onPressed: () => setState(() => _obscure = !_obscure),
               )
             : null,
-        constraints: const BoxConstraints(minHeight: 60),
+        constraints: const BoxConstraints(minHeight: 56),
       ),
     );
   }
 }
 
-/// Phone prefix widget: flag emoji + country code, used in login/register.
+/// Phone prefix: US flag SVG + +1 + divider (lumio-screens-design.html).
 class PhonePrefix extends StatelessWidget {
-  final String flag;
-  final String dialCode;
-
-  const PhonePrefix({
-    super.key,
-    this.flag = '🇺🇸',
-    this.dialCode = '+1',
-  });
+  const PhonePrefix({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -128,10 +130,10 @@ class PhonePrefix extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(flag, style: const TextStyle(fontSize: 20)),
-        const SizedBox(width: 4),
+        const UsFlagIcon(),
+        const SizedBox(width: 8),
         Text(
-          dialCode,
+          '+1',
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w500,
@@ -139,7 +141,7 @@ class PhonePrefix extends StatelessWidget {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Container(
             width: 1,
             height: 20,

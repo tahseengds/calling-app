@@ -217,7 +217,7 @@ class AppDatabase extends _$AppDatabase {
       );
 }
 
-QueryExecutor _openConnection() => driftDatabase(name: 'familylink_db');
+QueryExecutor _openConnection() => driftDatabase(name: 'lumin_db');
 
 final appDatabaseProvider = Provider<AppDatabase>((ref) {
   final db = AppDatabase();

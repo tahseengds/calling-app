@@ -44,7 +44,7 @@ final dioProvider = Provider<Dio>((ref) {
 
     // Called when refresh itself fails — wipe local auth and send to /login.
     onAuthExpired: () {
-      // Fire-and-forget async cleanup (void Function() contract).
+      if (AppConfig.uiOnly) return;
       ref.read(authNotifierProvider.notifier).forceSignOut();
     },
   );

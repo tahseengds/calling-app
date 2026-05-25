@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/config/app_colors.dart';
+import 'package:flutter_riverpod/legacy.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/lumio_icons.dart';
 import '../../contacts/ui/contacts_screen.dart';
 import '../../profile/ui/profile_screen.dart';
+import '../../calls/presentation/screens/call_history_screen.dart';
+import '../../chats/presentation/screens/chats_home_screen.dart';
 
-/// Which bottom-nav tab is currently active.
-/// Exposed as a provider so other features (e.g. a call notification) can
-/// switch to the Calls tab with a single ref.read().
-final shellTabProvider = StateProvider<int>((_) => 2); // default: Family
+final shellTabProvider = StateProvider<int>((_) => 2);
 
 class ShellScreen extends ConsumerWidget {
   const ShellScreen({super.key});
@@ -20,8 +21,8 @@ class ShellScreen extends ConsumerWidget {
       body: IndexedStack(
         index: tabIndex,
         children: const [
-          _ComingSoon(label: 'Calls', icon: Icons.call_outlined),
-          _ComingSoon(label: 'Messages', icon: Icons.chat_bubble_outline),
+          CallHistoryScreen(),
+          ChatsHomeScreen(),
           ContactsScreen(),
           ProfileScreen(),
         ],
@@ -34,37 +35,17 @@ class ShellScreen extends ConsumerWidget {
   }
 }
 
-// ── FamilyLink custom bottom nav ─────────────────────────────────────────────
-
 const _navItems = [
-  _NavItem(label: 'Calls', icon: Icons.call_outlined, activeIcon: Icons.call),
-  _NavItem(
-    label: 'Messages',
-    icon: Icons.chat_bubble_outline,
-    activeIcon: Icons.chat_bubble,
-  ),
-  _NavItem(
-    label: 'Family',
-    icon: Icons.people_outline,
-    activeIcon: Icons.people,
-  ),
-  _NavItem(
-    label: 'Profile',
-    icon: Icons.person_outline,
-    activeIcon: Icons.person,
-  ),
+  _NavItem(label: 'Calls', icon: LumioIcons.phone),
+  _NavItem(label: 'Messages', icon: LumioIcons.message),
+  _NavItem(label: 'Contacts', icon: LumioIcons.users),
+  _NavItem(label: 'Settings', icon: LumioIcons.settings),
 ];
 
 class _NavItem {
   final String label;
   final IconData icon;
-  final IconData activeIcon;
-
-  const _NavItem({
-    required this.label,
-    required this.icon,
-    required this.activeIcon,
-  });
+  const _NavItem({required this.label, required this.icon});
 }
 
 class _FlBottomNav extends StatelessWidget {
@@ -76,29 +57,34 @@ class _FlBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+    final bg = isDark ? AppColors.darkBg : AppColors.lightBg;
     final border = isDark ? AppColors.darkHairline : AppColors.lightHairline;
 
     return Container(
-      height: 72 + MediaQuery.of(context).padding.bottom,
       decoration: BoxDecoration(
         color: bg,
-        border: Border(top: BorderSide(color: border, width: 1)),
+        border: Border(top: BorderSide(color: border)),
       ),
-      child: Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
-        child: Row(
-          children: [
-            for (int i = 0; i < _navItems.length; i++)
-              Expanded(
-                child: _NavButton(
-                  item: _navItems[i],
-                  isActive: i == currentIndex,
-                  onTap: () => onTap(i),
-                  isDark: isDark,
-                ),
-              ),
-          ],
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: 72,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            child: Row(
+              children: [
+                for (int i = 0; i < _navItems.length; i++)
+                  Expanded(
+                    child: _NavButton(
+                      item: _navItems[i],
+                      isActive: i == currentIndex,
+                      onTap: () => onTap(i),
+                      isDark: isDark,
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -127,18 +113,18 @@ class _NavButton extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Active tab gets a pill background
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             decoration: BoxDecoration(
               color: isActive ? AppColors.primaryPill : Colors.transparent,
               borderRadius: BorderRadius.circular(999),
             ),
             child: Icon(
-              isActive ? item.activeIcon : item.icon,
+              item.icon,
               color: isActive ? activeColor : inactiveColor,
               size: 22,
             ),
@@ -146,54 +132,13 @@ class _NavButton extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             item.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 12,
-              fontWeight:
-                  isActive ? FontWeight.w600 : FontWeight.normal,
+              fontSize: 11,
+              height: 1.1,
+              fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
               color: isActive ? activeColor : inactiveColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Placeholder for tabs not built yet ───────────────────────────────────────
-
-class _ComingSoon extends StatelessWidget {
-  final String label;
-  final IconData icon;
-
-  const _ComingSoon({required this.label, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            size: 56,
-            color: isDark ? AppColors.darkFg3 : AppColors.lightFg2,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: isDark ? AppColors.darkFg1 : AppColors.lightFg1,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Coming in the next build',
-            style: TextStyle(
-              fontSize: 14,
-              color: isDark ? AppColors.darkFg2 : AppColors.lightFg2,
             ),
           ),
         ],

@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/config/app_colors.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_theme.dart';
+import '../../../core/config/app_config.dart';
 import '../../../shared/widgets/fl_button.dart';
 import '../../../shared/widgets/fl_text_field.dart';
+import '../../../shared/widgets/lumio_logo.dart';
 import '../domain/auth_notifier.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -38,16 +41,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             phone: _fullPhone,
             password: _passwordCtrl.text,
           );
-      // GoRouter redirect fires automatically on AuthOtpPending state.
     } on DioException catch (e) {
       if (!mounted) return;
       final msg = (e.response?.data as Map?)?['detail'] as String? ??
           'Login failed. Please try again.';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(msg),
-          backgroundColor: AppColors.danger,
-        ),
+        SnackBar(content: Text(msg), backgroundColor: AppColors.danger),
       );
     } catch (_) {
       if (!mounted) return;
@@ -64,38 +63,38 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = context.lumioColors;
+    final fg1 = colors.fg1;
+    final fg2 = colors.fg2;
 
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
           child: Form(
             key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 64),
-                // ── Heading ───────────────────────────────────────────────
+                const LumioLogoBar(),
+                const SizedBox(height: 24),
                 Text(
                   'Welcome back',
                   style: TextStyle(
                     fontSize: 32,
                     fontWeight: FontWeight.w600,
-                    color: isDark ? AppColors.darkFg1 : AppColors.lightFg1,
+                    color: fg1,
                     height: 1.1,
+                    letterSpacing: -0.01,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
                 Text(
-                  'Sign in to stay close to family',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: isDark ? AppColors.darkFg2 : AppColors.lightFg2,
-                  ),
+                  'Sign in to stay close to family.',
+                  style: TextStyle(fontSize: 16, color: fg2, height: 1.4),
                 ),
-                const SizedBox(height: 40),
-                // ── Phone field ───────────────────────────────────────────
+                const SizedBox(height: 32),
                 FlTextField(
                   label: 'Phone number',
                   controller: _phoneCtrl,
@@ -116,7 +115,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   },
                 ),
                 const SizedBox(height: 16),
-                // ── Password field ────────────────────────────────────────
                 FlTextField(
                   label: 'Password',
                   controller: _passwordCtrl,
@@ -125,20 +123,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   textInputAction: TextInputAction.done,
                   onFieldSubmitted: (_) => _submit(),
                   validator: (v) {
-                    if ((v?.length ?? 0) < 8) {
-                      return 'Password must be at least 8 characters';
+                    if ((v?.length ?? 0) < 6) {
+                      return 'Password must be at least 6 characters';
                     }
                     return null;
                   },
                 ),
                 const SizedBox(height: 8),
-                // ── Forgot password ───────────────────────────────────────
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () {
-                      // TODO prompt 13 — forgot-password flow
-                    },
+                    onPressed: () {},
                     child: const Text(
                       'Forgot password?',
                       style: TextStyle(
@@ -150,23 +145,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                // ── Submit ────────────────────────────────────────────────
                 FlButton(
-                  label: 'Sign in',
+                  label: 'Log in',
+                  loadingLabel: 'Signing in…',
                   onPressed: _isLoading ? null : _submit,
                   isLoading: _isLoading,
                 ),
                 const SizedBox(height: 32),
-                // ── Register link ─────────────────────────────────────────
                 Center(
                   child: GestureDetector(
                     onTap: () => context.go('/register'),
                     child: RichText(
                       text: TextSpan(
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: isDark ? AppColors.darkFg2 : AppColors.lightFg2,
-                        ),
+                        style: TextStyle(fontSize: 15, color: fg2),
                         children: const [
                           TextSpan(text: 'New here? '),
                           TextSpan(
@@ -181,7 +172,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 32),
+                if (AppConfig.uiOnly) ...[
+                  const SizedBox(height: 16),
+                  Center(
+                    child: TextButton(
+                      onPressed: _isLoading
+                          ? null
+                          : () => ref
+                              .read(authNotifierProvider.notifier)
+                              .signInDemo(),
+                      child: const Text(
+                        'Explore app without signing in',
+                        style: TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

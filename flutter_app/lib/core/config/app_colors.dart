@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// FamilyLink design-system colour tokens extracted from colors_and_type.css
+/// Lumin design-system colour tokens extracted from colors_and_type.css
 /// and Atoms.jsx. Use these instead of raw hex values throughout the app.
 abstract final class AppColors {
   // ── Accent palette ──────────────────────────────────────────────────────

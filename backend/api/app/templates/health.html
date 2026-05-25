@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lumin — System Health</title>
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --card: #ffffff;
+      --text: #1a1d26;
+      --muted: #5c6370;
+      --border: #e2e6ee;
+      --ok: #0d7a4a;
+      --ok-bg: #e6f4ed;
+      --warn: #9a6700;
+      --warn-bg: #fff8e6;
+      --down: #b42318;
+      --down-bg: #fdecea;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #12141a;
+        --card: #1c1f28;
+        --text: #e8eaef;
+        --muted: #9aa3b2;
+        --border: #2d3340;
+        --ok: #3dd68c;
+        --ok-bg: #132a22;
+        --warn: #f5c451;
+        --warn-bg: #2a2410;
+        --down: #f97066;
+        --down-bg: #2a1513;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 1.5rem;
+    }
+    .wrap { max-width: 52rem; margin: 0 auto; }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    h1 { margin: 0; font-size: 1.5rem; font-weight: 700; }
+    .badge {
+      display: inline-block;
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .badge.ok { background: var(--ok-bg); color: var(--ok); }
+    .badge.degraded { background: var(--warn-bg); color: var(--warn); }
+    .badge.down { background: var(--down-bg); color: var(--down); }
+    .ts { color: var(--muted); font-size: 0.875rem; margin: 0; width: 100%; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .card h2 {
+      margin: 0 0 1rem;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    .attention {
+      background: var(--warn-bg);
+      border: 1px solid var(--warn);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      margin-bottom: 1rem;
+    }
+    .attention h2 { margin: 0 0 0.5rem; font-size: 1rem; color: var(--warn); }
+    .attention ul { margin: 0; padding-left: 1.25rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td {
+      text-align: left;
+      padding: 0.6rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    th { color: var(--muted); font-weight: 500; font-size: 0.8rem; }
+    tr:last-child td { border-bottom: none; }
+    .status-dot {
+      display: inline-block;
+      width: 0.55rem;
+      height: 0.55rem;
+      border-radius: 50%;
+      margin-right: 0.35rem;
+      vertical-align: middle;
+    }
+    .status-dot.ok { background: var(--ok); }
+    .status-dot.warn { background: var(--warn); }
+    .status-dot.error { background: var(--down); }
+    .env-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+      gap: 0.75rem;
+      font-size: 0.875rem;
+    }
+    .env-item dt { color: var(--muted); margin: 0; font-size: 0.75rem; }
+    .env-item dd { margin: 0.15rem 0 0; font-family: ui-monospace, monospace; word-break: break-all; }
+    footer {
+      margin-top: 1.5rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+    }
+    footer a { color: var(--ok); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Lumin — System Health</h1>
+      <span class="badge {{ report.status.value }}">{{ report.status.value }}</span>
+      <p class="ts">Generated {{ report.generated_at }} UTC</p>
+    </header>
+
+    {% if report.attention %}
+    <section class="attention" aria-label="Needs attention">
+      <h2>Needs attention</h2>
+      <ul>
+        {% for item in report.attention %}
+        <li>{{ item }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    <section class="card">
+      <h2>Services</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Service</th>
+            <th>Status</th>
+            <th>Latency</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for check in report.checks %}
+          <tr>
+            <td>{{ check.name }}</td>
+            <td>
+              <span class="status-dot {{ check.status.value }}"></span>
+              {{ check.status.value }}
+            </td>
+            <td>{% if check.latency_ms is not none %}{{ check.latency_ms }} ms{% else %}—{% endif %}</td>
+            <td>{{ check.message }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>Environment</h2>
+      <dl class="env-grid">
+        {% for key, value in report.environment.items() %}
+        <div class="env-item">
+          <dt>{{ key }}</dt>
+          <dd>{{ value }}</dd>
+        </div>
+        {% endfor %}
+      </dl>
+    </section>
+
+    <footer>
+      <a href="?format=full">View JSON</a> · Lightweight probe: <code>/health</code> or <code>/health?format=json</code>
+    </footer>
+  </div>
+</body>
+</html>

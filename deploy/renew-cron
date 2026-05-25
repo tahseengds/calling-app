@@ -1,8 +1,8 @@
-# /etc/cron.d/familylink-certbot
+# /etc/cron.d/lumin-certbot
 #
 # Install:
-#   sudo cp deploy/renew-cron /etc/cron.d/familylink-certbot
-#   sudo chmod 644 /etc/cron.d/familylink-certbot
+#   sudo cp deploy/renew-cron /etc/cron.d/lumin-certbot
+#   sudo chmod 644 /etc/cron.d/lumin-certbot
 #
 # certbot renew is a no-op when the cert is not within 30 days of expiry.
 # It runs deploy hooks from /etc/letsencrypt/renewal-hooks/deploy/ automatically.

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../../core/config/app_colors.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/user.dart';
 import '../../../shared/widgets/avatar.dart';
+import '../../../shared/widgets/lumio_icons.dart';
+import 'package:go_router/go_router.dart';
 import '../../auth/domain/auth_notifier.dart';
 import '../domain/profile_notifier.dart';
 
@@ -75,52 +78,17 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
     }
   }
 
-  Future<void> _editName() async {
-    final ctrl = TextEditingController(text: widget.user.name);
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit name'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(labelText: 'Display name'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-    if (result != null && result.isNotEmpty && mounted) {
-      try {
-        await ref.read(profileNotifierProvider.notifier).updateName(result);
-      } catch (_) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to update name.'),
-            backgroundColor: AppColors.danger,
-          ),
-        );
-      }
-    }
+  void _editName() {
+    context.push('/profile/edit-name');
   }
 
   Future<void> _signOut() async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Sign out?'),
+        title: const Text('Log out?'),
         content: const Text(
-            'You will need to sign in again to use FamilyLink.'),
+            'You will need to sign in again to use Lumio.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -129,7 +97,7 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text(
-              'Sign out',
+              'Log out',
               style: TextStyle(color: AppColors.danger),
             ),
           ),
@@ -148,21 +116,37 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = context.lumioColors;
     final user = widget.user;
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: CustomScrollView(
           slivers: [
             // ── App bar ──────────────────────────────────────────────────
             SliverAppBar(
-              backgroundColor:
-                  isDark ? AppColors.darkBg : AppColors.lightBg,
-              title: const Text('Profile'),
+              backgroundColor: Theme.of(context).scaffoldBackgroundColor,
               pinned: true,
               elevation: 0,
+              toolbarHeight: 64,
+              title: Text(
+                'Profile',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w600,
+                  color: colors.fg1,
+                ),
+              ),
+              actions: [
+                IconButton(
+                  icon: Icon(
+                    LumioIcons.more,
+                    color: colors.fg2,
+                  ),
+                  onPressed: () {},
+                ),
+              ],
             ),
 
             // ── Avatar + name ────────────────────────────────────────────
@@ -186,20 +170,18 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                             child: GestureDetector(
                               onTap: _pickAvatar,
                               child: Container(
-                                width: 32,
-                                height: 32,
+                                width: 34,
+                                height: 34,
                                 decoration: BoxDecoration(
                                   color: AppColors.primary,
                                   shape: BoxShape.circle,
                                   border: Border.all(
-                                    color: isDark
-                                        ? AppColors.darkBg
-                                        : AppColors.lightBg,
+                                    color: Theme.of(context).scaffoldBackgroundColor,
                                     width: 2,
                                   ),
                                 ),
                                 child: const Icon(
-                                  Icons.camera_alt,
+                                  LumioIcons.camera,
                                   size: 16,
                                   color: Colors.white,
                                 ),
@@ -220,17 +202,14 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                               style: TextStyle(
                                 fontSize: 22,
                                 fontWeight: FontWeight.bold,
-                                color: isDark
-                                    ? AppColors.darkFg1
-                                    : AppColors.lightFg1,
+                                color: colors.fg1,
                               ),
                             ),
                             const SizedBox(width: 8),
                             Icon(
-                              Icons.edit_outlined,
+                              LumioIcons.edit,
                               size: 18,
-                              color:
-                                  isDark ? AppColors.darkFg3 : AppColors.lightFg2,
+                              color: colors.fg3,
                             ),
                           ],
                         ),
@@ -240,7 +219,7 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                         user.phone,
                         style: TextStyle(
                           fontSize: 15,
-                          color: isDark ? AppColors.darkFg2 : AppColors.lightFg2,
+                          color: colors.fg2,
                         ),
                       ),
                     ],
@@ -267,31 +246,51 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                       title: 'Account',
                       tiles: [
                         _SettingsTile(
-                          icon: Icons.notifications_outlined,
-                          label: 'Notifications',
-                          onTap: () {
-                            // TODO prompt 15 — notification settings
-                          },
+                          icon: LumioIcons.edit,
+                          label: 'Edit name',
+                          onTap: _editName,
                         ),
                         _SettingsTile(
-                          icon: Icons.lock_outlined,
-                          label: 'Privacy & security',
+                          icon: LumioIcons.phone,
+                          label: 'Change number',
+                          onTap: () => context.push('/profile/change-number'),
+                        ),
+                        _SettingsTile(
+                          icon: LumioIcons.shield,
+                          label: 'Privacy',
                           onTap: () {},
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
                     _SettingsSection(
-                      title: 'Support',
+                      title: 'Notifications',
                       tiles: [
                         _SettingsTile(
-                          icon: Icons.help_outline,
-                          label: 'Help & feedback',
+                          icon: LumioIcons.bell,
+                          label: 'Notification settings',
                           onTap: () {},
                         ),
                         _SettingsTile(
-                          icon: Icons.info_outline,
-                          label: 'About FamilyLink',
+                          icon: LumioIcons.message,
+                          label: 'Message sounds',
+                          onTap: () {},
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    _SettingsSection(
+                      title: 'Help',
+                      tiles: [
+                        _SettingsTile(
+                          icon: LumioIcons.help,
+                          label: 'Help & support',
+                          onTap: () {},
+                        ),
+                        _SettingsTile(
+                          icon: LumioIcons.info,
+                          label: 'About Lumio',
+                          subtitle: 'Version 1.0.0',
                           onTap: () {},
                         ),
                       ],
@@ -300,20 +299,18 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
 
                     // ── Logout ────────────────────────────────────────────
                     Material(
-                      color: isDark
-                          ? AppColors.darkSurface
-                          : AppColors.lightSurface,
+                      color: Theme.of(context).colorScheme.surface,
                       borderRadius: BorderRadius.circular(16),
                       child: ListTile(
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
                         leading: const Icon(
-                          Icons.logout,
+                          LumioIcons.logout,
                           color: AppColors.danger,
                         ),
                         title: const Text(
-                          'Sign out',
+                          'Log out',
                           style: TextStyle(
                             color: AppColors.danger,
                             fontWeight: FontWeight.w600,
@@ -349,7 +346,7 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
 class _ReliableCallsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = context.lumioColors;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -374,7 +371,7 @@ class _ReliableCallsCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
-              Icons.battery_charging_full,
+              LumioIcons.battery,
               color: AppColors.primary,
               size: 24,
             ),
@@ -389,15 +386,15 @@ class _ReliableCallsCard extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: isDark ? AppColors.darkFg1 : AppColors.lightFg1,
+                    color: colors.fg1,
                   ),
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Disable battery optimisation so calls always connect.',
+                  'Allow background activity so Lumio can ring you for family calls.',
                   style: TextStyle(
                     fontSize: 12,
-                    color: isDark ? AppColors.darkFg2 : AppColors.lightFg2,
+                    color: colors.fg2,
                     height: 1.4,
                   ),
                 ),
@@ -414,8 +411,8 @@ class _ReliableCallsCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 12),
             ),
             child: const Text(
-              'Fix',
-              style: TextStyle(fontWeight: FontWeight.w600),
+              'Allow background activity',
+              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
             ),
           ),
         ],
@@ -434,7 +431,7 @@ class _SettingsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = context.lumioColors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -446,12 +443,12 @@ class _SettingsSection extends StatelessWidget {
               fontSize: 11,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.8,
-              color: isDark ? AppColors.darkFg3 : AppColors.lightFg2,
+              color: colors.fg3,
             ),
           ),
         ),
         Material(
-          color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
+          color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(16),
           child: Column(
             children: [
@@ -461,7 +458,7 @@ class _SettingsSection extends StatelessWidget {
                   Divider(
                     height: 1,
                     indent: 56,
-                    color: isDark ? AppColors.darkHairline : AppColors.lightHairline,
+                    color: colors.hairline,
                   ),
               ],
             ],
@@ -475,17 +472,19 @@ class _SettingsSection extends StatelessWidget {
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String? subtitle;
   final VoidCallback onTap;
 
   const _SettingsTile({
     required this.icon,
     required this.label,
+    this.subtitle,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = context.lumioColors;
     final shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(16),
     );
@@ -493,19 +492,28 @@ class _SettingsTile extends StatelessWidget {
       shape: shape,
       leading: Icon(
         icon,
-        color: isDark ? AppColors.darkFg2 : AppColors.lightFg2,
+        color: colors.fg2,
         size: 22,
       ),
       title: Text(
         label,
         style: TextStyle(
           fontSize: 15,
-          color: isDark ? AppColors.darkFg1 : AppColors.lightFg1,
+          color: colors.fg1,
         ),
       ),
+      subtitle: subtitle != null
+          ? Text(
+              subtitle!,
+              style: TextStyle(
+                fontSize: 13,
+                color: colors.fg3,
+              ),
+            )
+          : null,
       trailing: Icon(
-        Icons.chevron_right,
-        color: isDark ? AppColors.darkFg3 : AppColors.lightFg2,
+        LumioIcons.chevronRight,
+        color: colors.fg3,
         size: 20,
       ),
       onTap: onTap,

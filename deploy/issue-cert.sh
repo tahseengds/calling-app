@@ -3,14 +3,14 @@
 # deploy/issue-cert.sh — First-time TLS cert issuance and nginx SSL activation
 #
 # Usage (run as root on the VPS from the project directory):
-#   export DOMAIN=family.example.com
+#   export DOMAIN=lumin.example.com
 #   export EMAIL=admin@example.com
 #   sudo -E bash deploy/issue-cert.sh
 #
 # What it does:
 #   1. Issues a Let's Encrypt cert via certbot webroot challenge
 #   2. Substitutes ${DOMAIN} in nginx/ssl.conf.template
-#   3. Writes the resolved config to nginx/conf.d/familyapp.conf
+#   3. Writes the resolved config to nginx/conf.d/lumin.conf
 #   4. Tests and reloads nginx
 #   5. Installs a certbot deploy hook that reloads nginx on every renewal
 #
@@ -28,7 +28,7 @@ EMAIL="${EMAIL:-}"
 
 if [[ -z "$DOMAIN" ]]; then
   echo "ERROR: DOMAIN is required." >&2
-  echo "  export DOMAIN=family.example.com" >&2
+  echo "  export DOMAIN=lumin.example.com" >&2
   exit 1
 fi
 
@@ -41,9 +41,9 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 CONF_TEMPLATE="$PROJECT_ROOT/nginx/ssl.conf.template"
-CONF_DEST="$PROJECT_ROOT/nginx/conf.d/familyapp.conf"
+CONF_DEST="$PROJECT_ROOT/nginx/conf.d/lumin.conf"
 WEBROOT="/var/www/certbot"
-COMPOSE="docker compose -f $PROJECT_ROOT/docker-compose.yml"
+COMPOSE="docker compose -f $PROJECT_ROOT/docker-compose.yml -f $PROJECT_ROOT/docker-compose.prod.yml"
 
 # ── 1. Sanity checks ─────────────────────────────────────────────────────────
 
@@ -128,7 +128,7 @@ mkdir -p "$HOOK_DIR"
 cat > "$HOOK_FILE" <<EOF
 #!/usr/bin/env bash
 # Reload nginx after certbot renews the certificate (no downtime).
-docker compose -f $PROJECT_ROOT/docker-compose.yml exec -T nginx nginx -s reload
+docker compose -f $PROJECT_ROOT/docker-compose.yml -f $PROJECT_ROOT/docker-compose.prod.yml exec -T nginx nginx -s reload
 EOF
 chmod +x "$HOOK_FILE"
 
@@ -144,8 +144,8 @@ echo ""
 echo "Next steps:"
 echo ""
 echo "  1. Install the auto-renewal cron job:"
-echo "       sudo cp $SCRIPT_DIR/renew-cron /etc/cron.d/familylink-certbot"
-echo "       sudo chmod 644 /etc/cron.d/familylink-certbot"
+echo "       sudo cp $SCRIPT_DIR/renew-cron /etc/cron.d/lumin-certbot"
+echo "       sudo chmod 644 /etc/cron.d/lumin-certbot"
 echo ""
 echo "  2. (Optional) Harden TLS with Diffie-Hellman parameters:"
 echo "       sudo bash $SCRIPT_DIR/dh-and-headers.sh"

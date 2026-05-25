@@ -1,4 +1,4 @@
-package com.familylink.flutter_app
+package com.lumin.app
 
 import io.flutter.embedding.android.FlutterActivity
 

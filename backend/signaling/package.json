@@ -1,7 +1,7 @@
 {
-  "name": "familylink-signaling",
+  "name": "lumin-signaling",
   "version": "1.0.0",
-  "description": "FamilyLink WebRTC signaling server",
+  "description": "Lumin WebRTC signaling server",
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",

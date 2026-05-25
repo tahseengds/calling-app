@@ -18,6 +18,19 @@
 # =============================================================================
 set -euo pipefail
 
+DOMAIN="${RENEWED_DOMAINS%% *}"
+COTURN_CERT_DIR="/etc/coturn/ssl"
+LE_LIVE="/etc/letsencrypt/live/${DOMAIN}"
+
+if [[ -n "$DOMAIN" && -f "$LE_LIVE/fullchain.pem" && -f "$LE_LIVE/privkey.pem" ]]; then
+  install -d -m 750 -o turnserver -g turnserver "$COTURN_CERT_DIR"
+  cp -L "$LE_LIVE/fullchain.pem" "$COTURN_CERT_DIR/fullchain.pem"
+  cp -L "$LE_LIVE/privkey.pem" "$COTURN_CERT_DIR/privkey.pem"
+  chown turnserver:turnserver "$COTURN_CERT_DIR"/*.pem
+  chmod 640 "$COTURN_CERT_DIR/privkey.pem"
+  chmod 644 "$COTURN_CERT_DIR/fullchain.pem"
+fi
+
 if systemctl is-active --quiet coturn; then
   echo "Reloading Coturn to pick up renewed certificate..."
   systemctl reload coturn

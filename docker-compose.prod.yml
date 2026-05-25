@@ -1,0 +1,14 @@
+# Production overrides — bind-mount media so Nginx can serve signed URLs.
+services:
+  fastapi:
+    volumes:
+      - /var/app-media:/app/media
+      - ./firebase-service-account.json:/app/firebase-service-account.json:ro
+
+  worker:
+    volumes:
+      - ./firebase-service-account.json:/app/firebase-service-account.json:ro
+
+  nginx:
+    volumes:
+      - /var/app-media:/var/app-media:ro

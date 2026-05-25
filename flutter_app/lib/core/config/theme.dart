@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
 
 abstract final class AppTheme {
@@ -23,25 +24,25 @@ abstract final class AppTheme {
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           borderSide: BorderSide.none,
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           borderSide:
               const BorderSide(color: AppColors.primary, width: 2),
         ),
         errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           borderSide:
               const BorderSide(color: AppColors.danger, width: 1.5),
         ),
         focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(16),
           borderSide:
               const BorderSide(color: AppColors.danger, width: 2),
         ),
@@ -52,15 +53,15 @@ abstract final class AppTheme {
   // ── Pill button (56 px tall, stadium shape) ───────────────────────────────
   static final _elevatedButton = ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
-      minimumSize: const Size(double.infinity, 56),
+      minimumSize: const Size(double.infinity, 52),
       shape: const StadiumBorder(),
       backgroundColor: AppColors.primary,
       foregroundColor: Colors.white,
       disabledBackgroundColor: AppColors.primary.withAlpha(100),
       textStyle: const TextStyle(
-        fontSize: 17,
+        fontSize: 16,
         fontWeight: FontWeight.w600,
-        letterSpacing: 0.3,
+        letterSpacing: 0.2,
       ),
       elevation: 0,
     ),
@@ -75,7 +76,8 @@ abstract final class AppTheme {
       surface: AppColors.lightSurface,
     ),
     scaffoldBackgroundColor: AppColors.lightBg,
-    textTheme: _textTheme,
+    textTheme: GoogleFonts.interTextTheme(_textTheme),
+    fontFamily: GoogleFonts.inter().fontFamily,
     elevatedButtonTheme: _elevatedButton,
     inputDecorationTheme: _inputTheme(AppColors.lightSurfaceLo),
     appBarTheme: const AppBarTheme(
@@ -109,7 +111,11 @@ abstract final class AppTheme {
       surface: AppColors.darkSurface,
     ),
     scaffoldBackgroundColor: AppColors.darkBg,
-    textTheme: _textTheme,
+    textTheme: GoogleFonts.interTextTheme(_textTheme).apply(
+      bodyColor: AppColors.darkFg1,
+      displayColor: AppColors.darkFg1,
+    ),
+    fontFamily: GoogleFonts.inter().fontFamily,
     elevatedButtonTheme: _elevatedButton,
     inputDecorationTheme: _inputTheme(AppColors.darkSurfaceLo),
     appBarTheme: const AppBarTheme(

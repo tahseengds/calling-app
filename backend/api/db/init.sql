@@ -1,4 +1,4 @@
--- FamilyLink initial schema — mounted by Postgres on first boot.
+-- Lumin initial schema — mounted by Postgres on first boot.
 -- Future schema changes are managed by Alembic; this file and the
 -- initial Alembic migration are kept identical.
 
