@@ -68,7 +68,7 @@ class _TypingIndicatorState extends State<TypingIndicator>
             padding: EdgeInsets.only(right: i < _dotCount - 1 ? 4 : 0),
             child: AnimatedBuilder(
               animation: _anims[i],
-              builder: (_, __) => Transform.translate(
+              builder: (_, _) => Transform.translate(
                 offset: Offset(0, -4 * math.sin(_anims[i].value * math.pi)),
                 child: Container(
                   width: _dotSize,

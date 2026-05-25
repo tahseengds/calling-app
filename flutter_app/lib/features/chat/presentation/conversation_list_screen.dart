@@ -86,7 +86,7 @@ class ConversationListScreen extends ConsumerWidget {
                 ref.read(conversationListProvider.notifier).refresh(),
             child: ListView.separated(
               itemCount: convos.length,
-              separatorBuilder: (_, __) => Divider(
+              separatorBuilder: (_, _) => Divider(
                 height: 1,
                 indent: 72,
                 color: isDark

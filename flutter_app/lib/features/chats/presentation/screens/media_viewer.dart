@@ -144,8 +144,8 @@ class _MediaViewerState extends State<MediaViewer> {
                 ? CachedNetworkImage(
                     imageUrl: widget.url!,
                     fit: BoxFit.cover,
-                    placeholder: (_, __) => const _MediaLoadingPlaceholder(),
-                    errorWidget: (_, __, ___) =>
+                    placeholder: (_, _) => const _MediaLoadingPlaceholder(),
+                    errorWidget: (_, _, _) =>
                         CustomPaint(painter: _ImageArtPainter()),
                   )
                 : CustomPaint(painter: _ImageArtPainter()),

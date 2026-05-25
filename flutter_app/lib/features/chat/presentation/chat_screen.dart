@@ -77,7 +77,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final otherUser = chatState.otherUser;
     final presenceAsync =
         ref.watch(presenceProvider(otherUser?.id ?? widget.conversationId));
-    final isOnline = presenceAsync.valueOrNull == PresenceStatus.online;
+    final isOnline = presenceAsync.value == PresenceStatus.online;
 
     // Scroll to bottom when new message arrives.
     ref.listen(chatProvider(widget.conversationId), (prev, next) {
@@ -336,11 +336,15 @@ class _DateSeparator extends StatelessWidget {
     final local = dt.toLocal();
     if (local.year == now.year &&
         local.month == now.month &&
-        local.day == now.day) return 'Today';
+        local.day == now.day) {
+      return 'Today';
+    }
     final yesterday = now.subtract(const Duration(days: 1));
     if (local.year == yesterday.year &&
         local.month == yesterday.month &&
-        local.day == yesterday.day) return 'Yesterday';
+        local.day == yesterday.day) {
+      return 'Yesterday';
+    }
     return DateFormat.MMMd().format(local);
   }
 }

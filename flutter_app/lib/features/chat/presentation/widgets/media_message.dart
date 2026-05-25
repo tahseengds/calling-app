@@ -55,7 +55,7 @@ class _ImageMessage extends StatelessWidget {
           width: 220,
           height: 180,
           fit: BoxFit.cover,
-          placeholder: (_, __) => Container(
+          placeholder: (_, _) => Container(
             width: 220,
             height: 180,
             color: Colors.black12,
@@ -63,7 +63,7 @@ class _ImageMessage extends StatelessWidget {
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
           ),
-          errorWidget: (_, __, ___) => Container(
+          errorWidget: (_, _, _) => Container(
             width: 220,
             height: 180,
             color: Colors.black12,

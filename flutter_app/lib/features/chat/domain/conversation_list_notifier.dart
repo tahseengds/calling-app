@@ -10,7 +10,7 @@ import '../../../shared/models/message.dart';
 import '../../../shared/models/user.dart';
 
 class ConversationListNotifier
-    extends AutoDisposeNotifier<AsyncValue<List<Conversation>>> {
+    extends Notifier<AsyncValue<List<Conversation>>> {
   StreamSubscription<List<ConversationRow>>? _dbSub;
   StreamSubscription<MessageNewEvent>? _msgSub;
   StreamSubscription<PresenceEvent>? _presenceSub;
@@ -30,7 +30,7 @@ class ConversationListNotifier
   }
 
   void _startWatching() {
-    final db = ref.watch(appDatabaseProvider);
+    final db = ref.read(appDatabaseProvider);
 
     _dbSub = db.conversationsDao.watchAll().listen((rows) async {
       final convos = await _rowsToConversations(rows);
@@ -38,14 +38,14 @@ class ConversationListNotifier
     });
 
     // New incoming message — bump conversation to top.
-    final signaling = ref.watch(signalingServiceProvider);
+    final signaling = ref.read(signalingServiceProvider);
     _msgSub = signaling.onMessageNew.listen((_) {
-      ref.watch(syncServiceProvider).syncConversations();
+      ref.read(syncServiceProvider).syncConversations();
     });
 
     // Presence updates — refresh user in conversation.
     _presenceSub = signaling.onPresence.listen((event) {
-      final current = state.valueOrNull;
+      final current = state.value;
       if (current == null) return;
       state = AsyncData(current.map((c) {
         if (c.otherUser.id != event.userId) return c;
@@ -60,17 +60,17 @@ class ConversationListNotifier
     });
 
     // Initial sync from server.
-    ref.watch(syncServiceProvider).syncConversations();
+    ref.read(syncServiceProvider).syncConversations();
   }
 
   Future<void> refresh() async {
     if (AppConfig.uiOnly) return;
-    await ref.watch(syncServiceProvider).syncConversations();
+    await ref.read(syncServiceProvider).syncConversations();
   }
 
   Future<List<Conversation>> _rowsToConversations(
       List<ConversationRow> rows) async {
-    final db = ref.watch(appDatabaseProvider);
+    final db = ref.read(appDatabaseProvider);
     final result = <Conversation>[];
 
     for (final row in rows) {

@@ -60,18 +60,18 @@ final _routerProvider = Provider<GoRouter>((ref) {
       };
     },
     routes: [
-      GoRoute(path: '/splash', builder: (_, __) => const SplashScreen()),
-      GoRoute(path: '/login', builder: (_, __) => const LoginScreen()),
-      GoRoute(path: '/register', builder: (_, __) => const RegisterScreen()),
-      GoRoute(path: '/otp', builder: (_, __) => const OtpScreen()),
+      GoRoute(path: '/splash', builder: (_, _) => const SplashScreen()),
+      GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
+      GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
+      GoRoute(path: '/otp', builder: (_, _) => const OtpScreen()),
       // ── Authenticated shell ─────────────────────────────────────────────
-      GoRoute(path: '/home', builder: (_, __) => const ShellScreen()),
+      GoRoute(path: '/home', builder: (_, _) => const ShellScreen()),
       GoRoute(
           path: '/contacts/add',
-          builder: (_, __) => const AddContactScreen()),
+          builder: (_, _) => const AddContactScreen()),
       // ── Chat search (legacy mock, replaced in prompt 14) ────────────────
       GoRoute(
-          path: '/chat/search', builder: (_, __) => const SearchScreen()),
+          path: '/chat/search', builder: (_, _) => const SearchScreen()),
       // ── Chat — uses new real ChatScreen ─────────────────────────────────
       GoRoute(
         path: '/chat/:conversationId',
@@ -127,10 +127,10 @@ final _routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
           path: '/profile/change-number',
-          builder: (_, __) => const ChangeNumberScreen()),
+          builder: (_, _) => const ChangeNumberScreen()),
       GoRoute(
           path: '/profile/edit-name',
-          builder: (_, __) => const EditNameScreen()),
+          builder: (_, _) => const EditNameScreen()),
     ],
   );
 });

@@ -48,11 +48,13 @@ class _VoiceNotePlayerState extends State<VoiceNotePlayer> {
       await _player.startPlayer(
         fromURI: widget.url,
         whenFinished: () {
-          if (mounted) setState(() {
-            _isPlaying = false;
-            _progress = 0;
-            _elapsed = 0;
-          });
+          if (mounted) {
+            setState(() {
+              _isPlaying = false;
+              _progress = 0;
+              _elapsed = 0;
+            });
+          }
         },
       );
       _player.onProgress!.listen((e) {

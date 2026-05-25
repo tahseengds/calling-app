@@ -56,7 +56,7 @@ class _ChatInputBarState extends State<ChatInputBar> {
   }
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles();
+    final result = await FilePicker.pickFiles();
     if (result == null || result.files.single.path == null) return;
     widget.onSendMedia(File(result.files.single.path!), MessageType.file);
   }

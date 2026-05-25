@@ -98,7 +98,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
       minScale: PhotoViewComputedScale.contained,
       maxScale: PhotoViewComputedScale.covered * 4,
       backgroundDecoration: const BoxDecoration(color: Colors.black),
-      loadingBuilder: (_, __) => const Center(
+      loadingBuilder: (_, _) => const Center(
         child: CircularProgressIndicator(
           color: Colors.white54,
           strokeWidth: 2,

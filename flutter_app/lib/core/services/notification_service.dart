@@ -1,6 +1,5 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/material.dart';
 
 // Channel IDs referenced by the native manifest and prompt 15 call service.
 const kChannelMessages = 'messages';
@@ -62,10 +61,10 @@ class NotificationService {
       styleInformation: BigTextStyleInformation(''),
     );
     await _plugin.show(
-      id.hashCode,
-      senderName,
-      preview,
-      const NotificationDetails(android: androidDetails),
+      id: id.hashCode,
+      title: senderName,
+      body: preview,
+      notificationDetails: const NotificationDetails(android: androidDetails),
       payload: conversationId,
     );
   }

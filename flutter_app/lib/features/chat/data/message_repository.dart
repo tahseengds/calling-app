@@ -25,9 +25,9 @@ class MessageRepository {
         'id': clientId,
         'conversation_id': conversationId,
         'type': type.name,
-        if (content != null) 'content': content,
-        if (mediaId != null) 'media_id': mediaId,
-        if (replyToId != null) 'reply_to_id': replyToId,
+        'content': ?content,
+        'media_id': ?mediaId,
+        'reply_to_id': ?replyToId,
       },
     );
     return Message.fromJson(resp.data!);
@@ -44,7 +44,7 @@ class MessageRepository {
       '/api/conversations/$conversationId/messages',
       queryParameters: {
         'limit': limit,
-        if (cursor != null) 'cursor': cursor,
+        'cursor': ?cursor,
       },
     );
     final items = (resp.data?['items'] as List<dynamic>?) ?? [];

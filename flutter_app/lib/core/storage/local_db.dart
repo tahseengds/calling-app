@@ -210,7 +210,7 @@ class AppDatabase extends _$AppDatabase {
   /// import 'package:drift/native.dart';
   /// final db = AppDatabase.forTesting(NativeDatabase.memory());
   /// ```
-  AppDatabase.forTesting(QueryExecutor e) : super(e);
+  AppDatabase.forTesting(super.e);
 
   @override
   int get schemaVersion => 1;

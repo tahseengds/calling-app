@@ -55,8 +55,9 @@ class ChatState {
 
 // ── ChatNotifier ──────────────────────────────────────────────────────────────
 
-class ChatNotifier extends FamilyNotifier<ChatState, String> {
-  String get _conversationId => arg;
+class ChatNotifier extends Notifier<ChatState> {
+  ChatNotifier(this._conversationId);
+  final String _conversationId;
 
   StreamSubscription<List<Message>>? _dbSub;
   StreamSubscription<MessageNewEvent>? _msgNewSub;
@@ -67,7 +68,7 @@ class ChatNotifier extends FamilyNotifier<ChatState, String> {
   bool _isTyping = false;
 
   @override
-  ChatState build(String conversationId) {
+  ChatState build() {
     ref.onDispose(() {
       _dbSub?.cancel();
       _msgNewSub?.cancel();
@@ -384,4 +385,4 @@ class ChatNotifier extends FamilyNotifier<ChatState, String> {
 }
 
 final chatProvider =
-    NotifierProviderFamily<ChatNotifier, ChatState, String>(ChatNotifier.new);
+    NotifierProvider.family<ChatNotifier, ChatState, String>(ChatNotifier.new);

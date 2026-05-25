@@ -7,7 +7,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -41,24 +40,12 @@ class _T {
   static const Color replyPreviewBg     = Color(0x24FFFFFF); // 14 % white
   static const Color replyPreviewBorder = Colors.white;
 
-  // Date-separator
-  static const Color separatorFg = Color(0xFF9AA3B8); // dark-mode value;
-                                                        // light overridden via theme
-
   // Typing-dot size
   static const double dotSize = 7.0;
 
   // Bubble corner radii
   static const double bigR  = 20.0;
   static const double tailR =  5.0; // the "tail" corner
-
-  // Input-bar geometry (see _ChatInputBar for explanation)
-  static const double pillRadius  = 24.0;
-  static const double sendBtnSize = 48.0;
-  static const double pillVPad    =  6.0;
-  static const double pillHPad    = 14.0;
-  static const double iconBtnSize = 36.0;
-  static const double iconSize    = 20.0;
 }
 
 // ─── ChatRichScreen ───────────────────────────────────────────────────────────
@@ -244,7 +231,6 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
             onPressed: _cancelReply,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
-            splashRadius: 20,
           ),
         ],
       ),
@@ -620,7 +606,9 @@ class _TypingIndicatorState extends State<_TypingIndicator>
 
   @override
   void dispose() {
-    for (final c in _ctrls) c.dispose();
+    for (final c in _ctrls) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -649,7 +637,7 @@ class _TypingIndicatorState extends State<_TypingIndicator>
           children: List.generate(3, (i) {
             return AnimatedBuilder(
               animation: _anims[i],
-              builder: (_, __) => Transform.translate(
+              builder: (_, _) => Transform.translate(
                 offset: Offset(0, _anims[i].value),
                 child: Container(
                   width:  _T.dotSize,
@@ -1042,7 +1030,7 @@ class _AudioMessageContentState extends State<_AudioMessageContent>
             builder: (context, child) {
               return LinearProgressIndicator(
                 value: _ctrl.value,
-                backgroundColor: fg.withOpacity(0.2),
+                backgroundColor: fg.withValues(alpha: 0.2),
                 valueColor: AlwaysStoppedAnimation<Color>(fg),
                 borderRadius: BorderRadius.circular(2),
                 minHeight: 4,
@@ -1147,7 +1135,7 @@ class _ReplyPreview extends StatelessWidget {
           Text(
             senderName,
             style: AppTextStyles.caption(
-              color: mine ? Colors.white.withOpacity(0.9) : _T.primary,
+              color: mine ? Colors.white.withValues(alpha: 0.9) : _T.primary,
             ).copyWith(fontWeight: FontWeight.w600, fontSize: 12),
           ),
           const SizedBox(height: 2),
@@ -1156,7 +1144,7 @@ class _ReplyPreview extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: AppTextStyles.caption(
-              color: mine ? Colors.white.withOpacity(0.8) : colors.fg2,
+              color: mine ? Colors.white.withValues(alpha: 0.8) : colors.fg2,
             ).copyWith(fontSize: 13),
           ),
         ],
@@ -1248,13 +1236,13 @@ class _MessageStatusIcon extends StatelessWidget {
           height: 12,
           child: CircularProgressIndicator(
             strokeWidth: 1.4,
-            color:       defaultColor.withOpacity(0.55),
+            color:       defaultColor.withValues(alpha: 0.55),
           ),
         ),
       // Sent — single tick
-      MessageStatus.sent => _SingleTick(color: defaultColor.withOpacity(0.55)),
+      MessageStatus.sent => _SingleTick(color: defaultColor.withValues(alpha: 0.55)),
       // Delivered — double tick, dimmed
-      MessageStatus.delivered => _DoubleTick(color: defaultColor.withOpacity(0.55)),
+      MessageStatus.delivered => _DoubleTick(color: defaultColor.withValues(alpha: 0.55)),
       // Read — double tick, accent blue
       MessageStatus.read => const _DoubleTick(color: _T.readTick),
       // Failed — warning triangle (HTML: triangle with ! inside)
@@ -1505,8 +1493,6 @@ class _ChatInputBarState extends State<_ChatInputBar>
   }
 
   // ── Constants (documented in class-level comment above) ────────────────────
-  static const double _kPillVPad   =  6.0;
-  static const double _kPillHPad   = 14.0;
   static const double _kIconBtn    = 36.0;
   static const double _kIconSz     = 20.0;
   static const double _kSendBtn    = 48.0;
@@ -1564,7 +1550,7 @@ class _ChatInputBarState extends State<_ChatInputBar>
       clipBehavior: Clip.antiAlias,
       child: Container(
         decoration: BoxDecoration(
-          border: Border(top: BorderSide(color: Colors.white.withOpacity(0.04))),
+          border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.04))),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
@@ -1637,7 +1623,7 @@ class _ChatInputBarState extends State<_ChatInputBar>
         color:           _T.primary,
         shape:           const CircleBorder(),
         clipBehavior:    Clip.antiAlias,
-        shadowColor:     _T.primary.withOpacity(0.32),
+        shadowColor:     _T.primary.withValues(alpha: 0.32),
         elevation:       6,
         child: SizedBox(
           width:  _kSendBtn,
@@ -1666,7 +1652,7 @@ class _ChatInputBarState extends State<_ChatInputBar>
     final fgColor = isDark ? const Color(0xFFF2F4F8) : const Color(0xFF1A2235); // fg1
     final hintColor = isDark ? const Color(0xFF9AA3B8) : const Color(0xFF6B7488); // fg2
     
-    return Container(
+    return SizedBox(
       key: const ValueKey('recording'),
       height: _kRecBtn,
       child: Stack(
@@ -1686,7 +1672,7 @@ class _ChatInputBarState extends State<_ChatInputBar>
                 borderRadius: BorderRadius.circular(28),
                 border: Border.all(color: c.hairline),
                 boxShadow: [
-                  BoxShadow(color: isDark ? Colors.white.withOpacity(0.04) : const Color(0x051A2235), offset: const Offset(0, 1)),
+                  BoxShadow(color: isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0x051A2235), offset: const Offset(0, 1)),
                 ],
               ),
               child: _isCancelling ? _buildCancelContent(c) : _buildRecordingContent(c, fgColor, hintColor),
@@ -1714,11 +1700,11 @@ class _ChatInputBarState extends State<_ChatInputBar>
                     border: Border.all(color: t.scaffoldBackgroundColor, width: 4),
                     boxShadow: [
                       BoxShadow(
-                        color: _isCancelling ? AppColors.danger.withOpacity(0.22) : _T.primary.withOpacity(0.22),
+                        color: _isCancelling ? AppColors.danger.withValues(alpha: 0.22) : _T.primary.withValues(alpha: 0.22),
                         spreadRadius: 6,
                       ),
                       BoxShadow(
-                        color: _isCancelling ? AppColors.danger.withOpacity(0.42) : _T.primary.withOpacity(0.38),
+                        color: _isCancelling ? AppColors.danger.withValues(alpha: 0.42) : _T.primary.withValues(alpha: 0.38),
                         blurRadius: 24,
                         offset: const Offset(0, 12),
                       ),
@@ -1799,7 +1785,7 @@ class _ChatInputBarState extends State<_ChatInputBar>
                 height: 44,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppColors.danger.withOpacity(0.22),
+                  color: AppColors.danger.withValues(alpha: 0.22),
                   border: Border.all(color: AppColors.danger, width: 2),
                 ),
                 child: const Center(
@@ -1949,47 +1935,6 @@ class _CancelButton extends StatelessWidget {
   }
 }
 
-// ─── Reaction bar ─────────────────────────────────────────────────────────────
-
-class _ReactionButton extends StatelessWidget {
-  const _ReactionButton({required this.emoji, required this.onTap});
-  final String       emoji;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: SizedBox(
-        width: 44, height: 44,
-        child: Center(child: Text(emoji, style: const TextStyle(fontSize: 24))),
-      ),
-    );
-  }
-}
-
-class _ReactionAddButton extends StatelessWidget {
-  const _ReactionAddButton({required this.colors, required this.onTap});
-  final LumioColors  colors;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 44, height: 44,
-        decoration: BoxDecoration(
-          color:  colors.surfaceLo,
-          shape:  BoxShape.circle,
-          border: Border.all(color: colors.hairline),
-        ),
-        child: Icon(Icons.add, size: 20, color: colors.fg2),
-      ),
-    );
-  }
-}
-
 // ─── Attachment sheet item ────────────────────────────────────────────────────
 
 class _AttachListItem extends StatelessWidget {
@@ -2026,7 +1971,7 @@ class _AttachListItem extends StatelessWidget {
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.133),
+                color: color.withValues(alpha: 0.133),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Center(

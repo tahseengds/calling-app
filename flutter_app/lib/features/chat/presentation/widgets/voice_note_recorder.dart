@@ -112,7 +112,7 @@ class _VoiceNoteRecorderState extends State<VoiceNoteRecorder>
   Widget _buildRecordingBar() {
     return AnimatedBuilder(
       animation: _pulseCtrl,
-      builder: (_, __) => Container(
+      builder: (_, _) => Container(
         height: 44,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         decoration: BoxDecoration(
