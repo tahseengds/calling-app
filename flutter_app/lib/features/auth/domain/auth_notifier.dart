@@ -1,6 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import '../../../core/auth/auth_token.dart';
+import '../../../core/config/app_config.dart';
+import '../../../core/mock/mock_data.dart';
 import '../../../core/storage/secure_storage.dart';
+import '../../../shared/models/user.dart';
 import '../data/auth_repository.dart';
 import 'auth_state.dart';
 
@@ -10,13 +14,30 @@ class AuthNotifier extends StateNotifier<AuthState> {
   final Ref _ref;
 
   AuthNotifier(this._repo, this._secure, this._ref)
-      : super(const AuthUnknown()) {
-    _tryRestoreSession();
+      : super(
+          AppConfig.uiOnly
+              ? AuthAuthenticated(me: MockData.currentUser)
+              : const AuthUnknown(),
+        ) {
+    if (AppConfig.uiOnly) {
+      // Defer — Riverpod forbids modifying another provider during init.
+      Future.microtask(
+        () => _ref.read(authTokenProvider.notifier).set('ui-only-token'),
+      );
+    } else {
+      _tryRestoreSession();
+    }
   }
 
   // ── Session restore ───────────────────────────────────────────────────────
 
   Future<void> _tryRestoreSession() async {
+    if (AppConfig.uiOnly) {
+      _ref.read(authTokenProvider.notifier).set('ui-only-token');
+      state = AuthAuthenticated(me: MockData.currentUser);
+      return;
+    }
+
     final savedRefresh = await _secure.readRefreshToken();
     if (savedRefresh == null) {
       state = const AuthUnauthenticated();
@@ -43,10 +64,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   /// Validates credentials and requests an OTP. Throws on failure so the
   /// screen can display a Snackbar without changing global auth state.
+  /// Skips login/API and opens the main shell (UI-only mode).
+  Future<void> signInDemo() async {
+    _ref.read(authTokenProvider.notifier).set('ui-only-token');
+    state = AuthAuthenticated(me: MockData.currentUser);
+  }
+
   Future<void> requestLoginOtp({
     required String phone,
     required String password,
   }) async {
+    if (AppConfig.uiOnly) {
+      await signInDemo();
+      return;
+    }
     final result = await _repo.requestLoginOtp(
       phone: phone,
       password: password,
@@ -61,6 +92,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String phone,
     required String password,
   }) async {
+    if (AppConfig.uiOnly) {
+      _ref.read(authTokenProvider.notifier).set('ui-only-token');
+      state = AuthAuthenticated(
+        me: User(
+          id: MockData.currentUser.id,
+          name: name,
+          phone: phone,
+          lastSeen: DateTime.now(),
+          presence: PresenceStatus.online,
+        ),
+      );
+      return;
+    }
     final result = await _repo.register(
       name: name,
       phone: phone,
@@ -77,6 +121,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   /// Throws on wrong code so the OTP screen can shake the boxes.
   Future<void> verifyOtp({required String code}) async {
+    if (AppConfig.uiOnly) {
+      await signInDemo();
+      return;
+    }
     final pending = state as AuthOtpPending;
     final deviceId = await _secure.readDeviceId();
     final result = await _repo.verifyOtp(
@@ -92,6 +140,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
   // ── Sign out ──────────────────────────────────────────────────────────────
 
   Future<void> signOut() async {
+    if (AppConfig.uiOnly) {
+      _ref.read(authTokenProvider.notifier).clear();
+      state = const AuthUnauthenticated();
+      return;
+    }
     final token = _ref.read(authTokenProvider);
     if (token != null) {
       try {
@@ -109,6 +162,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// Called by the Dio interceptor when a token refresh fails mid-flight.
   /// Does NOT await async cleanup — it's fire-and-forget by design.
   void forceSignOut() {
+    if (AppConfig.uiOnly) return;
     _ref.read(authTokenProvider.notifier).clear();
     state = const AuthUnauthenticated();
     // Delete the stale refresh token in the background.
@@ -119,10 +173,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   /// Updates the cached User inside the Authenticated state, e.g. after name
   /// or avatar changes from ProfileScreen.
-  void updateCachedUser(dynamic user) {
+  void updateCachedUser(User user) {
     final current = state;
     if (current is AuthAuthenticated) {
-      state = AuthAuthenticated(me: user as dynamic);
+      state = AuthAuthenticated(me: user);
     }
   }
 }

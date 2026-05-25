@@ -4,7 +4,7 @@ import 'package:uuid/uuid.dart';
 
 class SecureStorageService {
   static const _storage = FlutterSecureStorage(
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
+    aOptions: AndroidOptions(),
   );
   static const _keyRefreshToken = 'refresh_token';
   static const _keyDeviceId = 'device_id';

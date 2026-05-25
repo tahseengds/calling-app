@@ -4,12 +4,12 @@
 #
 # Usage:
 #   export VPS_PUBLIC_IP=1.2.3.4
-#   export DOMAIN=family.example.com
+#   export DOMAIN=lumin.example.com
 #   export TURN_SECRET=your-secret-here
 #   sudo -E bash coturn/install.sh
 #
 # Or pass variables as arguments:
-#   sudo bash coturn/install.sh 1.2.3.4 family.example.com your-secret
+#   sudo bash coturn/install.sh 1.2.3.4 lumin.example.com your-secret
 #
 # Safe to re-run — each step is checked before executing.
 # Run AFTER certbot has issued the certificate (see verify.md); Coturn starts
@@ -89,6 +89,24 @@ if grep -qE '\$\{(VPS_PUBLIC_IP|DOMAIN|TURN_SECRET)\}' "$COTURN_CONF"; then
   echo "ERROR: Unresolved placeholders in $COTURN_CONF" >&2
   grep -E '\$\{' "$COTURN_CONF" >&2
   exit 1
+fi
+
+# Coturn runs as turnserver — it cannot read Let's Encrypt live/ symlinks (root-only).
+# Copy certs to a directory owned by turnserver when they exist.
+COTURN_CERT_DIR="/etc/coturn/ssl"
+LE_LIVE="/etc/letsencrypt/live/$DOMAIN"
+if [[ -f "$LE_LIVE/fullchain.pem" && -f "$LE_LIVE/privkey.pem" ]]; then
+  echo "==> Installing TLS certs for Coturn in $COTURN_CERT_DIR..."
+  install -d -m 750 -o turnserver -g turnserver "$COTURN_CERT_DIR"
+  cp -L "$LE_LIVE/fullchain.pem" "$COTURN_CERT_DIR/fullchain.pem"
+  cp -L "$LE_LIVE/privkey.pem" "$COTURN_CERT_DIR/privkey.pem"
+  chown turnserver:turnserver "$COTURN_CERT_DIR"/*.pem
+  chmod 640 "$COTURN_CERT_DIR/privkey.pem"
+  chmod 644 "$COTURN_CERT_DIR/fullchain.pem"
+  sed -i "s|^cert=.*|cert=$COTURN_CERT_DIR/fullchain.pem|" "$COTURN_CONF"
+  sed -i "s|^pkey=.*|pkey=$COTURN_CERT_DIR/privkey.pem|" "$COTURN_CONF"
+else
+  echo "==> No Let's Encrypt cert at $LE_LIVE — TURNS (5349) will stay down until certs exist."
 fi
 
 echo "==> Enabling and restarting Coturn..."

@@ -1,12 +1,12 @@
-// IMPORTANT: Add your google-services.json from the Firebase console to
-// android/app/google-services.json before building. A placeholder file exists
-// at that path — replace it with the real file to enable Firebase.
+// Replace android/app/google-services.json with the file from Firebase Console
+// when enabling push notifications (FCM). A placeholder is committed for builds.
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
+import 'core/config/app_config.dart';
 import 'core/services/notification_service.dart';
 
 // Must be a top-level function — background isolates cannot capture closures.
@@ -22,24 +22,26 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp();
-
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-  // Android 13+ requires runtime notification permission.
-  await FirebaseMessaging.instance.requestPermission(
-    alert: true,
-    badge: true,
-    sound: true,
-  );
+  if (!AppConfig.uiOnly) {
+    await Firebase.initializeApp();
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  }
 
   final container = ProviderContainer();
   await container.read(notificationServiceProvider).init();
 
+  if (!AppConfig.uiOnly) {
+    await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+  }
+
   runApp(
     UncontrolledProviderScope(
       container: container,
-      child: const FamilyLinkApp(),
+      child: const LuminApp(),
     ),
   );
 }

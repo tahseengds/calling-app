@@ -19,7 +19,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-CONF_FILE="$PROJECT_ROOT/nginx/conf.d/familyapp.conf"
+CONF_FILE="$PROJECT_ROOT/nginx/conf.d/lumin.conf"
 COMPOSE="docker compose -f $PROJECT_ROOT/docker-compose.yml"
 
 # ── Check prerequisites ───────────────────────────────────────────────────────

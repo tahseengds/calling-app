@@ -42,7 +42,7 @@ curl http://$DOMAIN/health
 ## 2. Issue TLS certificate
 
 ```bash
-export DOMAIN=family.example.com
+export DOMAIN=lumin.example.com
 export EMAIL=admin@example.com
 sudo -E bash deploy/issue-cert.sh
 ```
@@ -66,7 +66,7 @@ curl -I https://$DOMAIN/health
 openssl s_client -connect $DOMAIN:443 -servername $DOMAIN < /dev/null 2>&1 \
   | grep -E 'subject|issuer|Verify|Protocol|Cipher'
 # Expected:
-#   subject=/CN=family.example.com
+#   subject=/CN=lumin.example.com
 #   issuer=Let's Encrypt
 #   Verify return code: 0 (ok)
 #   Protocol: TLSv1.3 (or TLSv1.2)
@@ -134,8 +134,8 @@ curl -s https://$DOMAIN/signal/health
 ### Install cron and test
 
 ```bash
-sudo cp deploy/renew-cron /etc/cron.d/familylink-certbot
-sudo chmod 644 /etc/cron.d/familylink-certbot
+sudo cp deploy/renew-cron /etc/cron.d/lumin-certbot
+sudo chmod 644 /etc/cron.d/lumin-certbot
 
 # Simulate a renewal (no actual renewal if cert is fresh)
 sudo certbot renew --dry-run

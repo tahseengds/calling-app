@@ -1,4 +1,4 @@
-# FamilyLink
+# Lumin
 
 A private family communication app — messaging, voice calls, and video calls.
 
@@ -35,4 +35,4 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml up
 
 ## Domain
 
-Replace `family.example.com` with your real domain everywhere marked `# TODO: replace domain`.
+Replace `lumin.example.com` with your real domain everywhere marked `# TODO: replace domain`.

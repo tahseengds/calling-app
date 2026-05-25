@@ -2,6 +2,23 @@ enum MessageType { text, image, video, audio, file }
 
 enum MessageStatus { sending, sent, delivered, read, failed }
 
+class ReplyPreview {
+  final String senderName;
+  final String text;
+
+  const ReplyPreview({required this.senderName, required this.text});
+
+  factory ReplyPreview.fromJson(Map<String, dynamic> json) => ReplyPreview(
+        senderName: json['sender_name'] as String,
+        text: json['text'] as String,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'sender_name': senderName,
+        'text': text,
+      };
+}
+
 class MediaAttachment {
   final String url;
   final String? thumbnailUrl;
@@ -53,6 +70,7 @@ class Message {
   final MessageStatus status;
   final DateTime createdAt;
   final String? replyToId;
+  final ReplyPreview? replyTo;
   final bool isDeleted;
 
   const Message({
@@ -65,6 +83,7 @@ class Message {
     this.status = MessageStatus.sent,
     required this.createdAt,
     this.replyToId,
+    this.replyTo,
     this.isDeleted = false,
   });
 
@@ -87,6 +106,9 @@ class Message {
         ),
         createdAt: DateTime.parse(json['created_at'] as String),
         replyToId: json['reply_to_id'] as String?,
+        replyTo: json['reply_to'] != null
+            ? ReplyPreview.fromJson(json['reply_to'] as Map<String, dynamic>)
+            : null,
         isDeleted: json['is_deleted'] as bool? ?? false,
       );
 
@@ -100,10 +122,11 @@ class Message {
         'status': status.name,
         'created_at': createdAt.toUtc().toIso8601String(),
         if (replyToId != null) 'reply_to_id': replyToId,
+        if (replyTo != null) 'reply_to': replyTo!.toJson(),
         'is_deleted': isDeleted,
       };
 
-  Message copyWith({MessageStatus? status}) => Message(
+  Message copyWith({MessageStatus? status, ReplyPreview? replyTo}) => Message(
         id: id,
         conversationId: conversationId,
         senderId: senderId,
@@ -113,6 +136,7 @@ class Message {
         status: status ?? this.status,
         createdAt: createdAt,
         replyToId: replyToId,
+        replyTo: replyTo ?? this.replyTo,
         isDeleted: isDeleted,
       );
 }

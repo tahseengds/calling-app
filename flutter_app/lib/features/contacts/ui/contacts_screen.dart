@@ -1,10 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/config/app_colors.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/user.dart';
 import '../../../shared/widgets/avatar.dart';
+import '../../../shared/widgets/fl_button.dart';
+import '../../../shared/widgets/lumio_icons.dart';
 import '../domain/contacts_notifier.dart';
+
+String _formatPhoneDisplay(String phone) {
+  final digits = phone.replaceAll(RegExp(r'\D'), '');
+  if (digits.length == 11 && digits.startsWith('1')) {
+    final d = digits.substring(1);
+    return '+1 (${d.substring(0, 3)}) ${d.substring(3, 6)} · ${d.substring(6)}';
+  }
+  return phone;
+}
 
 class ContactsScreen extends ConsumerStatefulWidget {
   const ContactsScreen({super.key});
@@ -36,118 +48,120 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(contactsNotifierProvider);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = context.lumioColors;
+    final theme = Theme.of(context);
     final filtered = _filtered(state.contacts);
 
     return Scaffold(
-      backgroundColor:
-          isDark ? AppColors.darkBg : AppColors.lightBg,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
+        child: Column(
+          children: [
             // ── Header ───────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-                child: Row(
-                  children: [
-                    Text(
-                      'Family',
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
-                        color: isDark ? AppColors.darkFg1 : AppColors.lightFg1,
-                      ),
+            Container(
+              height: 64,
+              padding: const EdgeInsets.only(left: 20, right: 8),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Family',
+                    style: TextStyle(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: -0.01,
+                      color: colors.fg1,
                     ),
-                    const Spacer(),
-                    IconButton(
-                      onPressed: () => context.push('/contacts/add'),
-                      icon: const Icon(Icons.person_add_outlined),
-                      color: AppColors.primary,
-                      tooltip: 'Add family member',
-                    ),
-                  ],
-                ),
+                  ),
+                  IconButton(
+                    onPressed: () => context.push('/contacts/add'),
+                    icon: Icon(LumioIcons.add, color: colors.fg1),
+                    tooltip: 'Add family member',
+                  ),
+                ],
               ),
             ),
 
             // ── Search bar ───────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                child: _PillSearchBar(
-                  controller: _searchCtrl,
-                  onChanged: (v) => setState(() => _query = v),
-                ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: _PillSearchBar(
+                controller: _searchCtrl,
+                onChanged: (v) => setState(() => _query = v),
               ),
             ),
 
-            // ── Loading ──────────────────────────────────────────────────
-            if (state.isLoading && state.contacts.isEmpty)
-              const SliverFillRemaining(
-                child: Center(
-                  child: CircularProgressIndicator(
-                    color: AppColors.primary,
-                  ),
-                ),
-              )
-
-            // ── Error ────────────────────────────────────────────────────
-            else if (state.error != null && state.contacts.isEmpty)
-              SliverFillRemaining(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.wifi_off_outlined,
-                          size: 48,
-                          color: isDark ? AppColors.darkFg3 : AppColors.lightFg2),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Could not load contacts',
-                        style: TextStyle(
-                          color:
-                              isDark ? AppColors.darkFg2 : AppColors.lightFg2,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextButton(
-                        onPressed: () =>
-                            ref.read(contactsNotifierProvider.notifier).load(),
-                        child: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                ),
-              )
-
-            // ── Empty state ──────────────────────────────────────────────
-            else if (filtered.isEmpty && !state.isLoading)
-              SliverFillRemaining(
-                child: _EmptyState(
-                  isSearching: _query.isNotEmpty,
-                  onAdd: () => context.push('/contacts/add'),
-                ),
-              )
-
-            // ── Contact list ─────────────────────────────────────────────
-            else
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, i) {
-                    final user = filtered[i];
-                    return _ContactRow(
-                      user: user,
-                      onRemove: () => ref
-                          .read(contactsNotifierProvider.notifier)
-                          .removeContact(user.id),
-                    );
-                  },
-                  childCount: filtered.length,
-                ),
+            // ── Content ──────────────────────────────────────────────────
+            Flexible(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: _buildContent(state, filtered, colors, theme),
               ),
+            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(ContactsState state, List<User> filtered, LumioColors colors, ThemeData theme) {
+    if (state.isLoading && state.contacts.isEmpty) {
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
+    }
+    
+    if (state.error != null && state.contacts.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(LumioIcons.wifiOff, size: 48, color: colors.fg3),
+            const SizedBox(height: 16),
+            Text('Could not load contacts', style: TextStyle(color: colors.fg2)),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () => ref.read(contactsNotifierProvider.notifier).load(),
+              child: const Text('Retry'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (filtered.isEmpty && !state.isLoading) {
+      return _EmptyState(
+        isSearching: _query.isNotEmpty,
+        onAdd: () => context.push('/contacts/add'),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.cardTheme.color,
+        border: Border.all(color: colors.hairline),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: ListView.separated(
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          itemCount: filtered.length,
+          separatorBuilder: (context, index) => Divider(
+            height: 1,
+            thickness: 1,
+            color: colors.hairline,
+          ),
+          itemBuilder: (context, i) {
+            final user = filtered[i];
+            return _ContactRow(
+              user: user,
+              onRemove: () => ref
+                  .read(contactsNotifierProvider.notifier)
+                  .removeContact(user.id),
+            );
+          },
         ),
       ),
     );
@@ -167,11 +181,12 @@ class _PillSearchBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = context.lumioColors;
     return Container(
       height: 48,
       decoration: BoxDecoration(
-        color: isDark ? AppColors.darkSurfaceLo : AppColors.lightSurfaceLo,
+        color: colors.surfaceLo,
+        border: Border.all(color: colors.hairline),
         borderRadius: BorderRadius.circular(999),
       ),
       child: TextField(
@@ -179,23 +194,23 @@ class _PillSearchBar extends StatelessWidget {
         onChanged: onChanged,
         style: TextStyle(
           fontSize: 15,
-          color: isDark ? AppColors.darkFg1 : AppColors.lightFg1,
+          color: colors.fg1,
         ),
         decoration: InputDecoration(
-          hintText: 'Search family…',
+          hintText: 'Search family',
           hintStyle: TextStyle(
-            color: isDark ? AppColors.darkFg3 : AppColors.lightFg2,
+            color: colors.fg3,
             fontSize: 15,
           ),
           prefixIcon: Icon(
-            Icons.search,
-            color: isDark ? AppColors.darkFg3 : AppColors.lightFg2,
+            LumioIcons.search,
+            color: colors.fg3,
             size: 20,
           ),
           suffixIcon: controller.text.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.close, size: 18),
-                  color: isDark ? AppColors.darkFg3 : AppColors.lightFg2,
+                  color: colors.fg3,
                   onPressed: () {
                     controller.clear();
                     onChanged('');
@@ -224,95 +239,92 @@ class _ContactRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = context.lumioColors;
     final isOnline = user.presence == PresenceStatus.online;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Material(
-        color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onLongPress: () => _showRemoveDialog(context),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                // Avatar with presence dot
-                Stack(
-                  children: [
-                    UserAvatar(
-                      displayName: user.name,
-                      imageUrl: user.avatarUrl,
-                      radius: 26,
-                    ),
-                    if (isOnline)
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: Container(
-                          width: 13,
-                          height: 13,
-                          decoration: BoxDecoration(
-                            color: AppColors.success,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isDark
-                                  ? AppColors.darkSurface
-                                  : AppColors.lightSurface,
-                              width: 2,
-                            ),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onLongPress: () => _showRemoveDialog(context),
+        onTap: () {},
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          child: Row(
+            children: [
+              // Avatar with presence dot
+              Stack(
+                children: [
+                  UserAvatar(
+                    displayName: user.name,
+                    imageUrl: user.avatarUrl,
+                    radius: 24,
+                  ),
+                  if (isOnline)
+                    Positioned(
+                      right: -1,
+                      bottom: -1,
+                      child: Container(
+                        width: 13,
+                        height: 13,
+                        decoration: BoxDecoration(
+                          color: AppColors.success,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Theme.of(context).cardTheme.color ?? Colors.transparent,
+                            width: 2,
                           ),
                         ),
                       ),
+                    ),
+                ],
+              ),
+              const SizedBox(width: 14),
+              // Name + phone
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user.name,
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: colors.fg1,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatPhoneDisplay(user.phone),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: colors.fg2,
+                      ),
+                    ),
                   ],
                 ),
-                const SizedBox(width: 14),
-                // Name + phone
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        user.name,
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: isDark ? AppColors.darkFg1 : AppColors.lightFg1,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        user.phone,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: isDark ? AppColors.darkFg2 : AppColors.lightFg2,
-                        ),
-                      ),
-                    ],
+              ),
+              const SizedBox(width: 14),
+              // Action buttons
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _IconButton(
+                    icon: LumioIcons.message,
+                    color: colors.fg1,
+                    onTap: () => context.push('/chat/${user.id}'),
                   ),
-                ),
-                // Action buttons
-                _ActionIcon(
-                  icon: Icons.chat_bubble_outline,
-                  tooltip: 'Message',
-                  onTap: () {
-                    // TODO prompt 13 — open chat
-                  },
-                ),
-                const SizedBox(width: 4),
-                _ActionIcon(
-                  icon: Icons.phone_outlined,
-                  tooltip: 'Call',
-                  onTap: () {
-                    // TODO prompt 15 — initiate call
-                  },
-                ),
-              ],
-            ),
+                  const SizedBox(width: 4),
+                  _IconButton(
+                    icon: LumioIcons.phone,
+                    color: AppColors.primary,
+                    onTap: () => context.push(
+                        '/call/outgoing?name=${Uri.encodeComponent(user.name)}&kind=audio'),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -346,27 +358,29 @@ class _ContactRow extends StatelessWidget {
   }
 }
 
-class _ActionIcon extends StatelessWidget {
+class _IconButton extends StatelessWidget {
   final IconData icon;
-  final String tooltip;
+  final Color color;
   final VoidCallback onTap;
 
-  const _ActionIcon({
+  const _IconButton({
     required this.icon,
-    required this.tooltip,
+    required this.color,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
+    return Material(
+      color: Colors.transparent,
+      shape: const CircleBorder(),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Padding(
-          padding: const EdgeInsets.all(8),
-          child: Icon(icon, size: 20, color: AppColors.primary),
+        child: SizedBox(
+          width: 40,
+          height: 40,
+          child: Icon(icon, size: 20, color: color),
         ),
       ),
     );
@@ -383,7 +397,7 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = context.lumioColors;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(40),
@@ -391,42 +405,38 @@ class _EmptyState extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              isSearching ? Icons.search_off : Icons.people_outline,
+              isSearching ? LumioIcons.search : LumioIcons.people,
               size: 72,
-              color: isDark ? AppColors.darkFg3 : AppColors.lightFg2,
+              color: colors.fg3,
             ),
             const SizedBox(height: 20),
             Text(
               isSearching
                   ? 'No results for that search'
-                  : 'No family members yet',
+                  : 'No family yet',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                color: isDark ? AppColors.darkFg1 : AppColors.lightFg1,
+                color: colors.fg1,
               ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             if (!isSearching) ...[
               Text(
-                'Add your first family member\nto get started.',
+                'Add your family members to start chatting.',
                 style: TextStyle(
                   fontSize: 15,
-                  color: isDark ? AppColors.darkFg2 : AppColors.lightFg2,
+                  color: colors.fg2,
                   height: 1.4,
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 28),
-              ElevatedButton.icon(
+              FlButton(
+                label: 'Add family member',
+                width: 220,
                 onPressed: onAdd,
-                icon: const Icon(Icons.person_add_outlined, size: 18),
-                label: const Text('Add family member'),
-                style: ElevatedButton.styleFrom(
-                  minimumSize: const Size(0, 48),
-                  shape: const StadiumBorder(),
-                ),
               ),
             ],
           ],

@@ -5,8 +5,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/config/app_colors.dart';
+import 'package:go_router/go_router.dart';
+import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/fl_button.dart';
+import '../../../shared/widgets/lumio_back_button.dart';
 import '../domain/auth_notifier.dart';
 import '../domain/auth_state.dart';
 
@@ -39,7 +42,6 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
       duration: const Duration(milliseconds: 550),
     )..repeat(reverse: true);
     _startCountdown();
-    // Auto-focus hidden input.
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _hiddenFocus.requestFocus(),
     );
@@ -82,7 +84,6 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
       await ref.read(authNotifierProvider.notifier).verifyOtp(
             code: _hiddenCtrl.text,
           );
-      // GoRouter redirect fires automatically on AuthAuthenticated.
     } on DioException catch (e) {
       if (!mounted) return;
       final msg = (e.response?.data as Map?)?['detail'] as String? ??
@@ -103,9 +104,6 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
 
   Future<void> _resend() async {
     if (_countdown > 0) return;
-    // Re-trigger the OTP request using the same credentials cached in state.
-    // For simplicity, navigate back to login so user re-enters credentials.
-    // TODO prompt 13 — add resend endpoint directly without re-login.
     _hiddenCtrl.clear();
     _startCountdown();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -113,61 +111,62 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
     );
   }
 
+  String _formatPhone(String phone) {
+    final digits = phone.replaceAll(RegExp(r'\D'), '');
+    if (digits.length == 11 && digits.startsWith('1')) {
+      final d = digits.substring(1);
+      return '+1 (${d.substring(0, 3)}) ${d.substring(3, 6)} · ${d.substring(6)}';
+    }
+    return phone;
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authNotifierProvider);
     final pending = authState is AuthOtpPending ? authState : null;
     final phone = pending?.phone ?? '';
-    final displayPhone = phone.length > 4
-        ? '${phone.substring(0, phone.length - 4).replaceAll(RegExp(r'\d'), '•')}${phone.substring(phone.length - 4)}'
-        : phone;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = context.lumioColors;
+    final fg1 = colors.fg1;
+    final fg2 = colors.fg2;
 
     return Scaffold(
-      appBar: AppBar(
-        leading: BackButton(
-          onPressed: () {
-            ref.read(authNotifierProvider.notifier).forceSignOut();
-          },
-        ),
-      ),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              LumioBackButton(
+                onPressed: () {
+                  ref.read(authNotifierProvider.notifier).forceSignOut();
+                },
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Verify your number',
+                style: TextStyle(
+                  fontSize: 30,
+                  fontWeight: FontWeight.w600,
+                  color: fg1,
+                  letterSpacing: -0.01,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'We sent a code to ${_formatPhone(phone)}',
+                style: TextStyle(fontSize: 16, color: fg2, height: 1.4),
+              ),
               const SizedBox(height: 32),
-              Text(
-                'Enter verification code',
-                style: TextStyle(
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
-                  color: isDark ? AppColors.darkFg1 : AppColors.lightFg1,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'We sent a 6-digit code to $displayPhone',
-                style: TextStyle(
-                  fontSize: 15,
-                  color: isDark ? AppColors.darkFg2 : AppColors.lightFg2,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 40),
-
-              // ── 6 OTP boxes ───────────────────────────────────────────────
               GestureDetector(
                 onTap: () => _hiddenFocus.requestFocus(),
                 child: ValueListenableBuilder<TextEditingValue>(
                   valueListenable: _hiddenCtrl,
-                  builder: (_, value, __) {
+                  builder: (context, value, _) {
                     return AnimatedBuilder(
                       animation: _caretAnim,
-                      builder: (_, __) => Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      builder: (context, _) => Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: List.generate(_length, (i) {
                           final filled = i < value.text.length;
                           final isActive =
@@ -184,8 +183,6 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
                   },
                 ),
               ),
-
-              // Hidden input that actually captures keystrokes.
               SizedBox(
                 height: 0,
                 width: 0,
@@ -204,79 +201,84 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
                   decoration: const InputDecoration(border: InputBorder.none),
                 ),
               ),
-
-              const SizedBox(height: 36),
-
-              // ── Resend countdown ──────────────────────────────────────────
-              _countdown > 0
-                  ? Text(
+              const SizedBox(height: 28),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "Didn't get it? ",
+                    style: TextStyle(fontSize: 14, color: fg2),
+                  ),
+                  if (_countdown > 0)
+                    Text(
                       'Resend in 0:${_countdown.toString().padLeft(2, '0')}',
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 14,
-                        color: isDark ? AppColors.darkFg2 : AppColors.lightFg2,
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
                       ),
                     )
-                  : TextButton(
-                      onPressed: _resend,
+                  else
+                    GestureDetector(
+                      onTap: _resend,
                       child: const Text(
                         'Resend code',
                         style: TextStyle(
+                          fontSize: 14,
                           color: AppColors.primary,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
                     ),
-
+                ],
+              ),
               const SizedBox(height: 32),
               FlButton(
                 label: 'Verify',
-                onPressed: (_isLoading ||
-                        _hiddenCtrl.text.length < _length)
+                onPressed: (_isLoading || _hiddenCtrl.text.length < _length)
                     ? null
                     : _verify,
                 isLoading: _isLoading,
               ),
-
-              // ── Debug OTP badge (debug builds only) ───────────────────────
-              if (kDebugMode && pending?.debugOtp != null) ...[
-                const SizedBox(height: 32),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    border: Border.all(
-                      color: AppColors.primary.withAlpha(100),
-                      style: BorderStyle.solid,
-                      width: 1.5,
+              const SizedBox(height: 20),
+              Center(
+                child: TextButton(
+                  onPressed: () {
+                    ref.read(authNotifierProvider.notifier).forceSignOut();
+                    context.go('/login');
+                  },
+                  child: const Text(
+                    'Wrong number? Change it',
+                    style: TextStyle(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 15,
                     ),
-                    borderRadius: BorderRadius.circular(12),
-                    color: AppColors.primary.withAlpha(20),
                   ),
-                  child: Column(
-                    children: [
-                      const Text(
-                        'DEBUG OTP',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
-                          letterSpacing: 1.2,
-                        ),
+                ),
+              ),
+              if (kDebugMode && pending?.debugOtp != null) ...[
+                const SizedBox(height: 24),
+                Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withAlpha(25),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.primary.withAlpha(80)),
+                    ),
+                    child: Text(
+                      'DEBUG: ${pending!.debugOtp}',
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 4,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        pending!.debugOtp!,
-                        style: const TextStyle(
-                          fontFamily: 'monospace',
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 8,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ],
@@ -303,22 +305,20 @@ class _OtpBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final colors = context.lumioColors;
     final borderColor = hasError
         ? AppColors.danger
         : isActive
             ? AppColors.primary
-            : (isDark ? AppColors.darkHairline : AppColors.lightHairline);
-    final fill = isDark ? AppColors.darkSurfaceLo : AppColors.lightSurfaceLo;
+            : colors.hairline;
 
     return Container(
-      width: 44,
+      width: 48,
       height: 60,
-      margin: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
-        color: fill,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor, width: isActive ? 2 : 1.5),
+        border: Border.all(color: borderColor, width: isActive ? 2 : 1),
       ),
       alignment: Alignment.center,
       child: char != null
@@ -327,15 +327,11 @@ class _OtpBox extends StatelessWidget {
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: isDark ? AppColors.darkFg1 : AppColors.lightFg1,
+                color: colors.fg1,
               ),
             )
           : showCaret
-              ? Container(
-                  width: 2,
-                  height: 28,
-                  color: AppColors.primary,
-                )
+              ? Container(width: 2, height: 28, color: AppColors.primary)
               : null,
     );
   }

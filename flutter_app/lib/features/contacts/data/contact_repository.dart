@@ -18,6 +18,7 @@ class ContactRepository {
   Future<User> addContact({required String phone, String? nickname}) async {
     final resp = await _dio.post<Map<String, dynamic>>(
       '/api/contacts',
+      // ignore: use_null_aware_elements
       data: {'phone': phone, if (nickname != null) 'nickname': nickname},
     );
     return User.fromJson(resp.data!);

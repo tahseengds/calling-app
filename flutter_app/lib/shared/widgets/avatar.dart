@@ -1,6 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import '../../core/config/app_colors.dart';
+import '../../core/theme/app_colors.dart';
 
 /// Avatar that shows a CachedNetworkImage when [imageUrl] is non-null, and
 /// falls back to initials with a deterministic tint derived from [displayName]
@@ -45,9 +45,9 @@ class UserAvatar extends StatelessWidget {
             width: radius * 2,
             height: radius * 2,
             fit: BoxFit.cover,
-            placeholder: (_, __) =>
+            placeholder: (context, url) =>
                 _InitialsAvatar(initials: _initials, radius: radius, tint: tint),
-            errorWidget: (_, __, ___) =>
+            errorWidget: (context, url, error) =>
                 _InitialsAvatar(initials: _initials, radius: radius, tint: tint),
           ),
         ),

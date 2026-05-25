@@ -1,18 +1,25 @@
 """
-FamilyLink FastAPI application factory.
+Lumin FastAPI application factory.
 """
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import redis.asyncio as aioredis
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.templating import Jinja2Templates
 from sqlalchemy import text
 
 from app.config import settings
 from app.db import engine
+from app.services.health_service import (
+    collect_health,
+    wants_detailed_report,
+    wants_json_response,
+)
 from app.routers import auth as auth_router
 from app.routers import calls as calls_router
 from app.routers import contacts as contacts_router
@@ -24,6 +31,8 @@ from app.utils.exceptions import AppError
 from app.utils.storage import ensure_media_dirs
 
 logger = logging.getLogger(__name__)
+
+templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
 
 
 @asynccontextmanager
@@ -55,7 +64,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="FamilyLink API",
+        title="Lumin API",
         version="1.0.0",
         lifespan=lifespan,
         # Disable interactive docs in production
@@ -92,12 +101,49 @@ def create_app() -> FastAPI:
 
     # ── Routes ────────────────────────────────────────────────────────────────
 
+    def _is_internal(request: Request) -> bool:
+        """
+        Returns True only for requests that originate from localhost or a
+        private RFC-1918 / Docker-internal address.
+
+        Nginx sets X-Real-IP; fall back to the raw ASGI client IP.
+        The detailed health report (topology + environment) must never be
+        served to external callers unauthenticated.
+        """
+        ip = request.headers.get("x-real-ip") or (
+            request.client.host if request.client else ""
+        )
+        return ip in ("127.0.0.1", "::1", "localhost") or ip.startswith(
+            ("10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.",
+             "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.",
+             "172.27.", "172.28.", "172.29.", "172.30.", "172.31.", "192.168.")
+        )
+
     @app.get("/health", tags=["infra"])
-    async def health() -> dict:
-        return {"status": "ok"}
+    async def health(
+        request: Request,
+        format: str | None = Query(default=None, alias="format"),
+        detailed: bool = Query(default=False, alias="detailed"),
+    ):
+        accept = request.headers.get("accept")
+        # Detailed report exposes internal topology — restrict to internal callers.
+        if not wants_detailed_report(accept, format, detailed) or not _is_internal(request):
+            return JSONResponse(content={"status": "ok"})
+        report = await collect_health(request.app.state.redis, engine)
+        if wants_json_response(accept, format):
+            return JSONResponse(
+                content=report.to_json(),
+                status_code=report.http_status,
+            )
+        return templates.TemplateResponse(
+            request=request,
+            name="health.html",
+            context={"report": report},
+            status_code=report.http_status,
+        )
 
     app.include_router(auth_router.router, prefix="/api/auth", tags=["auth"])
-    app.include_router(calls_router.router, prefix="/api/auth", tags=["calls"])
+    app.include_router(calls_router.router, prefix="/api/calls", tags=["calls"])
     app.include_router(users_router.router, prefix="/api/users", tags=["users"])
     app.include_router(contacts_router.router, prefix="/api/contacts", tags=["contacts"])
     app.include_router(conversations_router.router, prefix="/api/conversations", tags=["conversations"])

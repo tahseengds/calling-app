@@ -5,8 +5,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     # Database
-    POSTGRES_DB: str = "familyapp"
-    POSTGRES_USER: str = "familyapp"
+    POSTGRES_DB: str = "lumin"
+    POSTGRES_USER: str = "lumin"
     POSTGRES_PASSWORD: str = ""
     DATABASE_URL: str
 
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
 
     # TURN
     TURN_SECRET: str = ""
-    TURN_HOST: str = "family.example.com"  # TODO: replace domain
+    TURN_HOST: str = "lumin.example.com"  # TODO: replace domain
 
     # Media
     MEDIA_SECRET: str = ""
@@ -39,7 +39,8 @@ class Settings(BaseSettings):
     # App
     APP_ENV: str = "production"
     DEBUG: bool = False
-    DOMAIN: str = "family.example.com"  # TODO: replace domain
+    DOMAIN: str = "lumin.example.com"  # TODO: replace domain
+    MEDIA_URL_SCHEME: str = "https"  # set to http when serving without TLS (e.g. IP-only)
     OTP_TTL_SECONDS: int = 300
 
 

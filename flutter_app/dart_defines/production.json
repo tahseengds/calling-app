@@ -1,5 +1,5 @@
 {
-  "API_BASE_URL": "https://family.example.com",
-  "SIGNALING_URL": "wss://family.example.com",
+  "API_BASE_URL": "https://lumin.example.com",
+  "SIGNALING_URL": "wss://lumin.example.com",
   "APP_ENV": "prod"
 }

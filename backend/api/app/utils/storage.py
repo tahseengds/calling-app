@@ -52,7 +52,7 @@ def generate_media_signed_url(stored_name: str, ttl: int = 3600) -> str:
     expires = int(time.time()) + ttl
     sig = _sign(stored_name, expires)
     return (
-        f"https://{settings.DOMAIN}/media/{stored_name}"
+        f"{settings.MEDIA_URL_SCHEME}://{settings.DOMAIN}/media/{stored_name}"
         f"?sig={sig}&exp={expires}"
     )
 

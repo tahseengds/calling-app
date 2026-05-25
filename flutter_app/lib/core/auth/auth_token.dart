@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 /// Holds the in-memory access token only. This is the bridge between the Dio
 /// interceptor (core/network) and the auth feature so that neither layer needs
