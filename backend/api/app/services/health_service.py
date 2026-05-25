@@ -149,7 +149,7 @@ async def _check_postgres(engine: AsyncEngine) -> HealthCheck:
         return HealthCheck(
             name="PostgreSQL",
             status=CheckStatus.ERROR,
-            message=str(exc),
+            message=f"Connection failed ({type(exc).__name__})",
             critical=True,
         )
 
@@ -168,7 +168,7 @@ async def _check_redis(redis_client: aioredis.Redis) -> HealthCheck:
         return HealthCheck(
             name="Redis",
             status=CheckStatus.ERROR,
-            message=str(exc),
+            message=f"Connection failed ({type(exc).__name__})",
             critical=True,
         )
 
@@ -190,7 +190,7 @@ async def _check_media_storage() -> HealthCheck:
         return HealthCheck(
             name="Media storage",
             status=CheckStatus.ERROR,
-            message=str(exc),
+            message=f"Storage check failed ({type(exc).__name__})",
             critical=True,
         )
 
@@ -216,7 +216,7 @@ async def _check_signaling() -> HealthCheck:
         return HealthCheck(
             name="Signaling",
             status=CheckStatus.ERROR,
-            message=str(exc),
+            message=f"Unreachable ({type(exc).__name__})",
             critical=True,
         )
 

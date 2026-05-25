@@ -29,6 +29,8 @@ SKIP_DIRS = {
     "mcps",
 }
 SKIP_FILES = {".DS_Store", "firebase-service-account.json", "google-services.json"}
+# NOTE: .env is intentionally NOT in SKIP_FILES — it is uploaded to the server.
+# The git safety check below prevents it from being committed to the repo.
 
 
 def should_skip(rel: Path) -> bool:
@@ -79,8 +81,30 @@ def run(ssh: paramiko.SSHClient, cmd: str, timeout: int = 1800) -> None:
         raise RuntimeError(f"Command failed ({code}): {cmd}")
 
 
+def _assert_env_not_tracked(local_root: Path) -> None:
+    """Abort if .env is tracked by git — that would mean secrets are in the repo."""
+    import subprocess
+    env_path = local_root / ".env"
+    if not env_path.exists():
+        print("WARNING: no .env file found at project root — server may start without secrets.", file=sys.stderr)
+        return
+    result = subprocess.run(
+        ["git", "-C", str(local_root), "ls-files", "--error-unmatch", ".env"],
+        capture_output=True,
+    )
+    if result.returncode == 0:
+        print(
+            "ABORT: .env is tracked by git. Remove it with:\n"
+            "  git rm --cached .env && echo '.env' >> .gitignore\n"
+            "Then rotate any secrets it contained before deploying.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
 def main() -> None:
     local_root = Path(__file__).resolve().parents[1]
+    _assert_env_not_tracked(local_root)
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     print(f"Connecting to {USER}@{HOST}...")

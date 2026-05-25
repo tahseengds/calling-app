@@ -101,6 +101,24 @@ def create_app() -> FastAPI:
 
     # ── Routes ────────────────────────────────────────────────────────────────
 
+    def _is_internal(request: Request) -> bool:
+        """
+        Returns True only for requests that originate from localhost or a
+        private RFC-1918 / Docker-internal address.
+
+        Nginx sets X-Real-IP; fall back to the raw ASGI client IP.
+        The detailed health report (topology + environment) must never be
+        served to external callers unauthenticated.
+        """
+        ip = request.headers.get("x-real-ip") or (
+            request.client.host if request.client else ""
+        )
+        return ip in ("127.0.0.1", "::1", "localhost") or ip.startswith(
+            ("10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.",
+             "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.",
+             "172.27.", "172.28.", "172.29.", "172.30.", "172.31.", "192.168.")
+        )
+
     @app.get("/health", tags=["infra"])
     async def health(
         request: Request,
@@ -108,7 +126,8 @@ def create_app() -> FastAPI:
         detailed: bool = Query(default=False, alias="detailed"),
     ):
         accept = request.headers.get("accept")
-        if not wants_detailed_report(accept, format, detailed):
+        # Detailed report exposes internal topology — restrict to internal callers.
+        if not wants_detailed_report(accept, format, detailed) or not _is_internal(request):
             return JSONResponse(content={"status": "ok"})
         report = await collect_health(request.app.state.redis, engine)
         if wants_json_response(accept, format):
@@ -124,7 +143,7 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(auth_router.router, prefix="/api/auth", tags=["auth"])
-    app.include_router(calls_router.router, prefix="/api/auth", tags=["calls"])
+    app.include_router(calls_router.router, prefix="/api/calls", tags=["calls"])
     app.include_router(users_router.router, prefix="/api/users", tags=["users"])
     app.include_router(contacts_router.router, prefix="/api/contacts", tags=["contacts"])
     app.include_router(conversations_router.router, prefix="/api/conversations", tags=["conversations"])
