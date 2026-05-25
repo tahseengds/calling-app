@@ -65,8 +65,16 @@ class _T {
 
 class ChatRichScreen extends ConsumerStatefulWidget {
   final String conversationId;
+  /// Display name passed by the caller (e.g. from the contacts list).
+  /// Takes priority over the hardcoded mock-ID switch so real UUID-based
+  /// conversations show the correct name instead of "Family Member".
+  final String? contactName;
 
-  const ChatRichScreen({super.key, required this.conversationId});
+  const ChatRichScreen({
+    super.key,
+    required this.conversationId,
+    this.contactName,
+  });
 
   @override
   ConsumerState<ChatRichScreen> createState() => _ChatRichScreenState();
@@ -79,12 +87,16 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
 
   Message? _replyingTo;
 
-  // TODO(backend): derive from real user/presence data
-  String get _otherName => switch (widget.conversationId) {
+  // contactName (passed by caller) takes priority.  The mock-ID switch is a
+  // fallback for UI-only preview builds.  In production the caller must pass
+  // the name via the route query parameter so real UUIDs show the right name.
+  String get _otherName =>
+      widget.contactName ??
+      switch (widget.conversationId) {
         'rose' => 'Grandma Rose',
         'mike' => 'Dad Mike',
         'fam'  => 'The Whole Family',
-        _      => 'Family Member',
+        _      => 'Chat',  // generic but not misleading
       };
 
   bool get _isOnline =>

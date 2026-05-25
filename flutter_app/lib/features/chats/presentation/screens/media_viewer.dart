@@ -1,18 +1,23 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/lumio_icons.dart';
 
 class MediaViewer extends StatefulWidget {
-  final String kind; // 'image', 'video', 'document'
+  final String kind; // 'image', 'video', 'document', 'audio'
   final String sender;
   final String when;
+  /// Remote URL for the media file.  Null in UI-only / preview mode — the
+  /// widget falls back to placeholder art when this is not supplied.
+  final String? url;
 
   const MediaViewer({
     super.key,
     required this.kind,
     this.sender = 'Grandma Rose',
     this.when = 'Today · 7:42 PM',
+    this.url,
   });
 
   @override
@@ -135,13 +140,20 @@ class _MediaViewerState extends State<MediaViewer> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: CustomPaint(
-              painter: _ImageArtPainter(),
-            ),
+            child: widget.url != null
+                ? CachedNetworkImage(
+                    imageUrl: widget.url!,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => const _MediaLoadingPlaceholder(),
+                    errorWidget: (_, __, ___) =>
+                        CustomPaint(painter: _ImageArtPainter()),
+                  )
+                : CustomPaint(painter: _ImageArtPainter()),
           ),
         ),
       );
     } else if (kind == 'video') {
+      // TODO(prompt-13): wire VideoPlayerController when backend sends signed URLs.
       return Center(
         child: Container(
           width: 340,
@@ -158,10 +170,27 @@ class _MediaViewerState extends State<MediaViewer> {
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12),
-            child: CustomPaint(
-              painter: _VideoArtPainter(),
-            ),
+            child: CustomPaint(painter: _VideoArtPainter()),
           ),
+        ),
+      );
+    } else if (kind == 'audio') {
+      // Audio has no visual preview — show waveform placeholder.
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.audiotrack_rounded,
+                color: Colors.white.withValues(alpha: 0.7), size: 72),
+            const SizedBox(height: 16),
+            Text(
+              widget.sender,
+              style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500),
+            ),
+          ],
         ),
       );
     } else {
@@ -447,6 +476,24 @@ class _MediaViewerState extends State<MediaViewer> {
         ),
         child: Center(
           child: Icon(icon, size: 20, color: color),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Loading placeholder shown while CachedNetworkImage fetches the URL ──────
+class _MediaLoadingPlaceholder extends StatelessWidget {
+  const _MediaLoadingPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.black26,
+      child: const Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.white54),
+          strokeWidth: 2,
         ),
       ),
     );

@@ -34,9 +34,8 @@ abstract final class AppConfig {
 
   /// When true, auth/contacts/profile use local mock data instead of the API.
   ///
-  /// On by default (including release APKs). Disable with:
-  /// `--dart-define=UI_ONLY=false`
-  static const bool uiOnly = bool.hasEnvironment('UI_ONLY')
-      ? bool.fromEnvironment('UI_ONLY')
-      : true;
+  /// Off by default — production builds use the real backend.
+  /// Enable for UI-preview / design-review builds only:
+  ///   `--dart-define=UI_ONLY=true`
+  static const bool uiOnly = bool.fromEnvironment('UI_ONLY');
 }

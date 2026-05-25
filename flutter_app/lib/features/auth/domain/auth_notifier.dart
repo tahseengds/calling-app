@@ -32,12 +32,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   // ── Session restore ───────────────────────────────────────────────────────
 
   Future<void> _tryRestoreSession() async {
-    if (AppConfig.uiOnly) {
-      _ref.read(authTokenProvider.notifier).set('ui-only-token');
-      state = AuthAuthenticated(me: MockData.currentUser);
-      return;
-    }
-
+    // uiOnly is false here — constructor only calls this when !AppConfig.uiOnly.
     final savedRefresh = await _secure.readRefreshToken();
     if (savedRefresh == null) {
       state = const AuthUnauthenticated();

@@ -39,7 +39,7 @@ dependencies:
 
   # Media
   image_picker: ^1.2.2
-  file_picker: 11.0.2
+  file_picker: ^11.0.2
   flutter_sound: ^9.30.0
   video_player: ^2.11.1
   photo_view: ^0.15.0

@@ -104,6 +104,9 @@ final _routerProvider = Provider<GoRouter>((ref) {
         path: '/chat/:conversationId',
         builder: (_, state) => ChatRichScreen(
           conversationId: state.pathParameters['conversationId'] ?? 'rose',
+          // Pass the contact's display name so the screen doesn't need to
+          // guess it from the ID (important for real UUID-based IDs).
+          contactName: state.uri.queryParameters['name'],
         ),
       ),
       GoRoute(
@@ -112,6 +115,8 @@ final _routerProvider = Provider<GoRouter>((ref) {
           kind: state.uri.queryParameters['kind'] ?? 'image',
           sender: state.uri.queryParameters['sender'] ?? 'Grandma Rose',
           when: state.uri.queryParameters['when'] ?? 'Today · 7:42 PM',
+          // null when not provided → widget falls back to placeholder art
+          url: state.uri.queryParameters['url'],
         ),
       ),
       GoRoute(

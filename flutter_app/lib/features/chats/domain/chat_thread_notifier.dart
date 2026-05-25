@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../core/config/app_config.dart';
 import '../../../../shared/models/message.dart';
 
 class ChatThreadState {
@@ -74,7 +75,10 @@ class ChatThreadNotifier extends Notifier<ChatThreadState> {
         ),
       ];
     } else {
-      // General mock failed message demonstration
+      // Unknown ID — in UI-only mode show demo messages so the chat screen
+      // isn't blank during design review.  In production mode return an empty
+      // list: the backend will supply real messages via the messaging feature.
+      if (!AppConfig.uiOnly) return [];
       return [
         Message(
           id: '1',
