@@ -68,6 +68,14 @@ dev_dependencies:
   build_runner: ^2.15.0
   drift_dev: ^2.31.0
   riverpod_generator: ^4.0.3
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: false
+  image_path: "assets/lumin-logo.png"
