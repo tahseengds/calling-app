@@ -12,8 +12,9 @@ dependencies:
 
   # State management
   flutter_riverpod: ^3.3.1
-  riverpod_annotation: ^4.0.2
-  riverpod: ^3.2.1 
+  # riverpod_annotation and the explicit riverpod pin removed — all providers
+  # are hand-written (no @riverpod codegen), and flutter_riverpod already
+  # brings the riverpod package transitively.
 
   # Networking
   dio: ^5.9.2
@@ -67,7 +68,9 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   build_runner: ^2.15.0
   drift_dev: ^2.31.0
-  riverpod_generator: ^4.0.3
+  # riverpod_generator removed — no @riverpod annotations exist in the codebase;
+  # all providers are declared explicitly. Removing it breaks the analyzer version
+  # conflict with riverpod 3.x + web_socket_channel 3.x + flutter_test SDK pins.
   flutter_launcher_icons: ^0.13.1
   flutter_native_splash: ^2.4.0
 
