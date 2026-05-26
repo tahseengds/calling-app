@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
+import os
 import sys
 
 import paramiko
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+HOST = "165.227.146.247"
+SSH_KEY = os.path.expanduser(os.environ.get("DEPLOY_KEY", "~/.ssh/do_droplet"))
+
 c = paramiko.SSHClient()
 c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-c.connect("165.227.146.247", username="root", password="FuckDigital0cean")
+c.connect(HOST, username="root", key_filename=SSH_KEY)
 
 cmds = [
     "systemctl is-active coturn",

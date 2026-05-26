@@ -2,19 +2,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:intl_phone_field/intl_phone_field.dart';
-import 'package:intl_phone_field/phone_number.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/config/app_config.dart';
 import '../../../shared/widgets/fl_button.dart';
+import '../../../shared/widgets/fl_text_field.dart';
 import '../../../shared/widgets/lumio_logo.dart';
 import '../domain/auth_notifier.dart';
 
-/// Login = "enter your phone, we'll text you a code" — the entire auth
-/// flow now goes through Firebase Phone Auth. There's no password and no
-/// separate Register / Login distinction (the backend upserts the User
-/// row on first sign-in).
+/// Sign in with email + password, or with Google.
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
@@ -24,30 +20,38 @@ class LoginScreen extends ConsumerStatefulWidget {
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-
-  /// Latest E.164 phone number assembled by [IntlPhoneField] (country
-  /// dial code + local number). Null until the user has typed enough
-  /// digits to be valid for the selected country.
-  String? _e164Phone;
+  final _emailCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
 
-  Future<void> _submit() async {
+  @override
+  void dispose() {
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    super.dispose();
+  }
+
+  String? _validateEmail(String? v) {
+    final t = (v ?? '').trim();
+    if (t.isEmpty) return 'Enter your email';
+    final ok = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(t);
+    if (!ok) return 'Enter a valid email';
+    return null;
+  }
+
+  String? _validatePassword(String? v) {
+    if ((v ?? '').isEmpty) return 'Enter your password';
+    return null;
+  }
+
+  Future<void> _submitEmail() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    final phone = _e164Phone;
-    if (phone == null || phone.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Enter a valid phone number for the selected country.'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
-      return;
-    }
-
     setState(() => _isLoading = true);
     try {
-      await ref.read(authNotifierProvider.notifier).startPhoneVerification(
-            phone: phone,
+      await ref.read(authNotifierProvider.notifier).signInWithEmail(
+            email: _emailCtrl.text,
+            password: _passwordCtrl.text,
           );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
@@ -61,7 +65,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Could not send the code. Please try again.'),
+          content: Text('Could not sign in. Please try again.'),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -70,16 +74,47 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     }
   }
 
+  Future<void> _submitGoogle() async {
+    setState(() => _isGoogleLoading = true);
+    try {
+      await ref.read(authNotifierProvider.notifier).signInWithGoogle();
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(_firebaseAuthMessage(e)),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Google sign-in failed. Please try again.'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
+    }
+  }
+
   String _firebaseAuthMessage(FirebaseAuthException e) {
     switch (e.code) {
-      case 'invalid-phone-number':
-        return 'That doesn\'t look like a valid phone number.';
+      case 'invalid-email':
+        return 'That doesn\'t look like a valid email.';
+      case 'user-disabled':
+        return 'This account has been disabled.';
+      case 'user-not-found':
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Email or password is incorrect.';
       case 'too-many-requests':
         return 'Too many attempts. Try again in a few minutes.';
       case 'network-request-failed':
         return 'Network error. Please check your connection.';
       default:
-        return e.message ?? 'Could not send the code. Please try again.';
+        return e.message ?? 'Could not sign in. Please try again.';
     }
   }
 
@@ -114,52 +149,60 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'Enter your phone number — we\'ll send you a code by SMS.',
+                  'Sign in with your email and password.',
                   style: TextStyle(fontSize: 16, color: fg2, height: 1.4),
                 ),
                 const SizedBox(height: 32),
-                IntlPhoneField(
-                  decoration: InputDecoration(
-                    labelText: 'Phone number',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  initialCountryCode: 'US',
-                  // Show the most common family-app countries near the top of
-                  // the picker. The user can still scroll for anything else.
-                  // (intl_phone_field doesn't natively support this, so we
-                  // leave the default alphabetical list — the search box in
-                  // the picker covers the long tail.)
-                  invalidNumberMessage: 'Enter a valid phone number',
-                  onChanged: (PhoneNumber phone) {
-                    _e164Phone = phone.completeNumber;
-                  },
-                  onSubmitted: (_) => _submit(),
+                FlTextField(
+                  label: 'Email',
+                  controller: _emailCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  validator: _validateEmail,
+                ),
+                const SizedBox(height: 14),
+                FlTextField(
+                  label: 'Password',
+                  controller: _passwordCtrl,
+                  obscureText: true,
+                  showToggle: true,
+                  textInputAction: TextInputAction.done,
+                  validator: _validatePassword,
+                  onFieldSubmitted: (_) => _submitEmail(),
                 ),
                 const SizedBox(height: 24),
                 FlButton(
-                  label: 'Send code',
-                  loadingLabel: 'Sending…',
-                  onPressed: _isLoading ? null : _submit,
+                  label: 'Sign in',
+                  loadingLabel: 'Signing in…',
+                  onPressed: _isLoading ? null : _submitEmail,
                   isLoading: _isLoading,
                 ),
-                const SizedBox(height: 24),
-                Text(
-                  'New here? Just enter your phone — we\'ll set up your account when you verify.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: fg3, height: 1.4),
+                const SizedBox(height: 20),
+                _OrDivider(color: colors.hairline, fg: fg3),
+                const SizedBox(height: 20),
+                _GoogleButton(
+                  label: 'Continue with Google',
+                  onPressed:
+                      _isGoogleLoading ? null : _submitGoogle,
+                  isLoading: _isGoogleLoading,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
                 Center(
                   child: GestureDetector(
                     onTap: () => context.go('/register'),
-                    child: const Text(
-                      'Set a display name first',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
+                    child: RichText(
+                      text: TextSpan(
+                        text: 'New to Lumio? ',
+                        style: TextStyle(fontSize: 14, color: fg2),
+                        children: const [
+                          TextSpan(
+                            text: 'Create an account',
+                            style: TextStyle(
+                              color: AppColors.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -187,6 +230,109 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _OrDivider extends StatelessWidget {
+  final Color color;
+  final Color fg;
+  const _OrDivider({required this.color, required this.fg});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: Divider(color: color, thickness: 1)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            'or',
+            style: TextStyle(color: fg, fontSize: 13),
+          ),
+        ),
+        Expanded(child: Divider(color: color, thickness: 1)),
+      ],
+    );
+  }
+}
+
+class _GoogleButton extends StatelessWidget {
+  final String label;
+  final VoidCallback? onPressed;
+  final bool isLoading;
+
+  const _GoogleButton({
+    required this.label,
+    required this.onPressed,
+    required this.isLoading,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.lumioColors;
+    final disabled = onPressed == null;
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
+          ),
+          side: BorderSide(color: colors.hairline, width: 1),
+          foregroundColor: colors.fg1,
+        ),
+        child: isLoading
+            ? const SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Multicolor Google "G" rendered with a minimal SVG-free
+                  // approximation — a coloured circle with a white "G"
+                  // works as a recognisable placeholder until you drop in
+                  // the official asset.
+                  Container(
+                    width: 22,
+                    height: 22,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFFFFFFFF),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Color(0x22000000),
+                          blurRadius: 2,
+                          offset: Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    alignment: Alignment.center,
+                    child: const Text(
+                      'G',
+                      style: TextStyle(
+                        color: Color(0xFF4285F4),
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: disabled ? colors.fg3 : colors.fg1,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
       ),
     );
   }

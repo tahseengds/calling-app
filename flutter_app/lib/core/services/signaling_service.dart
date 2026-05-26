@@ -411,13 +411,16 @@ class SignalingService {
 final signalingServiceProvider = Provider<SignalingService>((ref) {
   final service = SignalingService();
 
+  // fireImmediately so a token already restored from secure storage (cold
+  // start path) actually triggers connect(). Without it, ref.listen only
+  // fires on subsequent changes and the socket stays closed forever.
   ref.listen(authTokenProvider, (_, next) {
     if (next != null && !AppConfig.uiOnly) {
       service.connect(next);
     } else if (next == null) {
       service.disconnect();
     }
-  });
+  }, fireImmediately: true);
 
   ref.onDispose(service.dispose);
   return service;

@@ -4,6 +4,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
 import 'core/config/app_config.dart';
@@ -26,56 +27,92 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 }
 
 Future<void> main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
+  // Keep the native splash visible while we do async initialization.
+  // FlutterNativeSplash.remove() is called right before runApp().
+  FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
-  if (!AppConfig.uiOnly) {
-    await Firebase.initializeApp();
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-  }
+  late final ProviderContainer container;
 
-  final container = ProviderContainer();
-  await container.read(notificationServiceProvider).init();
-
-  if (!AppConfig.uiOnly) {
-    await FirebaseMessaging.instance.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
-    // Deep-link: app opened from a terminated state via notification tap.
-    final initial = await FirebaseMessaging.instance.getInitialMessage();
-    if (initial != null) {
-      _handleFcmMessage(initial, container);
+  try {
+    if (!AppConfig.uiOnly) {
+      try {
+        await Firebase.initializeApp();
+        FirebaseMessaging.onBackgroundMessage(
+            _firebaseMessagingBackgroundHandler);
+      } catch (e) {
+        debugPrint('[startup] Firebase.initializeApp failed: $e');
+        // Continue without Firebase — the app can still show the UI.
+      }
     }
 
-    // Deep-link: app in background, notification tapped.
-    FirebaseMessaging.onMessageOpenedApp.listen(
-      (msg) => _handleFcmMessage(msg, container),
-    );
+    container = ProviderContainer();
+    final notifications = container.read(notificationServiceProvider);
+    // Route taps on the local notifications we show ourselves (foreground FCM
+    // messages) into the same pendingDeepLink path the cold-start FCM handler
+    // uses, so the app navigates to the right chat once auth is ready.
+    notifications.onMessageNotificationTap = (conversationId) {
+      if (conversationId.isEmpty) return;
+      container
+          .read(pendingDeepLinkProvider.notifier)
+          .set('/chat/$conversationId');
+    };
+    await notifications.init();
 
-    // Foreground FCM messages — show local notification; socket delivers data.
-    FirebaseMessaging.onMessage.listen((msg) {
-      final type = msg.data['type'] as String?;
-      if (type == 'new_message') {
-        final notif = msg.notification;
-        container.read(notificationServiceProvider).showMessageNotification(
-              id: msg.messageId ?? '',
-              senderName: notif?.title ?? 'New message',
-              preview: notif?.body ?? '',
-              conversationId: msg.data['conversation_id'] as String? ?? '',
-            );
-      }
-      // incoming_call & missed_call are handled by the native FcmService
-      // (which is invoked in parallel by the system). We don't replicate
-      // here to avoid a double-ring.
-    });
+    if (!AppConfig.uiOnly) {
+      // Request notification permission — no-op on Android < 13.
+      try {
+        await FirebaseMessaging.instance.requestPermission(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+      } catch (_) {}
 
-    // Prompt 15 — pull any pending native call payload that landed before
-    // the Dart engine was alive (CallService full-screen intent or
-    // CallActionReceiver cold-launch). Seed the CallNotifier with it.
-    await _consumeInitialNativeCallData(container);
+      // Deep-link: app opened from a terminated state via notification tap.
+      // Use a timeout so a slow/disconnected FCM doesn't block startup.
+      try {
+        final initial = await FirebaseMessaging.instance
+            .getInitialMessage()
+            .timeout(const Duration(seconds: 5));
+        if (initial != null) {
+          _handleFcmMessage(initial, container);
+        }
+      } catch (_) {}
+
+      // Deep-link: app in background, notification tapped.
+      FirebaseMessaging.onMessageOpenedApp.listen(
+        (msg) => _handleFcmMessage(msg, container),
+      );
+
+      // Foreground FCM messages — show local notification; socket delivers data.
+      FirebaseMessaging.onMessage.listen((msg) {
+        final type = msg.data['type'] as String?;
+        if (type == 'new_message') {
+          final notif = msg.notification;
+          container.read(notificationServiceProvider).showMessageNotification(
+                id: msg.messageId ?? '',
+                senderName: notif?.title ?? 'New message',
+                preview: notif?.body ?? '',
+                conversationId: msg.data['conversation_id'] as String? ?? '',
+              );
+        }
+        // incoming_call & missed_call are handled by the native FcmService
+        // (which is invoked in parallel by the system). We don't replicate
+        // here to avoid a double-ring.
+      });
+
+      // Prompt 15 — pull any pending native call payload that landed before
+      // the Dart engine was alive (CallService full-screen intent or
+      // CallActionReceiver cold-launch). Seed the CallNotifier with it.
+      await _consumeInitialNativeCallData(container);
+    }
+  } catch (e, st) {
+    debugPrint('[startup] Unexpected initialization error: $e\n$st');
+    // Fall through — always call runApp so the native splash is dismissed.
   }
+
+  FlutterNativeSplash.remove();
 
   runApp(
     UncontrolledProviderScope(

@@ -1,15 +1,21 @@
 """
 Firebase Authentication ID token verification.
 
-Used by /api/auth/firebase-signin: the Flutter client runs
-FirebaseAuth.signInWithPhoneNumber → SMS code → getIdToken(), and ships
-that ID token here. We verify it via google-auth's verify_firebase_token
-(no firebase-admin dependency needed — google-auth is already in
+Used by /api/auth/firebase-signin. The Flutter client signs in via
+Firebase (Google or Email/Password) and ships the resulting ID token
+here. We verify it via google-auth's verify_firebase_token (no
+firebase-admin dependency needed — google-auth is already in
 requirements.txt for FCM).
 
-The verified token carries the user's E.164 phone number in the
-phone_number claim. That phone is the stable identifier we link to a
-User row.
+The verified token carries:
+  - sub          → Firebase UID (stable identifier we link to a User row)
+  - email
+  - email_verified
+  - name, picture (optional)
+  - firebase.sign_in_provider → 'google.com' | 'password' | 'phone'
+
+For password sign-ins we additionally require `email_verified == true`
+so unverified accounts cannot mint server-side JWTs.
 
 Security:
   - The token's signature is checked against Firebase's public keys
@@ -42,10 +48,11 @@ async def verify_firebase_id_token(id_token: str) -> dict[str, Any]:
     Verify a Firebase Auth ID token and return its claims.
 
     Raises:
-        UnauthorizedError — token is invalid, expired, or signed by a
-                            different Firebase project.
-        ValidationFailedError — token is valid but lacks the phone_number
-                                claim we need to identify the user.
+        UnauthorizedError — token is invalid, expired, signed by a
+                            different Firebase project, or lacks the
+                            email_verified flag for a password sign-in.
+        ValidationFailedError — token is valid but lacks the claims we
+                                need (Firebase UID).
     """
     if not settings.FIREBASE_PROJECT_ID:
         # Misconfiguration on the server — surface as 500-class to the caller
@@ -66,13 +73,17 @@ async def verify_firebase_id_token(id_token: str) -> dict[str, Any]:
         # with the full message and traceback so docker logs surfaces the
         # diagnosis — uvicorn's default config only outputs WARNING+ for
         # non-uvicorn loggers.
+        exc_summary = f"{type(exc).__name__}: {exc}"
         logger.warning(
-            "Firebase ID token rejected: %s: %s",
-            type(exc).__name__,
-            exc,
+            "Firebase ID token rejected: %s (FIREBASE_PROJECT_ID=%r)",
+            exc_summary,
+            settings.FIREBASE_PROJECT_ID or "<not set>",
             exc_info=True,
         )
-        raise UnauthorizedError("Invalid Firebase ID token") from exc
+        # In debug mode, expose the specific rejection reason to the client
+        # so the Flutter app / Postman can diagnose misconfigurations quickly.
+        detail = exc_summary if settings.DEBUG else "Invalid Firebase ID token"
+        raise UnauthorizedError(detail) from exc
 
     # Tight replay window
     iat = claims.get("iat")
@@ -80,12 +91,19 @@ async def verify_firebase_id_token(id_token: str) -> dict[str, Any]:
         if time.time() - float(iat) > REPLAY_WINDOW_SECONDS:
             raise UnauthorizedError("Firebase ID token is too old")
 
-    phone = claims.get("phone_number")
-    if not phone:
-        # Could happen if someone signs in with email/Google instead of
-        # phone — we only accept phone-based identities.
-        raise ValidationFailedError(
-            "Firebase ID token is missing phone_number — sign in by phone"
+    uid = claims.get("sub") or claims.get("user_id")
+    if not uid:
+        raise ValidationFailedError("Firebase ID token is missing UID")
+
+    # Enforce email verification for password sign-ins. Google sign-ins
+    # always come back with email_verified == true, so the same check is
+    # a no-op there. Phone sign-ins are no longer supported but if one
+    # ever arrives (legacy client) we let it through — the caller has no
+    # email to verify.
+    provider = (claims.get("firebase") or {}).get("sign_in_provider")
+    if provider == "password" and not claims.get("email_verified"):
+        raise UnauthorizedError(
+            "Email not verified — please click the verification link we emailed you"
         )
 
     return claims

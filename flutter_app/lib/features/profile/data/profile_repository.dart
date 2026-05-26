@@ -14,7 +14,7 @@ class ProfileRepository {
   }
 
   Future<User> updateName(String name) async {
-    final resp = await _dio.patch<Map<String, dynamic>>(
+    final resp = await _dio.put<Map<String, dynamic>>(
       '/api/users/me',
       data: {'name': name},
     );
@@ -22,7 +22,7 @@ class ProfileRepository {
   }
 
   Future<User> updatePhone(String phone) async {
-    final resp = await _dio.patch<Map<String, dynamic>>(
+    final resp = await _dio.put<Map<String, dynamic>>(
       '/api/users/me',
       data: {'phone': phone},
     );
@@ -31,10 +31,10 @@ class ProfileRepository {
 
   Future<User> updateAvatar(String filePath) async {
     final formData = FormData.fromMap({
-      'avatar': await MultipartFile.fromFile(filePath),
+      'file': await MultipartFile.fromFile(filePath),
     });
-    final resp = await _dio.patch<Map<String, dynamic>>(
-      '/api/users/me',
+    final resp = await _dio.post<Map<String, dynamic>>(
+      '/api/users/avatar',
       data: formData,
     );
     return User.fromJson(resp.data!);

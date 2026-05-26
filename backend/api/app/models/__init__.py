@@ -5,6 +5,7 @@ from .conversation import Conversation
 from .media import MediaFile
 from .message import Message, MessageReceipt
 from .refresh_token import RefreshToken
+from .support_feedback import SupportFeedback
 from .user import User
 
 __all__ = [
@@ -16,5 +17,6 @@ __all__ = [
     "Message",
     "MessageReceipt",
     "RefreshToken",
+    "SupportFeedback",
     "User",
 ]

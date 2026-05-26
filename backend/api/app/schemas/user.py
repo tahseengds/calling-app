@@ -11,7 +11,8 @@ class UserPublic(BaseModel):
 
     id: UUID
     name: str
-    phone: str
+    phone: str | None = None
+    email: str | None = None
     avatar_url: str | None
     last_seen: datetime
 

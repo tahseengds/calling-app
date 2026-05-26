@@ -58,12 +58,18 @@ class TokenInterceptor extends Interceptor {
       return;
     }
 
+    // FormData is a single-use byte stream — it is finalized on first send and
+    // cannot be replayed. Refresh the token so the next request succeeds, then
+    // reject this one. The caller must retry with a fresh FormData.
+    final isMultipart = err.requestOptions.data is FormData;
+
     if (_refreshCompleter != null) {
-      // Wait for the in-flight refresh to finish, then replay.
+      // Wait for the in-flight refresh to finish, then replay (or reject).
       final success = await _refreshCompleter!.future;
-      if (success) {
+      if (success && !isMultipart) {
         handler.resolve(await _replay(err.requestOptions));
       } else {
+        if (!success) onAuthExpired();
         handler.next(err);
       }
       return;
@@ -80,10 +86,10 @@ class TokenInterceptor extends Interceptor {
       _refreshCompleter = null;
     }
 
-    if (success) {
+    if (success && !isMultipart) {
       handler.resolve(await _replay(err.requestOptions));
     } else {
-      onAuthExpired();
+      if (!success) onAuthExpired();
       handler.next(err);
     }
   }

@@ -8,13 +8,15 @@ import paramiko
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
+import os
+
 HOST = "165.227.146.247"
-PASSWORD = __import__("os").environ["DEPLOY_PASSWORD"]
+SSH_KEY = os.path.expanduser(os.environ.get("DEPLOY_KEY", "~/.ssh/do_droplet"))
 ROOT = Path(__file__).resolve().parents[1]
 
 c = paramiko.SSHClient()
 c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-c.connect(HOST, username="root", password=PASSWORD)
+c.connect(HOST, username="root", key_filename=SSH_KEY)
 
 sftp = c.open_sftp()
 for rel in (

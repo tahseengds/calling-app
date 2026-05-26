@@ -43,6 +43,30 @@ abstract final class LumioIcons {
   static const IconData arrowDownLeft = Icons.call_received;
   static const IconData arrowUpRight = Icons.call_made;
   static const IconData close = Icons.close;
+
+  // Settings-screens additions
+  static const IconData lock = Icons.lock_outline;
+  static const IconData mail = Icons.mail_outline;
+  static const IconData volume = Icons.volume_up_outlined;
+  static const IconData volumeOff = Icons.volume_off_outlined;
+  static const IconData block = Icons.block;
+  static const IconData vibration = Icons.vibration;
+  static const IconData clock = Icons.access_time;
+  static const IconData moon = Icons.dark_mode_outlined;
+  static const IconData musicNote = Icons.music_note_outlined;
+  static const IconData lockClock = Icons.lock_clock_outlined;
+  static const IconData fingerprint = Icons.fingerprint;
+  static const IconData warning = Icons.warning_amber_outlined;
+  static const IconData bookOpen = Icons.menu_book_outlined;
+  static const IconData heartFilled = Icons.favorite;
+  static const IconData openInNew = Icons.open_in_new;
+  static const IconData fileText = Icons.description_outlined;
+  static const IconData bug = Icons.bug_report_outlined;
+  static const IconData userMinus = Icons.person_remove_outlined;
+  static const IconData phoneOff = Icons.phone_disabled_outlined;
+  static const IconData groups = Icons.group_outlined;
+  static const IconData reactions = Icons.emoji_emotions_outlined;
+  static const IconData mention = Icons.alternate_email;
 }
 
 /// US flag mini widget for phone prefix (design uses SVG, not emoji).

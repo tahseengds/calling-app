@@ -17,42 +17,29 @@ final class AuthUnauthenticated extends AuthState {
   const AuthUnauthenticated();
 }
 
-/// Firebase Phone Auth handed back a verificationId after sending the SMS
-/// (or after an Android auto-retrieval-pending callback). The OTP screen
-/// reads [phone] for display and uses [verificationId] when calling
-/// `signInWithCredential`.
+/// The user just registered (or tried to sign in) with email/password but
+/// hasn't clicked the verification link yet. The verify-pending screen
+/// reads [email] for display and offers resend + "I've verified" buttons.
 ///
-/// [resendToken] is the integer handle Firebase uses to resend the SMS
-/// without consuming a fresh verification flow. Null on iOS / web.
-final class AuthOtpPending extends AuthState {
-  final String phone;
-  final String verificationId;
-  final int? resendToken;
-
-  /// When true the user is going through the Firebase phone flow for the
-  /// first time — the UI shows the "Welcome" header instead of "Sign in".
+/// [isRegistering] flips the copy from "Verify to finish sign-in" to
+/// "Verify to finish creating your account".
+///
+/// [name] is the display name the user typed on the register screen;
+/// stashed here so we can pass it to the backend once verification
+/// completes.
+final class AuthEmailVerificationPending extends AuthState {
+  final String email;
+  final String? name;
   final bool isRegistering;
 
-  const AuthOtpPending({
-    required this.phone,
-    required this.verificationId,
-    this.resendToken,
+  const AuthEmailVerificationPending({
+    required this.email,
+    this.name,
     this.isRegistering = false,
   });
-
-  AuthOtpPending copyWith({
-    String? verificationId,
-    int? resendToken,
-  }) =>
-      AuthOtpPending(
-        phone: phone,
-        verificationId: verificationId ?? this.verificationId,
-        resendToken: resendToken ?? this.resendToken,
-        isRegistering: isRegistering,
-      );
 }
 
-/// OTP was verified; the user is fully authenticated.
+/// Fully authenticated.
 final class AuthAuthenticated extends AuthState {
   final User me;
   const AuthAuthenticated({required this.me});

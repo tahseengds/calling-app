@@ -26,6 +26,8 @@ from app.routers import contacts as contacts_router
 from app.routers import conversations as conversations_router
 from app.routers import media as media_router
 from app.routers import messages as messages_router
+from app.routers import settings as settings_router
+from app.routers import support as support_router
 from app.routers import users as users_router
 from app.utils.exceptions import AppError
 from app.utils.storage import ensure_media_dirs
@@ -161,6 +163,10 @@ def create_app() -> FastAPI:
     app.include_router(conversations_router.router, prefix="/api/conversations", tags=["conversations"])
     app.include_router(messages_router.router, prefix="/api/messages", tags=["messages"])
     app.include_router(media_router.router, prefix="/api/media", tags=["media"])
+    app.include_router(
+        settings_router.router, prefix="/api/users/me/settings", tags=["settings"]
+    )
+    app.include_router(support_router.router, prefix="/api/support", tags=["support"])
 
     return app
 

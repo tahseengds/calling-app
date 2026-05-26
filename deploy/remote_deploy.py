@@ -11,7 +11,7 @@ import paramiko
 
 HOST = os.environ.get("DEPLOY_HOST", "165.227.146.247")
 USER = os.environ.get("DEPLOY_USER", "root")
-PASSWORD = os.environ["DEPLOY_PASSWORD"]
+SSH_KEY = os.path.expanduser(os.environ.get("DEPLOY_KEY", "~/.ssh/do_droplet"))
 REMOTE_DIR = os.environ.get("DEPLOY_DIR", "/opt/lumin")
 
 SKIP_DIRS = {
@@ -108,7 +108,7 @@ def main() -> None:
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     print(f"Connecting to {USER}@{HOST}...")
-    ssh.connect(HOST, username=USER, password=PASSWORD, timeout=60)
+    ssh.connect(HOST, username=USER, key_filename=SSH_KEY, timeout=60)
 
     run(
         ssh,
@@ -132,12 +132,20 @@ def main() -> None:
     finally:
         sftp.close()
 
-    turn_secret = None
+    env_vars: dict[str, str] = {}
     env_path = local_root / ".env"
-    for line in env_path.read_text(encoding="utf-8").splitlines():
-        if line.startswith("TURN_SECRET="):
-            turn_secret = line.split("=", 1)[1].strip()
-            break
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            if "=" in line and not line.lstrip().startswith("#"):
+                k, v = line.split("=", 1)
+                env_vars[k.strip()] = v.strip()
+    turn_secret = env_vars.get("TURN_SECRET") or None
+    # Real domain for TLS/TURNS — written into .env by setup_tls.py. If
+    # missing, coturn would otherwise be configured against the bare IP
+    # (no Let's Encrypt cert there) and TURNS port 5349 would silently
+    # come down on every deploy. Skip coturn install in that case so the
+    # operator runs setup_tls.py first.
+    coturn_domain = env_vars.get("DOMAIN") or None
 
     compose = (
         f"cd {REMOTE_DIR} && "
@@ -159,22 +167,37 @@ def main() -> None:
     )
 
     run(ssh, "apt-get install -y -qq dos2unix && find " + REMOTE_DIR + ' -name "*.sh" -exec dos2unix {} +', timeout=120)
+    # Apply any pending Alembic migrations against the existing DB.
+    # NOTE: this used to be `alembic stamp head` from the era when init.sql
+    # owned the schema and there were no incremental migrations. Now that
+    # the project ships real migrations (0002+, 0003+...), we must actually
+    # run them — `stamp` would mark them applied without executing the SQL.
     run(
         ssh,
         f"cd {REMOTE_DIR} && docker compose -f docker-compose.yml -f docker-compose.prod.yml "
-        "exec -T fastapi alembic stamp head",
+        "exec -T fastapi alembic upgrade head",
         timeout=300,
     )
 
-    if turn_secret:
+    if turn_secret and coturn_domain:
         run(
             ssh,
             f"cd {REMOTE_DIR} && "
-            f"export VPS_PUBLIC_IP={HOST} DOMAIN={HOST} TURN_SECRET='{turn_secret}' && "
+            f"export VPS_PUBLIC_IP={HOST} DOMAIN={coturn_domain} TURN_SECRET='{turn_secret}' && "
             "bash coturn/install.sh",
             timeout=300,
         )
         run(ssh, f"cd {REMOTE_DIR} && bash coturn/firewall.sh --yes", timeout=120)
+    elif turn_secret and not coturn_domain:
+        # Loud warning: no domain means no TLS cert path, which means TURNS
+        # (5349) would be down. Don't touch the existing coturn config —
+        # safer to leave whatever setup_tls.py installed intact.
+        print(
+            "WARN: TURN_SECRET set but DOMAIN missing from .env — skipping "
+            "coturn install to avoid breaking TURNS. Run deploy/setup_tls.py "
+            "first to issue the cert and write DOMAIN into .env.",
+            file=sys.stderr,
+        )
 
     run(ssh, f"curl -fsS http://127.0.0.1/health || curl -fsS http://localhost/health", timeout=30)
     print(f"\nDeploy complete. API: http://{HOST}/api/docs (if DEBUG)  Health: http://{HOST}/health")
@@ -182,7 +205,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    if "DEPLOY_PASSWORD" not in os.environ:
-        print("Set DEPLOY_PASSWORD", file=sys.stderr)
-        sys.exit(1)
     main()

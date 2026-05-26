@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/user.dart';
@@ -8,6 +9,11 @@ import '../../../shared/widgets/avatar.dart';
 import '../../../shared/widgets/fl_button.dart';
 import '../../../shared/widgets/lumio_icons.dart';
 import '../domain/contacts_notifier.dart';
+import '../../chat/data/conversation_repository.dart';
+import '../../shell/ui/shell_screen.dart';
+import '../../calling/domain/call_notifier.dart';
+import '../../calling/domain/call_state.dart';
+import '../../calling/presentation/widgets/permission_denied_screen.dart';
 
 String _formatPhoneDisplay(String phone) {
   final digits = phone.replaceAll(RegExp(r'\D'), '');
@@ -26,6 +32,7 @@ class ContactsScreen extends ConsumerStatefulWidget {
 }
 
 class _ContactsScreenState extends ConsumerState<ContactsScreen> {
+  static const int _contactsTabIndex = 2;
   final _searchCtrl = TextEditingController();
   String _query = '';
 
@@ -35,18 +42,88 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
     super.dispose();
   }
 
+  void _retryIfNeeded() {
+    final state = ref.read(contactsNotifierProvider);
+    if (!state.isLoading && (state.error != null || state.contacts.isEmpty)) {
+      ref.read(contactsNotifierProvider.notifier).load();
+    }
+  }
+
+  /// Permission-gated outgoing call. Mirrors the helpers in chat_rich_screen
+  /// and call_history_screen so behaviour is consistent across entry points:
+  /// mic required for any call; camera optional for video (denial downgrades
+  /// to audio). The global call observer in app.dart picks up the new
+  /// CallSession and pushes /call/outgoing — we just have to start it.
+  Future<void> _placeCall(User other, CallType callType) async {
+    var micStatus = await Permission.microphone.status;
+    if (micStatus.isPermanentlyDenied) {
+      if (mounted) {
+        await Navigator.of(context).push(MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => const PermissionDeniedScreen(
+              type: PermissionDeniedType.microphone),
+        ));
+      }
+      return;
+    }
+    if (!micStatus.isGranted) {
+      micStatus = await Permission.microphone.request();
+      if (!micStatus.isGranted) return;
+    }
+
+    if (callType == CallType.video) {
+      var camStatus = await Permission.camera.status;
+      if (camStatus.isPermanentlyDenied) {
+        if (mounted) {
+          await Navigator.of(context).push(MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => const PermissionDeniedScreen(
+                type: PermissionDeniedType.camera),
+          ));
+        }
+        return;
+      }
+      if (!camStatus.isGranted) {
+        camStatus = await Permission.camera.request();
+        if (!camStatus.isGranted) callType = CallType.audio;
+      }
+    }
+
+    if (!mounted) return;
+    ref.read(callSessionProvider.notifier).startCall(
+          PeerUser(
+            id: other.id,
+            name: other.name,
+            avatarUrl: other.avatarUrl,
+          ),
+          callType,
+        );
+  }
+
   List<User> _filtered(List<User> all) {
     if (_query.isEmpty) return all;
     final q = _query.toLowerCase();
     return all
         .where((u) =>
             u.name.toLowerCase().contains(q) ||
-            u.phone.contains(q))
+            (u.phone ?? '').contains(q) ||
+            (u.email ?? '').toLowerCase().contains(q))
         .toList();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Auto-retry when the user switches to this tab: the contacts notifier
+    // auto-loads on construction (mounted eagerly by IndexedStack), so a
+    // failure right after login leaves the screen stuck on the retry button
+    // until the user taps it. Re-trigger load whenever the contacts tab
+    // becomes active and the previous attempt failed.
+    ref.listen<int>(shellTabProvider, (prev, next) {
+      if (next == _contactsTabIndex && prev != _contactsTabIndex) {
+        _retryIfNeeded();
+      }
+    });
+
     final state = ref.watch(contactsNotifierProvider);
     final colors = context.lumioColors;
     final theme = Theme.of(context);
@@ -160,6 +237,24 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
               onRemove: () => ref
                   .read(contactsNotifierProvider.notifier)
                   .removeContact(user.id),
+              onCallAudio: () => _placeCall(user, CallType.audio),
+              onMessage: () async {
+                try {
+                  final convId = await ref
+                      .read(conversationRepositoryProvider)
+                      .getOrCreateConversation(user.id);
+                  if (context.mounted) {
+                    context.push('/chat/$convId?name=${Uri.encodeComponent(user.name)}');
+                  }
+                } catch (_) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Could not open conversation')),
+                    );
+                  }
+                }
+              },
             );
           },
         ),
@@ -234,8 +329,15 @@ class _PillSearchBar extends StatelessWidget {
 class _ContactRow extends StatelessWidget {
   final User user;
   final VoidCallback onRemove;
+  final VoidCallback onMessage;
+  final VoidCallback onCallAudio;
 
-  const _ContactRow({required this.user, required this.onRemove});
+  const _ContactRow({
+    required this.user,
+    required this.onRemove,
+    required this.onMessage,
+    required this.onCallAudio,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -251,8 +353,10 @@ class _ContactRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           child: Row(
             children: [
-              // Avatar with presence dot
+              // Avatar with presence dot. clipBehavior: Clip.none keeps
+              // the dot visible — it's positioned 1px outside the avatar.
               Stack(
+                clipBehavior: Clip.none,
                 children: [
                   UserAvatar(
                     displayName: user.name,
@@ -296,7 +400,10 @@ class _ContactRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      _formatPhoneDisplay(user.phone),
+                      user.email ??
+                          (user.phone != null
+                              ? _formatPhoneDisplay(user.phone!)
+                              : ''),
                       style: TextStyle(
                         fontSize: 14,
                         color: colors.fg2,
@@ -313,14 +420,13 @@ class _ContactRow extends StatelessWidget {
                   _IconButton(
                     icon: LumioIcons.message,
                     color: colors.fg1,
-                    onTap: () => context.push('/chat/${user.id}'),
+                    onTap: onMessage,
                   ),
                   const SizedBox(width: 4),
                   _IconButton(
                     icon: LumioIcons.phone,
                     color: AppColors.primary,
-                    onTap: () => context.push(
-                        '/call/outgoing?name=${Uri.encodeComponent(user.name)}&kind=audio'),
+                    onTap: onCallAudio,
                   ),
                 ],
               ),

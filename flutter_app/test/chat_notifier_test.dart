@@ -114,7 +114,7 @@ class _FakeMessageRepository extends MessageRepository {
   @override
   Future<Message> sendMessage({
     required String clientId,
-    required String conversationId,
+    required String recipientId,
     required MessageType type,
     String? content,
     String? mediaId,
@@ -127,7 +127,7 @@ class _FakeMessageRepository extends MessageRepository {
     if (_sendHold != null) return _sendHold!.future;
     return Message(
       id: clientId,
-      conversationId: conversationId,
+      conversationId: _convId,
       senderId: _userId,
       type: type,
       content: content,

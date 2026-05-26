@@ -18,7 +18,7 @@ class CallRepository {
   Future<List<Map<String, dynamic>>> getTurnCredentials() async {
     try {
       final resp = await _dio
-          .get<Map<String, dynamic>>('/api/auth/turn-credentials');
+          .get<Map<String, dynamic>>('/api/calls/turn-credentials');
       final servers = resp.data?['ice_servers'] as List<dynamic>? ?? [];
       return servers
           .whereType<Map<String, dynamic>>()

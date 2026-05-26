@@ -11,15 +11,27 @@ import '../../features/auth/domain/auth_notifier.dart';
 final dioProvider = Provider<Dio>((ref) {
   final secure = ref.read(secureStorageProvider);
 
+  // Captures whether the most-recent refresh attempt failed because the server
+  // rejected the refresh token (401/403) vs. a transport-level error. We only
+  // force the user back to /login on the former — otherwise a transient blip
+  // (e.g. captive wifi, brief 5xx) silently nukes a valid session.
+  bool refreshWasAuthRejected = false;
+
   final interceptor = TokenInterceptor(
     // Read the in-memory access token (never from disk).
     getAccessToken: () => ref.read(authTokenProvider),
 
     // Single-flight refresh — TokenInterceptor serializes concurrent 401s.
     refreshTokens: () async {
+      refreshWasAuthRejected = false;
       final savedRefresh = await secure.readRefreshToken();
       final deviceId = await secure.readDeviceId();
-      if (savedRefresh == null) return false;
+      if (savedRefresh == null) {
+        // No refresh token at all — treat as auth-rejected so the caller is
+        // routed back to /login rather than spinning on stuck requests.
+        refreshWasAuthRejected = true;
+        return false;
+      }
       try {
         final plain = Dio(
           BaseOptions(
@@ -37,15 +49,23 @@ final dioProvider = Provider<Dio>((ref) {
         ref.read(authTokenProvider.notifier).set(newAccess);
         await secure.saveRefreshToken(newRefresh);
         return true;
+      } on DioException catch (e) {
+        final code = e.response?.statusCode;
+        refreshWasAuthRejected = (code == 401 || code == 403);
+        return false;
       } catch (_) {
         return false;
       }
     },
 
-    // Called when refresh itself fails — wipe local auth and send to /login.
+    // Called when refresh itself fails — but only force a sign-out when the
+    // server actually rejected the refresh token. Transient transport errors
+    // are deliberately treated as "try again later".
     onAuthExpired: () {
       if (AppConfig.uiOnly) return;
-      ref.read(authNotifierProvider.notifier).forceSignOut();
+      if (refreshWasAuthRejected) {
+        ref.read(authNotifierProvider.notifier).forceSignOut();
+      }
     },
   );
 

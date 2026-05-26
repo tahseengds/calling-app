@@ -4,7 +4,7 @@ import '../../core/theme/app_colors.dart';
 /// Path to the Lumio brand logo. Same asset the native splash screen
 /// uses (declared in pubspec's flutter_native_splash → image), so the
 /// in-app branding matches the cold-start splash pixel-for-pixel.
-const String _kLumioLogoAsset = 'assets/lumin-logo-splash.png';
+const String _kLumioLogoAsset = 'assets/lumin-logo.png';
 
 /// The Lumio brand mark — renders the asset logo at the requested size.
 ///

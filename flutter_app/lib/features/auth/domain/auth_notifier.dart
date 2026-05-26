@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 
+import 'package:dio/dio.dart';
 // hide User so it doesn't collide with our own shared/models/user.dart.
 import 'package:firebase_auth/firebase_auth.dart' hide User;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../../../core/auth/auth_token.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/mock/mock_data.dart';
@@ -13,40 +16,53 @@ import '../../../shared/models/user.dart';
 import '../data/auth_repository.dart';
 import 'auth_state.dart';
 
-/// AuthNotifier drives the Firebase Phone Auth flow:
+/// AuthNotifier drives two Firebase Auth flows:
 ///
-///   LoginScreen.startPhoneVerification(phone)
-///     → FirebaseAuth.verifyPhoneNumber sends SMS + emits codeSent
-///     → state = AuthOtpPending(verificationId, ...)
-///   OtpScreen.verifySmsCode(code)
+/// Google Sign-In:
+///   signInWithGoogle()
+///     → GoogleSignIn picker → GoogleAuthProvider credential
 ///     → FirebaseAuth.signInWithCredential
-///     → firebaseUser.getIdToken()
-///     → POST /api/auth/firebase-signin → our tokens
-///     → state = AuthAuthenticated
+///     → backend /api/auth/firebase-signin
+///     → AuthAuthenticated
+///
+/// Email/Password:
+///   registerWithEmail(email, password, name)
+///     → createUserWithEmailAndPassword
+///     → sendEmailVerification (Firebase ships a verification link)
+///     → AuthEmailVerificationPending
+///     [user clicks link in their inbox]
+///     → reloadAndCompleteVerification()
+///     → backend /api/auth/firebase-signin → AuthAuthenticated
+///
+///   signInWithEmail(email, password)
+///     → signInWithEmailAndPassword
+///     → if !user.emailVerified: resend link, → AuthEmailVerificationPending
+///     → else: backend /api/auth/firebase-signin → AuthAuthenticated
 class AuthNotifier extends StateNotifier<AuthState> {
   final AuthRepository _repo;
   final SecureStorageService _secure;
   final Ref _ref;
 
   /// Optional FirebaseAuth override for tests. When null we resolve
-  /// `FirebaseAuth.instance` lazily on first phone-verification call —
-  /// crucial because the notifier is built during app start (and during
-  /// unrelated unit tests like chat_notifier_test) before Firebase has
-  /// been initialized.
+  /// `FirebaseAuth.instance` lazily — crucial because the notifier is
+  /// built during app start (and during unit tests like
+  /// chat_notifier_test) before Firebase has been initialized.
   final FirebaseAuth? _firebaseOverride;
   FirebaseAuth get _firebase => _firebaseOverride ?? FirebaseAuth.instance;
 
-  /// Latest pending name supplied by the user on register, kept on the
-  /// notifier (not in state) because [AuthOtpPending] does not carry it —
-  /// the SMS code-entry screen has no need to read it.
-  String? _pendingName;
+  /// Google sign-in client. Lazy for the same Firebase-init reason as above.
+  GoogleSignIn? _googleOverride;
+  GoogleSignIn get _google =>
+      _googleOverride ??= GoogleSignIn(scopes: const ['email']);
 
   AuthNotifier(
     this._repo,
     this._secure,
     this._ref, {
     FirebaseAuth? firebase,
+    GoogleSignIn? google,
   })  : _firebaseOverride = firebase,
+        _googleOverride = google,
         super(
           AppConfig.uiOnly
               ? AuthAuthenticated(me: MockData.currentUser)
@@ -63,12 +79,39 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   // ── Session restore ───────────────────────────────────────────────────────
 
+  /// Cold-start session restore.
+  ///
+  /// Goals (in priority order):
+  ///   1. If the user was authenticated and we have a cached profile, render
+  ///      the home screen *immediately* — even if the network is down. Deep
+  ///      links (FCM message tap) need a valid auth state to route properly,
+  ///      and bouncing a logged-in user to /login because the refresh call
+  ///      hadn't resolved yet was the original security flaw.
+  ///   2. Refresh the access token in the background. On success, swap to the
+  ///      fresh tokens. On a 401/403 (token actually invalid), sign out. On a
+  ///      network/timeout error, keep the cached session — the refresh will
+  ///      retry on next API call via the Dio interceptor.
   Future<void> _tryRestoreSession() async {
     final savedRefresh = await _secure.readRefreshToken();
     if (savedRefresh == null) {
       state = const AuthUnauthenticated();
       return;
     }
+
+    // Optimistic restore from cached user — keeps the user logged in on cold
+    // start, including when launched from an FCM notification while offline.
+    final cachedJson = await _secure.readCachedUser();
+    User? cachedUser;
+    if (cachedJson != null) {
+      try {
+        cachedUser = User.fromJson(cachedJson);
+        state = AuthAuthenticated(me: cachedUser);
+      } catch (_) {
+        // Corrupt cache — fall through to network restore.
+        await _secure.deleteCachedUser();
+      }
+    }
+
     try {
       final deviceId = await _secure.readDeviceId();
       final tokens = await _repo.refreshAccessToken(
@@ -78,20 +121,41 @@ class AuthNotifier extends StateNotifier<AuthState> {
       _ref.read(authTokenProvider.notifier).set(tokens.accessToken);
       await _secure.saveRefreshToken(tokens.refreshToken);
       final me = await _repo.getMe(tokens.accessToken);
+      await _secure.saveCachedUserJson(jsonEncode(me.toJson()));
       state = AuthAuthenticated(me: me);
 
-      // Re-register the FCM token — it may have rotated while the app was
-      // closed (or it might not have been registered at all if a previous
-      // sign-in pre-dated the wiring). Fire-and-forget; never blocks the
-      // user from reaching the home shell.
       final fcm = _ref.read(fcmTokenServiceProvider);
       unawaited(fcm.registerCurrentToken());
       fcm.startRotationListener();
-    } catch (_) {
-      await _secure.deleteRefreshToken();
-      _ref.read(authTokenProvider.notifier).clear();
-      state = const AuthUnauthenticated();
+    } catch (e) {
+      // Distinguish "server says the refresh token is dead" from "we couldn't
+      // reach the server". Only the former should sign the user out.
+      if (_isAuthRejection(e)) {
+        await _secure.deleteRefreshToken();
+        await _secure.deleteCachedUser();
+        _ref.read(authTokenProvider.notifier).clear();
+        state = const AuthUnauthenticated();
+        return;
+      }
+
+      // Transient — leave refresh + cached user in place so the next launch
+      // (or the Dio interceptor on the next request) can retry.
+      if (cachedUser == null) {
+        // No cache to fall back on; this device truly has no usable session.
+        state = const AuthUnauthenticated();
+      }
+      // else: state already set to AuthAuthenticated(cachedUser) above.
     }
+  }
+
+  /// Returns true when the error indicates the refresh token itself was
+  /// rejected by the server (vs. a transport / connectivity problem).
+  static bool _isAuthRejection(Object error) {
+    if (error is DioException) {
+      final code = error.response?.statusCode;
+      return code == 401 || code == 403;
+    }
+    return false;
   }
 
   // ── UI-only demo path (no backend) ────────────────────────────────────────
@@ -101,116 +165,249 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = AuthAuthenticated(me: MockData.currentUser);
   }
 
-  // ── Phone verification (start) ────────────────────────────────────────────
+  // ── Google Sign-In ────────────────────────────────────────────────────────
 
-  /// Kick off the Firebase Phone Auth flow.
+  /// Run the native Google account picker, exchange the result for a
+  /// Firebase credential, and complete the backend handshake.
   ///
-  /// On Android, Firebase may auto-verify silently (no SMS shown to the
-  /// user) — in that case we skip straight to a token exchange and
-  /// transition directly to AuthAuthenticated.
-  ///
-  /// Throws [FirebaseAuthException] on verification failure so the calling
-  /// screen can surface the error in a Snackbar.
-  Future<void> startPhoneVerification({
-    required String phone,
-    bool isRegistering = false,
-    String? name,
-  }) async {
+  /// Throws [FirebaseAuthException] on Firebase-side failures and a plain
+  /// [Exception] with a friendly message on Google-side failures (cancel,
+  /// no network, etc.).
+  Future<void> signInWithGoogle() async {
     if (AppConfig.uiOnly) {
       await signInDemo();
       return;
     }
-    _pendingName = name;
 
-    final completer = Completer<void>();
-
-    await _firebase.verifyPhoneNumber(
-      phoneNumber: phone,
-      timeout: const Duration(seconds: 60),
-      verificationCompleted: (PhoneAuthCredential credential) async {
-        // Android auto-retrieval — we have a Firebase credential without
-        // any user-entered SMS code. Sign in immediately.
-        try {
-          await _signInWithFirebaseCredential(credential, isRegistering: isRegistering);
-          if (!completer.isCompleted) completer.complete();
-        } catch (e) {
-          if (!completer.isCompleted) completer.completeError(e);
-        }
-      },
-      verificationFailed: (FirebaseAuthException e) {
-        if (!completer.isCompleted) completer.completeError(e);
-      },
-      codeSent: (String verificationId, int? resendToken) {
-        state = AuthOtpPending(
-          phone: phone,
-          verificationId: verificationId,
-          resendToken: resendToken,
-          isRegistering: isRegistering,
-        );
-        if (!completer.isCompleted) completer.complete();
-      },
-      codeAutoRetrievalTimeout: (String verificationId) {
-        // Auto-retrieval timed out — keep the manual-entry state if we're
-        // already there, otherwise transition to it.
-        final current = state;
-        if (current is AuthOtpPending) {
-          state = current.copyWith(verificationId: verificationId);
-        } else {
-          state = AuthOtpPending(
-            phone: phone,
-            verificationId: verificationId,
-            isRegistering: isRegistering,
-          );
-        }
-      },
-    );
-
-    // Wait for either codeSent or verificationCompleted/Failed before
-    // returning so the caller can `await` the call.
-    await completer.future;
-  }
-
-  // ── OTP verification ──────────────────────────────────────────────────────
-
-  /// Confirm the SMS code the user typed. Throws on a wrong code so the
-  /// OTP screen can shake the boxes.
-  Future<void> verifyOtp({required String code}) async {
-    if (AppConfig.uiOnly) {
-      await signInDemo();
+    final GoogleSignInAccount? account = await _google.signIn();
+    if (account == null) {
+      // User cancelled — drop back to the login screen silently.
       return;
     }
-    final pending = state;
-    if (pending is! AuthOtpPending) {
-      throw StateError('verifyOtp called outside AuthOtpPending');
+
+    final auth = await account.authentication;
+    if (auth.idToken == null && auth.accessToken == null) {
+      throw Exception('Google sign-in did not return any tokens.');
     }
 
-    final credential = PhoneAuthProvider.credential(
-      verificationId: pending.verificationId,
-      smsCode: code,
+    final credential = GoogleAuthProvider.credential(
+      idToken: auth.idToken,
+      accessToken: auth.accessToken,
     );
-    await _signInWithFirebaseCredential(
-      credential,
-      isRegistering: pending.isRegistering,
-    );
-  }
 
-  /// Shared finalizer used by both auto-retrieval and manual-entry paths.
-  Future<void> _signInWithFirebaseCredential(
-    PhoneAuthCredential credential, {
-    required bool isRegistering,
-  }) async {
     final userCred = await _firebase.signInWithCredential(credential);
-    final idToken = await userCred.user?.getIdToken();
+    await _completeBackendSignIn(
+      firebaseUser: userCred.user!,
+      // First-time Google sign-ups can lift the name from the Google
+      // profile so the welcome screen has something to show.
+      nameForFirstSignIn: account.displayName,
+    );
+  }
+
+  // ── Email / Password ─────────────────────────────────────────────────────
+
+  /// Create a new Firebase account with email+password, send the
+  /// verification link, and park in [AuthEmailVerificationPending].
+  Future<void> registerWithEmail({
+    required String email,
+    required String password,
+    required String name,
+  }) async {
+    if (AppConfig.uiOnly) {
+      await signInDemo();
+      return;
+    }
+    final normalized = email.trim().toLowerCase();
+    final userCred = await _firebase.createUserWithEmailAndPassword(
+      email: normalized,
+      password: password,
+    );
+    // Update the Firebase displayName so the ID token carries 'name' as a
+    // claim — handy for the backend's first-user-creation fallback.
+    final trimmedName = name.trim();
+    if (trimmedName.isNotEmpty) {
+      await userCred.user?.updateDisplayName(trimmedName);
+    }
+    await userCred.user?.sendEmailVerification(_verifyEmailActionCodeSettings);
+
+    state = AuthEmailVerificationPending(
+      email: normalized,
+      name: trimmedName.isEmpty ? null : trimmedName,
+      isRegistering: true,
+    );
+  }
+
+  /// Sign in to an existing email/password account. If the email is not
+  /// yet verified we re-send the verification link and park in
+  /// [AuthEmailVerificationPending].
+  Future<void> signInWithEmail({
+    required String email,
+    required String password,
+  }) async {
+    if (AppConfig.uiOnly) {
+      await signInDemo();
+      return;
+    }
+    final normalized = email.trim().toLowerCase();
+    final userCred = await _firebase.signInWithEmailAndPassword(
+      email: normalized,
+      password: password,
+    );
+    final fbUser = userCred.user;
+    if (fbUser == null) {
+      throw StateError('Firebase sign-in returned no user');
+    }
+    if (!fbUser.emailVerified) {
+      // Re-send the link so the user has a fresh one in their inbox.
+      try {
+        await fbUser.sendEmailVerification(_verifyEmailActionCodeSettings);
+      } catch (_) {
+        // Best-effort — the UI still shows resend.
+      }
+      state = AuthEmailVerificationPending(
+        email: normalized,
+        isRegistering: false,
+      );
+      return;
+    }
+
+    await _completeBackendSignIn(firebaseUser: fbUser);
+  }
+
+  /// Re-send the verification link from the pending-verification screen.
+  Future<void> resendVerificationEmail() async {
+    final user = _firebase.currentUser;
+    if (user == null) {
+      throw StateError('Cannot resend — no Firebase user signed in');
+    }
+    await user.sendEmailVerification(_verifyEmailActionCodeSettings);
+  }
+
+  // ── Deep-link verification ────────────────────────────────────────────────
+
+  /// Tap-of-the-email-link entry point.
+  ///
+  /// Called by the app-wide `app_links` listener when the system delivers a
+  /// URI matching our intent filter. We extract the `oobCode` from the URI,
+  /// apply it server-side, then reload the Firebase user and complete the
+  /// backend handshake. Returns true if we transitioned to
+  /// [AuthAuthenticated].
+  ///
+  /// Safe to call with any URI — non-verification links return false silently.
+  Future<bool> handleVerificationDeepLink(Uri uri) async {
+    if (AppConfig.uiOnly) return false;
+
+    final mode = uri.queryParameters['mode'];
+    final oobCode = uri.queryParameters['oobCode'];
+    final looksLikeVerify =
+        (mode == 'verifyEmail' || _pathLooksLikeVerify(uri)) &&
+            (oobCode != null && oobCode.isNotEmpty);
+    if (!looksLikeVerify) return false;
+
+    // applyActionCode is the canonical way to consume an oobCode. The Firebase
+    // web action handler does this server-side when the user opens the link in
+    // a browser; doing it explicitly in the app guarantees verification even
+    // when the system hands us the URL directly (App Link / custom scheme)
+    // before the web page runs.
+    try {
+      await _firebase.applyActionCode(oobCode);
+    } on FirebaseAuthException catch (e) {
+      // Common codes: expired-action-code, invalid-action-code,
+      // user-disabled, user-not-found.
+      if (e.code != 'invalid-action-code') {
+        // Even an "invalid" code can mean it was already consumed (e.g. the
+        // browser handled it). Fall through and try a reload before giving up.
+        return false;
+      }
+    } catch (_) {
+      return false;
+    }
+
+    return reloadAndCompleteVerification();
+  }
+
+  bool _pathLooksLikeVerify(Uri uri) {
+    final p = uri.path.toLowerCase();
+    if (p.endsWith('/auth/verify-email') || p.endsWith('/verify-email')) {
+      return true;
+    }
+    // lumin://verify-email — the host carries the path on custom-scheme URIs.
+    return uri.host.toLowerCase() == 'verify-email';
+  }
+
+  // ── ActionCodeSettings ────────────────────────────────────────────────────
+  //
+  // The email-verification link routes through Firebase's web action handler
+  // (`<project>.firebaseapp.com/__/auth/action`), which redirects to our
+  // `url`. The redirect lands on a URL Android/iOS associate with this app via
+  // the intent filters in AndroidManifest.xml and the CFBundleURLTypes in
+  // Info.plist, so tapping the email foregrounds Lumio.
+  //
+  // `handleCodeInApp: true` ensures the `oobCode` is passed through to the
+  // continue URL rather than consumed by Firebase's web handler — we apply it
+  // ourselves via [handleVerificationDeepLink] so verification is
+  // deterministic regardless of the user's default browser.
+
+  static const _kVerifyEmailUrl =
+      'https://lumin.tahseen.tech/auth/verify-email';
+  static const _kAndroidPackageName = 'com.lumin.app';
+  static const _kIosBundleId = 'com.lumin.app';
+
+  ActionCodeSettings get _verifyEmailActionCodeSettings => ActionCodeSettings(
+        url: _kVerifyEmailUrl,
+        handleCodeInApp: true,
+        androidPackageName: _kAndroidPackageName,
+        androidInstallApp: true,
+        androidMinimumVersion: '24',
+        iOSBundleId: _kIosBundleId,
+      );
+
+  /// Called by the "I've verified my email" button on the pending screen.
+  /// Reloads the Firebase user; if the verification flag has flipped, we
+  /// trade the ID token for our own JWTs. Returns true if the user is
+  /// now authenticated.
+  Future<bool> reloadAndCompleteVerification() async {
+    final pending = state;
+    if (pending is! AuthEmailVerificationPending) {
+      // Not in the pending state — nothing to do.
+      return state is AuthAuthenticated;
+    }
+    final user = _firebase.currentUser;
+    if (user == null) {
+      // Lost the Firebase session somehow — bounce back to login.
+      state = const AuthUnauthenticated();
+      return false;
+    }
+    await user.reload();
+    final refreshed = _firebase.currentUser;
+    if (refreshed == null || !refreshed.emailVerified) {
+      return false;
+    }
+    await _completeBackendSignIn(
+      firebaseUser: refreshed,
+      nameForFirstSignIn: pending.name,
+    );
+    return true;
+  }
+
+  // ── Backend handshake (shared) ────────────────────────────────────────────
+
+  Future<void> _completeBackendSignIn({
+    required dynamic firebaseUser,
+    String? nameForFirstSignIn,
+  }) async {
+    // firebaseUser is dynamic only to dodge the import-name clash; in
+    // practice it's a firebase_auth User. force a fresh ID token so the
+    // backend's tight replay window doesn't reject a cached one.
+    final idToken = await firebaseUser.getIdToken(true);
     if (idToken == null) {
       throw StateError('Firebase sign-in succeeded but no ID token');
     }
 
     final deviceId = await _secure.readDeviceId();
 
-    // Grab the FCM token *before* sign-in so the backend can persist it in
-    // the same transaction that creates / updates the user row. Without
-    // this, killed-app push delivery (messages + incoming calls) silently
-    // skips this device — the worker just logs "no FCM token, skipping".
+    // Grab the FCM token *before* the handshake so the backend can persist
+    // it in the same transaction that creates / updates the user row.
     final fcmService = _ref.read(fcmTokenServiceProvider);
     final fcmToken = await fcmService.currentToken();
 
@@ -218,35 +415,22 @@ class AuthNotifier extends StateNotifier<AuthState> {
       firebaseIdToken: idToken,
       deviceId: deviceId,
       fcmToken: fcmToken,
-      name: isRegistering ? _pendingName : null,
+      name: nameForFirstSignIn,
     );
 
     _ref.read(authTokenProvider.notifier).set(tokens.accessToken);
     await _secure.saveRefreshToken(tokens.refreshToken);
 
     final me = await _repo.getMe(tokens.accessToken);
+    await _secure.saveCachedUserJson(jsonEncode(me.toJson()));
     state = AuthAuthenticated(me: me);
 
-    // Install the rotation listener so any future FCM token refresh is
-    // automatically re-uploaded.
     fcmService.startRotationListener();
 
     // We no longer need to keep the Firebase session around — our own
-    // JWTs are the source of truth from here on.
-    await _firebase.signOut();
-    _pendingName = null;
-  }
-
-  /// Re-send the SMS code without restarting the entire flow. Returns
-  /// silently if the current state isn't waiting for OTP.
-  Future<void> resendOtp() async {
-    final pending = state;
-    if (pending is! AuthOtpPending) return;
-    await startPhoneVerification(
-      phone: pending.phone,
-      isRegistering: pending.isRegistering,
-      name: _pendingName,
-    );
+    // JWTs are the source of truth. Fire-and-forget.
+    unawaited(_firebase.signOut().catchError((_) {}));
+    unawaited(_google.signOut().catchError((_) => null));
   }
 
   // ── Sign out ──────────────────────────────────────────────────────────────
@@ -266,12 +450,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
         // Always clear locally, even if server call fails.
       }
     }
-    // Stop the FCM rotation listener — no point re-uploading tokens for an
-    // anonymous user. (Note: the user's row on the server still has the
-    // FCM token until they sign in elsewhere; that's a known limitation.)
     _ref.read(fcmTokenServiceProvider).stopRotationListener();
     _ref.read(authTokenProvider.notifier).clear();
     await _secure.deleteRefreshToken();
+    await _secure.deleteCachedUser();
+    // Best-effort: also drop the Google cached account so the next
+    // sign-in shows the picker.
+    try {
+      await _google.signOut();
+    } catch (_) {}
     state = const AuthUnauthenticated();
   }
 
@@ -282,16 +469,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
     _ref.read(authTokenProvider.notifier).clear();
     state = const AuthUnauthenticated();
     _secure.deleteRefreshToken();
+    _secure.deleteCachedUser();
   }
 
   // ── Profile sync ──────────────────────────────────────────────────────────
 
   /// Updates the cached User inside the Authenticated state, e.g. after name
-  /// or avatar changes from ProfileScreen.
+  /// or avatar changes from ProfileScreen. Persists to disk so the next cold
+  /// start sees the fresh profile without waiting for the network.
   void updateCachedUser(User user) {
     final current = state;
     if (current is AuthAuthenticated) {
       state = AuthAuthenticated(me: user);
+      unawaited(_secure.saveCachedUserJson(jsonEncode(user.toJson())));
     }
   }
 }

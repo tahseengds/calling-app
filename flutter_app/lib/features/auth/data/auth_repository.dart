@@ -7,8 +7,9 @@ import '../../../shared/models/user.dart';
 /// Auth endpoints (/api/auth/*) don't need a Bearer token (except logout),
 /// so we never import dio_client.dart here — that prevents a circular dep.
 ///
-/// Since the Firebase Phone Auth migration the only outbound endpoints are:
-///   - POST /api/auth/firebase-signin  (trade Firebase ID token → our tokens)
+/// Outbound endpoints:
+///   - POST /api/auth/firebase-signin  (trade Firebase ID token → our tokens;
+///                                      works for Google or email/password)
 ///   - POST /api/auth/refresh
 ///   - POST /api/auth/logout           (Bearer required)
 ///   - GET  /api/users/me
@@ -27,10 +28,12 @@ class AuthRepository {
 
   // ── Firebase sign-in ───────────────────────────────────────────────────────
 
-  /// Trade a Firebase Phone Auth ID token for our access + refresh JWTs.
+  /// Trade a Firebase ID token (Google or email/password) for our access
+  /// + refresh JWTs.
   ///
-  /// The client must have already completed the SMS verification flow
-  /// (verifyPhoneNumber → signInWithCredential → getIdToken).
+  /// The client must have already completed sign-in on the Firebase side
+  /// (signInWithCredential / signInWithEmailAndPassword) and obtained an
+  /// ID token via FirebaseUser.getIdToken().
   ///
   /// [name] is only used on a first-time sign-in for the welcome step; the
   /// backend ignores it for returning users.

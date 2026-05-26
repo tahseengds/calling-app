@@ -7,6 +7,30 @@ Usage:
   python deploy/setup_firebase.py path/to/firebase-service-account.json
 
 Reads project_id from the JSON and updates .env on the server.
+
+== Firebase Console checklist (manual, one-time) ==
+
+Auth providers — enable both at Firebase Console → Authentication → Sign-in
+method:
+  1. Email/Password (default settings; "Email link" is NOT needed — we use
+     the click-to-verify link that sendEmailVerification() ships).
+  2. Google. Pick a project support email. This is free on the Spark plan.
+
+Android — Google Sign-In specifically needs the SHA-1 fingerprint of every
+signing key (debug + release) registered against the Android app in
+Firebase Console → Project settings → Your apps. After adding, re-download
+flutter_app/android/app/google-services.json.
+
+  # Debug key (default Flutter setup):
+  keytool -list -v -keystore "%USERPROFILE%\\.android\\debug.keystore" \\
+          -alias androiddebugkey -storepass android -keypass android
+
+  # Release key — replace with your own keystore + alias.
+  keytool -list -v -keystore path\\to\\release.keystore -alias your_alias
+
+iOS — add the value of REVERSED_CLIENT_ID from GoogleService-Info.plist to
+ios/Runner/Info.plist CFBundleURLTypes (URL schemes). The google_sign_in
+plugin's README has the exact snippet.
 """
 from __future__ import annotations
 
@@ -17,9 +41,7 @@ from pathlib import Path
 
 import paramiko
 
-from remote_deploy import HOST, REMOTE_DIR, USER, run  # type: ignore[import-untyped]
-
-PASSWORD = os.environ["DEPLOY_PASSWORD"]
+from remote_deploy import HOST, REMOTE_DIR, SSH_KEY, USER, run  # type: ignore[import-untyped]
 REMOTE_JSON = f"{REMOTE_DIR}/firebase-service-account.json"
 CONTAINER_PATH = "/app/firebase-service-account.json"
 
@@ -72,7 +94,7 @@ def main() -> None:
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     print(f"Connecting to {USER}@{HOST}...")
-    ssh.connect(HOST, username=USER, password=PASSWORD, timeout=60)
+    ssh.connect(HOST, username=USER, key_filename=SSH_KEY, timeout=60)
 
     sftp = ssh.open_sftp()
     sftp.put(str(local_json), REMOTE_JSON)
@@ -116,7 +138,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    if "DEPLOY_PASSWORD" not in os.environ:
-        print("Set DEPLOY_PASSWORD", file=sys.stderr)
-        sys.exit(1)
     main()

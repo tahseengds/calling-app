@@ -1,7 +1,10 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/call_utils.dart';
 import '../domain/call_notifier.dart';
 import '../domain/call_state.dart';
@@ -201,58 +204,11 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
           if (session.phase == CallPhase.reconnecting)
             const ReconnectingOverlay(),
 
-          // ── Switch to audio prompt ───────────────────────────────────
+          // ── Weak connection prompt ───────────────────────────────────
           if (session.showSwitchToAudioPrompt)
-            Positioned(
-              top: 100,
-              left: 24,
-              right: 24,
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1A2235).withValues(alpha: 0.95),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.white12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Poor video quality',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Switch to audio only to improve the call?',
-                      style:
-                          TextStyle(color: Colors.white70, fontSize: 13),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: notifier.dismissSwitchToAudioPrompt,
-                          child: const Text('Not now',
-                              style:
-                                  TextStyle(color: Colors.white54)),
-                        ),
-                        const SizedBox(width: 8),
-                        TextButton(
-                          onPressed: notifier.switchToAudioOnly,
-                          child: const Text('Switch',
-                              style: TextStyle(
-                                  color: Color(0xFF5B7CFA),
-                                  fontWeight: FontWeight.w600)),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
+            WeakConnectionBanner(
+              onSwitch: notifier.switchToAudioOnly,
+              onKeep: notifier.dismissSwitchToAudioPrompt,
             ),
         ],
       ),
@@ -348,6 +304,139 @@ class _VideoPlaceholder extends StatelessWidget {
           Icons.videocam_off_rounded,
           size: 64,
           color: Colors.white.withValues(alpha: 0.3),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom-anchored blurred card shown when connection quality drops to poor.
+class WeakConnectionBanner extends StatelessWidget {
+  final VoidCallback onSwitch;
+  final VoidCallback onKeep;
+
+  const WeakConnectionBanner({
+    super.key,
+    required this.onSwitch,
+    required this.onKeep,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 16,
+      right: 16,
+      bottom: 32,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(24),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
+            decoration: BoxDecoration(
+              color: const Color(0x140F1525).withValues(alpha: 0.88),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.10)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    // Amber wifi icon box
+                    Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0A93B)
+                            .withValues(alpha: 0.22),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: const Center(
+                        child: Icon(Icons.wifi_rounded,
+                            color: Color(0xFFF0A93B), size: 22),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Weak connection',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Switching off video may improve the call.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.white70,
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 44,
+                        child: ElevatedButton(
+                          onPressed: onSwitch,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            shape: const StadiumBorder(),
+                            elevation: 0,
+                          ),
+                          child: const Text(
+                            'Switch to audio',
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: SizedBox(
+                        height: 44,
+                        child: OutlinedButton(
+                          onPressed: onKeep,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            backgroundColor:
+                                Colors.white.withValues(alpha: 0.10),
+                            side: BorderSide(
+                                color: Colors.white
+                                    .withValues(alpha: 0.18)),
+                            shape: const StadiumBorder(),
+                          ),
+                          child: const Text(
+                            'Keep video',
+                            style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

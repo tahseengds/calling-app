@@ -210,7 +210,7 @@ class ChatNotifier extends Notifier<ChatState> {
     try {
       final result = await ref.read(messageRepositoryProvider).sendMessage(
             clientId: clientId,
-            conversationId: _conversationId,
+            recipientId: state.otherUser!.id,
             type: MessageType.text,
             content: content.trim(),
             replyToId: replyToId,
@@ -279,7 +279,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
       final result = await ref.read(messageRepositoryProvider).sendMessage(
             clientId: clientId,
-            conversationId: _conversationId,
+            recipientId: state.otherUser!.id,
             type: type,
             mediaId: upload.mediaId,
             replyToId: replyToId,
@@ -310,7 +310,7 @@ class ChatNotifier extends Notifier<ChatState> {
     try {
       final result = await ref.read(messageRepositoryProvider).sendMessage(
             clientId: messageId,
-            conversationId: _conversationId,
+            recipientId: state.otherUser!.id,
             type: msg.type,
             content: msg.content,
             replyToId: msg.replyToId,

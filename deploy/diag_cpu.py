@@ -8,7 +8,7 @@ import paramiko
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 HOST = "165.227.146.247"
-PASSWORD = os.environ["DEPLOY_PASSWORD"]
+SSH_KEY = os.path.expanduser(os.environ.get("DEPLOY_KEY", "~/.ssh/do_droplet"))
 
 cmds = [
     "uptime; free -h; df -h /",
@@ -27,7 +27,7 @@ cmds = [
 
 c = paramiko.SSHClient()
 c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-c.connect(HOST, username="root", password=PASSWORD, timeout=30)
+c.connect(HOST, username="root", key_filename=SSH_KEY, timeout=30)
 for cmd in cmds:
     print("\n" + "=" * 60)
     print(">>>", cmd[:70])

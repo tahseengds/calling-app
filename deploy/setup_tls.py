@@ -8,9 +8,8 @@ from pathlib import Path
 
 import paramiko
 
-from remote_deploy import HOST, REMOTE_DIR, USER, upload_tree, run  # type: ignore[import-untyped]
+from remote_deploy import HOST, REMOTE_DIR, SSH_KEY, USER, upload_tree, run  # type: ignore[import-untyped]
 
-PASSWORD = os.environ["DEPLOY_PASSWORD"]
 DOMAIN = "lumin.tahseen.tech"
 EMAIL = os.environ.get("CERTBOT_EMAIL", "raj.tahseen@gmail.com")
 
@@ -46,7 +45,7 @@ def main() -> None:
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     print(f"Connecting to {USER}@{HOST}...")
-    ssh.connect(HOST, username=USER, password=PASSWORD, timeout=60)
+    ssh.connect(HOST, username=USER, key_filename=SSH_KEY, timeout=60)
 
     sftp = ssh.open_sftp()
     try:
@@ -85,7 +84,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    if "DEPLOY_PASSWORD" not in os.environ:
-        print("Set DEPLOY_PASSWORD", file=sys.stderr)
-        sys.exit(1)
     main()

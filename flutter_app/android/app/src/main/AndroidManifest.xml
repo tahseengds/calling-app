@@ -29,6 +29,10 @@
     <!-- Notifications (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Biometric / App Lock (local_auth) -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+
     <!-- Media access (Android 13+) -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
@@ -61,6 +65,40 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!--
+                 Email-verification deep link (replaces deprecated Dynamic
+                 Links). Two filters:
+
+                   1. Android App Link on https://lumin.tahseen.tech/auth/*.
+                      `autoVerify=true` makes Android verify ownership at
+                      install time via the assetlinks.json at
+                      /.well-known/assetlinks.json on that host. Until the
+                      file is published, this filter still works but Android
+                      will show the chooser the first time.
+
+                   2. Custom-scheme fallback `lumin://verify-email?...` so the
+                      flow works on devices that didn't get the App Link
+                      verification (older Android, or before assetlinks is
+                      hosted).
+
+                 Both URIs carry `oobCode=…` as a query param, consumed by
+                 AuthNotifier.handleVerificationDeepLink in Flutter.
+            -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https"
+                      android:host="lumin.tahseen.tech"
+                      android:pathPrefix="/auth" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="lumin" android:host="verify-email" />
+            </intent-filter>
         </activity>
 
         <!-- Foreground call service (prompt 15). -->
@@ -88,6 +126,12 @@
             android:name=".CallActionReceiver"
             android:exported="false" />
 
+        <!-- image_cropper: UCrop crop activity -->
+        <activity
+            android:name="com.yalantis.ucrop.UCropActivity"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
+
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
@@ -101,6 +145,17 @@
         <!-- For battery-optimization deep-links to OEM-specific settings. -->
         <intent>
             <action android:name="android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS" />
+        </intent>
+        <!-- "Open mail app" button on the verification screen — needed under
+             Android 11+ package visibility rules so the intent resolves. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.APP_EMAIL" />
+        </intent>
+        <!-- mailto: fallback for browsers / other senders. -->
+        <intent>
+            <action android:name="android.intent.action.SENDTO" />
+            <data android:scheme="mailto" />
         </intent>
     </queries>
 </manifest>

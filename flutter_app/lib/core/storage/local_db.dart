@@ -130,6 +130,12 @@ class ConversationsDao extends DatabaseAccessor<AppDatabase>
 
   Future<void> upsert(ConversationsTableCompanion entry) =>
       into(conversationsTable).insertOnConflictUpdate(entry);
+
+  Future<ConversationRow?> findByOtherUserId(String userId) =>
+      (select(conversationsTable)
+            ..where((c) => c.otherUserId.equals(userId))
+            ..limit(1))
+          .getSingleOrNull();
 }
 
 @DriftAccessor(tables: [UsersTable])

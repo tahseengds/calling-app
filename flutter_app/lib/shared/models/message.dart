@@ -43,7 +43,7 @@ class MediaAttachment {
         url: json['url'] as String,
         thumbnailUrl: json['thumbnail_url'] as String?,
         mimeType: json['mime_type'] as String?,
-        sizeBytes: json['size_bytes'] as int?,
+        sizeBytes: (json['file_size'] ?? json['size_bytes']) as int?,
         durationSeconds: json['duration_seconds'] as int?,
         width: json['width'] as int?,
         height: json['height'] as int?,
@@ -92,7 +92,8 @@ class Message {
         conversationId: json['conversation_id'] as String,
         senderId: json['sender_id'] as String,
         type: MessageType.values.firstWhere(
-          (e) => e.name == (json['type'] as String),
+          (e) => e.name == (json['message_type'] as String? ?? json['type'] as String),
+          orElse: () => MessageType.text,
         ),
         content: json['content'] as String?,
         media: json['media'] != null

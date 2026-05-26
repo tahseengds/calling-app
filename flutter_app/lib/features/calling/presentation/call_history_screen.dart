@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -8,8 +9,10 @@ import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/avatar.dart';
 import '../../../shared/widgets/lumio_icons.dart';
 import '../data/call_repository.dart';
+import '../../../features/chat/data/conversation_repository.dart';
 import '../domain/call_notifier.dart';
 import '../domain/call_state.dart';
+import 'widgets/permission_denied_screen.dart';
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 
@@ -318,7 +321,7 @@ class _CallRow extends ConsumerWidget {
                     child: _ActionBtn(
                       icon: LumioIcons.message,
                       label: 'Message',
-                      onTap: () {},
+                      onTap: () => _openChat(context, ref),
                       lumioColors: lumioColors,
                     ),
                   ),
@@ -351,8 +354,65 @@ class _CallRow extends ConsumerWidget {
     );
   }
 
-  void _placeCall(
-      BuildContext context, WidgetRef ref, CallType callType) {
+  Future<void> _openChat(BuildContext context, WidgetRef ref) async {
+    try {
+      final convId = await ref
+          .read(conversationRepositoryProvider)
+          .getOrCreateConversation(record.peerUser.id);
+      if (context.mounted) {
+        context.push(
+            '/chat/$convId?name=${Uri.encodeComponent(record.peerUser.name)}');
+      }
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open conversation')),
+        );
+      }
+    }
+  }
+
+  Future<void> _placeCall(
+      BuildContext context, WidgetRef ref, CallType callType) async {
+    // ── Microphone (required for all calls) ───────────────────────
+    var micStatus = await Permission.microphone.status;
+    if (micStatus.isPermanentlyDenied) {
+      if (context.mounted) {
+        await Navigator.of(context).push(MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => const PermissionDeniedScreen(
+              type: PermissionDeniedType.microphone),
+        ));
+      }
+      return;
+    }
+    if (!micStatus.isGranted) {
+      micStatus = await Permission.microphone.request();
+      if (!micStatus.isGranted) return;
+    }
+
+    // ── Camera (required for video; downgrade if denied) ──────────
+    if (callType == CallType.video) {
+      var camStatus = await Permission.camera.status;
+      if (camStatus.isPermanentlyDenied) {
+        if (context.mounted) {
+          await Navigator.of(context).push(MaterialPageRoute(
+            fullscreenDialog: true,
+            builder: (_) => const PermissionDeniedScreen(
+                type: PermissionDeniedType.camera),
+          ));
+        }
+        return;
+      }
+      if (!camStatus.isGranted) {
+        camStatus = await Permission.camera.request();
+        if (!camStatus.isGranted) {
+          callType = CallType.audio; // downgrade, don't block
+        }
+      }
+    }
+
+    if (!context.mounted) return;
     ref.read(callSessionProvider.notifier).startCall(
           record.peerUser,
           callType,

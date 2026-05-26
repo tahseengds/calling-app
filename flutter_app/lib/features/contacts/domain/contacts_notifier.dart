@@ -56,25 +56,42 @@ class ContactsNotifier extends StateNotifier<ContactsState> {
 
   /// Throws on failure (notFound, duplicate) so AddContactScreen can show
   /// inline error messages without changing global contacts state.
+  ///
+  /// Pass either [email] (preferred, matches the email/Google auth flow) or
+  /// [phone] (legacy accounts). Exactly one must be non-null.
   Future<void> addContact({
-    required String phone,
+    String? email,
+    String? phone,
     String? nickname,
   }) async {
+    assert(
+      (email == null) ^ (phone == null),
+      'addContact requires exactly one of email or phone',
+    );
     if (AppConfig.uiOnly) {
-      final duplicate = state.contacts.any((c) => c.phone == phone);
+      final key = email ?? phone!;
+      final duplicate = state.contacts.any(
+        (c) => (email != null && c.email == email) ||
+            (phone != null && c.phone == phone),
+      );
       if (duplicate) {
         throw const DuplicateContactException();
       }
       final user = User(
-        id: 'mock-${phone.hashCode}',
+        id: 'mock-${key.hashCode}',
         name: nickname?.isNotEmpty == true ? nickname! : 'Family member',
+        email: email,
         phone: phone,
         lastSeen: DateTime.now(),
       );
       state = state.copyWith(contacts: [user, ...state.contacts]);
       return;
     }
-    final user = await _repo.addContact(phone: phone, nickname: nickname);
+    final user = await _repo.addContact(
+      email: email,
+      phone: phone,
+      nickname: nickname,
+    );
     // Optimistically prepend; reload to get server-sorted list.
     state = state.copyWith(contacts: [user, ...state.contacts]);
     load();

@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
@@ -23,7 +23,7 @@ import io.flutter.plugin.common.MethodChannel
  * intent carries [CallService.EXTRA_FROM_CALL_NOTIFICATION], so a plain launcher
  * tap can't bypass the keyguard.
  */
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
     private var methodChannel: MethodChannel? = null
 
     /** Latest pending incoming-call payload (consumed once by Flutter on startup). */

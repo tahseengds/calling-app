@@ -1,28 +1,79 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/services/battery_optimization_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/battery_optimization_sheet.dart';
 import '../../../shared/widgets/lumio_icons.dart';
+import '../../../shared/widgets/permissions_sheet.dart';
 import '../../contacts/ui/contacts_screen.dart';
 import '../../profile/ui/profile_screen.dart';
 import '../../calling/presentation/call_history_screen.dart';
-import '../../chat/presentation/conversation_list_screen.dart';
+// Polished "Messages" home — rich card list backed by live conversation data.
+import '../../chat/presentation/chats_home_screen.dart';
 
-final shellTabProvider = StateProvider<int>((_) => 2);
+final shellTabProvider = StateProvider<int>((_) => 0);
 
-class ShellScreen extends ConsumerWidget {
+class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ShellScreen> createState() => _ShellScreenState();
+}
+
+class _ShellScreenState extends ConsumerState<ShellScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _runOnboarding());
+  }
+
+  Future<void> _runOnboarding() async {
+    if (!mounted) return;
+    final prefs = await SharedPreferences.getInstance();
+    final permsDone = prefs.getBool('onboarding_perms_done') ?? false;
+
+    if (!permsDone) {
+      // Check if any core permission is still not granted.
+      final statuses = await Future.wait([
+        Permission.microphone.status,
+        Permission.camera.status,
+        Permission.notification.status,
+      ]);
+      final anyMissing = statuses.any((s) => !s.isGranted);
+      if (anyMissing && mounted) {
+        await showPermissionsSheet(context);
+      }
+      await prefs.setBool('onboarding_perms_done', true);
+    }
+
+    // Battery optimization — show once if not exempt.
+    if (!mounted) return;
+    final svc = ref.read(batteryOptimizationServiceProvider);
+    final battDone =
+        prefs.getBool('onboarding_battery_done') ?? false;
+    if (!battDone) {
+      final exempt = await svc.isIgnoringBatteryOptimizations();
+      final oem = await svc.getOemHints();
+      if ((!exempt || oem.isAggressive) && mounted) {
+        await showBatteryOptimizationSheet(context, svc, oem);
+      }
+      await prefs.setBool('onboarding_battery_done', true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final tabIndex = ref.watch(shellTabProvider);
 
     return Scaffold(
       body: IndexedStack(
         index: tabIndex,
         children: const [
+          ChatsHomeScreen(),
           CallHistoryScreen(),
-          ConversationListScreen(),
           ContactsScreen(),
           ProfileScreen(),
         ],
@@ -36,8 +87,8 @@ class ShellScreen extends ConsumerWidget {
 }
 
 const _navItems = [
-  _NavItem(label: 'Calls', icon: LumioIcons.phone),
   _NavItem(label: 'Messages', icon: LumioIcons.message),
+  _NavItem(label: 'Calls', icon: LumioIcons.phone),
   _NavItem(label: 'Contacts', icon: LumioIcons.users),
   _NavItem(label: 'Settings', icon: LumioIcons.settings),
 ];

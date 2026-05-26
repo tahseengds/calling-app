@@ -1,12 +1,18 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../../core/services/battery_optimization_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/user.dart';
 import '../../../shared/widgets/avatar.dart';
 import '../../../shared/widgets/lumio_icons.dart';
+import '../../../shared/widgets/settings_tile.dart';
 import 'package:go_router/go_router.dart';
 import '../../auth/domain/auth_notifier.dart';
 import '../domain/profile_notifier.dart';
@@ -56,18 +62,87 @@ class _ProfileView extends ConsumerStatefulWidget {
 
 class _ProfileViewState extends ConsumerState<_ProfileView> {
   bool _isSigningOut = false;
+  bool _uploadingAvatar = false;
+  String? _versionLabel;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (!mounted) return;
+      setState(() => _versionLabel = 'Version ${info.version} (${info.buildNumber})');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _versionLabel = 'Version 1.0.0');
+    }
+  }
 
   Future<void> _pickAvatar() async {
-    final picker = ImagePicker();
-    final image = await picker.pickImage(
-      source: ImageSource.gallery,
+    if (_uploadingAvatar) return;
+
+    // Step 1: pick from gallery (no pre-scaling — let the cropper handle it)
+    final image = await ImagePicker().pickImage(source: ImageSource.gallery);
+    if (image == null || !mounted) return;
+
+    // Step 2: interactive crop — 1:1 square, circle overlay
+    final cropped = await ImageCropper().cropImage(
+      sourcePath: image.path,
       maxWidth: 512,
       maxHeight: 512,
-      imageQuality: 80,
+      aspectRatio: const CropAspectRatio(ratioX: 1, ratioY: 1),
+      compressFormat: ImageCompressFormat.jpg,
+      compressQuality: 85,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Crop photo',
+          toolbarColor: AppColors.primary,
+          toolbarWidgetColor: Colors.white,
+          cropStyle: CropStyle.circle,
+          initAspectRatio: CropAspectRatioPreset.square,
+          lockAspectRatio: true,
+          showCropGrid: false,
+          hideBottomControls: false,
+        ),
+        IOSUiSettings(
+          title: 'Crop photo',
+          cropStyle: CropStyle.circle,
+          aspectRatioLockEnabled: true,
+          resetAspectRatioEnabled: false,
+        ),
+      ],
     );
-    if (image == null || !mounted) return;
+    if (cropped == null || !mounted) return;
+
+    setState(() => _uploadingAvatar = true);
     try {
-      await ref.read(profileNotifierProvider.notifier).updateAvatar(image.path);
+      // Step 3: safety-net — image_cropper at 512×512/q85 is normally
+      // 30–120 KB, but if somehow the file is still > 900 KB, compress further.
+      String uploadPath = cropped.path;
+      if (await File(cropped.path).length() > 900 * 1024) {
+        final dir = await getTemporaryDirectory();
+        final target = '${dir.path}/avatar_upload.jpg';
+        final compressed = await FlutterImageCompress.compressAndGetFile(
+          cropped.path,
+          target,
+          minWidth: 512,
+          minHeight: 512,
+          quality: 60,
+          format: CompressFormat.jpeg,
+        );
+        if (compressed != null) uploadPath = compressed.path;
+      }
+
+      await ref.read(profileNotifierProvider.notifier).updateAvatar(uploadPath);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Photo updated!')),
+        );
+      }
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -76,6 +151,8 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
           backgroundColor: AppColors.danger,
         ),
       );
+    } finally {
+      if (mounted) setState(() => _uploadingAvatar = false);
     }
   }
 
@@ -165,6 +242,21 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                             imageUrl: user.avatarUrl,
                             radius: 48,
                           ),
+                          if (_uploadingAvatar)
+                            Positioned.fill(
+                              child: Container(
+                                decoration: const BoxDecoration(
+                                  color: Colors.black38,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 2.5,
+                                  ),
+                                ),
+                              ),
+                            ),
                           Positioned(
                             right: 0,
                             bottom: 0,
@@ -217,7 +309,7 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        user.phone,
+                        user.email ?? user.phone ?? '',
                         style: TextStyle(
                           fontSize: 15,
                           color: colors.fg2,
@@ -229,106 +321,82 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
               ),
             ),
 
-            // ── "Reliable calls" battery card ────────────────────────────
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _ReliableCallsCard(),
-              ),
-            ),
-
             // ── Settings sections ─────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
                 child: Column(
                   children: [
-                    _SettingsSection(
+                    SettingsSection(
                       title: 'Account',
                       tiles: [
-                        _SettingsTile(
+                        SettingsTile(
                           icon: LumioIcons.edit,
                           label: 'Edit name',
                           onTap: _editName,
                         ),
-                        _SettingsTile(
+                        SettingsTile(
                           icon: LumioIcons.phone,
                           label: 'Change number',
                           onTap: () => context.push('/profile/change-number'),
                         ),
-                        _SettingsTile(
+                        SettingsTile(
                           icon: LumioIcons.shield,
                           label: 'Privacy',
-                          onTap: () {},
+                          onTap: () => context.push('/profile/privacy'),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    _SettingsSection(
+                    SettingsSection(
                       title: 'Notifications',
                       tiles: [
-                        _SettingsTile(
+                        SettingsTile(
                           icon: LumioIcons.bell,
                           label: 'Notification settings',
-                          onTap: () {},
+                          onTap: () => context.push('/profile/notifications'),
                         ),
-                        _SettingsTile(
+                        SettingsTile(
                           icon: LumioIcons.message,
                           label: 'Message sounds',
-                          onTap: () {},
+                          onTap: () => context.push('/profile/sounds'),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    _SettingsSection(
+                    SettingsSection(
                       title: 'Help',
                       tiles: [
-                        _SettingsTile(
+                        SettingsTile(
                           icon: LumioIcons.help,
                           label: 'Help & support',
-                          onTap: () {},
+                          onTap: () => context.push('/profile/help'),
                         ),
-                        _SettingsTile(
+                        SettingsTile(
                           icon: LumioIcons.info,
                           label: 'About Lumio',
-                          subtitle: 'Version 1.0.0',
-                          onTap: () {},
+                          subtitle: _versionLabel,
+                          onTap: () => context.push('/profile/about'),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
 
                     // ── Logout ────────────────────────────────────────────
-                    Material(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(16),
-                      child: ListTile(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        leading: const Icon(
-                          LumioIcons.logout,
-                          color: AppColors.danger,
-                        ),
-                        title: const Text(
-                          'Log out',
-                          style: TextStyle(
-                            color: AppColors.danger,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        onTap: _isSigningOut ? null : _signOut,
-                        trailing: _isSigningOut
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: AppColors.danger,
-                                ),
-                              )
-                            : null,
-                      ),
+                    SettingsDestructiveTile(
+                      icon: LumioIcons.logout,
+                      label: 'Log out',
+                      onTap: _isSigningOut ? null : _signOut,
+                      trailing: _isSigningOut
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.danger,
+                              ),
+                            )
+                          : null,
                     ),
                     const SizedBox(height: 32),
                   ],
@@ -338,252 +406,6 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
           ],
         ),
       ),
-    );
-  }
-}
-
-// ── Reliable calls card ───────────────────────────────────────────────────────
-
-class _ReliableCallsCard extends ConsumerStatefulWidget {
-  @override
-  ConsumerState<_ReliableCallsCard> createState() =>
-      _ReliableCallsCardState();
-}
-
-class _ReliableCallsCardState extends ConsumerState<_ReliableCallsCard> {
-  bool _exempt = true; // optimistic — hide the card while we're checking
-  OemHints _oem = OemHints.empty();
-  bool _busy = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _refresh();
-  }
-
-  Future<void> _refresh() async {
-    final svc = ref.read(batteryOptimizationServiceProvider);
-    final exempt = await svc.isIgnoringBatteryOptimizations();
-    final oem = await svc.getOemHints();
-    if (!mounted) return;
-    setState(() {
-      _exempt = exempt;
-      _oem = oem;
-    });
-  }
-
-  Future<void> _onTap() async {
-    if (_busy) return;
-    setState(() => _busy = true);
-    final svc = ref.read(batteryOptimizationServiceProvider);
-    try {
-      if (!_exempt) {
-        await svc.requestIgnoreBatteryOptimizations();
-      } else if (_oem.isAggressive) {
-        final opened = await svc.openOemAutoStartSettings();
-        if (!opened) {
-          await svc.openAppSettings();
-        }
-      } else {
-        await svc.openAppSettings();
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-      // Refresh exempt status when the user returns from settings.
-      // We can't observe app-resume here directly, so just re-check now —
-      // the user typically returns immediately after toggling the setting.
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-      if (mounted) await _refresh();
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    // Hide the card on devices that are already exempt and not on an
-    // aggressive OEM — there's nothing useful for the user to do here.
-    if (_exempt && !_oem.isAggressive) return const SizedBox.shrink();
-
-    final colors = context.lumioColors;
-    final body = !_exempt
-        ? 'Allow background activity so Lumio can ring you for family calls.'
-        : _oem.autoStartLabel != null
-            ? 'On your ${_oem.manufacturer}, also turn on auto-start: ${_oem.autoStartLabel}.'
-            : 'Make sure Lumio is allowed to run in the background.';
-    final buttonLabel = !_exempt
-        ? 'Allow background'
-        : _oem.isAggressive
-            ? 'Open auto-start'
-            : 'Open settings';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.primary.withAlpha(30),
-            AppColors.primary.withAlpha(15),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.primary.withAlpha(60)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withAlpha(40),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              LumioIcons.battery,
-              color: AppColors.primary,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Reliable calls',
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: colors.fg1,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  body,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.fg2,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          TextButton(
-            onPressed: _busy ? null : _onTap,
-            style: TextButton.styleFrom(
-              foregroundColor: AppColors.primary,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-            ),
-            child: Text(
-              buttonLabel,
-              style:
-                  const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Settings section ──────────────────────────────────────────────────────────
-
-class _SettingsSection extends StatelessWidget {
-  final String title;
-  final List<_SettingsTile> tiles;
-
-  const _SettingsSection({required this.title, required this.tiles});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.lumioColors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            title.toUpperCase(),
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.8,
-              color: colors.fg3,
-            ),
-          ),
-        ),
-        Material(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          child: Column(
-            children: [
-              for (int i = 0; i < tiles.length; i++) ...[
-                tiles[i],
-                if (i < tiles.length - 1)
-                  Divider(
-                    height: 1,
-                    indent: 56,
-                    color: colors.hairline,
-                  ),
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SettingsTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String? subtitle;
-  final VoidCallback onTap;
-
-  const _SettingsTile({
-    required this.icon,
-    required this.label,
-    this.subtitle,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.lumioColors;
-    final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(16),
-    );
-    return ListTile(
-      shape: shape,
-      leading: Icon(
-        icon,
-        color: colors.fg2,
-        size: 22,
-      ),
-      title: Text(
-        label,
-        style: TextStyle(
-          fontSize: 15,
-          color: colors.fg1,
-        ),
-      ),
-      subtitle: subtitle != null
-          ? Text(
-              subtitle!,
-              style: TextStyle(
-                fontSize: 13,
-                color: colors.fg3,
-              ),
-            )
-          : null,
-      trailing: Icon(
-        LumioIcons.chevronRight,
-        color: colors.fg3,
-        size: 20,
-      ),
-      onTap: onTap,
     );
   }
 }

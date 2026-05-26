@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../network/dio_client.dart';
 import '../storage/local_db.dart';
@@ -27,15 +28,29 @@ class SyncService {
 
     for (final row in rows) {
       try {
+        // Resolve recipient from the cached conversation.
+        final convRows = await (_db.select(_db.conversationsTable)
+              ..where((c) => c.id.equals(row.conversationId)))
+            .get();
+        final recipientId = convRows.firstOrNull?.otherUserId;
+        if (recipientId == null) {
+          // Conversation row evicted from cache (e.g. local DB wipe between
+          // send and sync). Leave the message in the outbox so a future sync
+          // can pick it up once the conversation list re-syncs from server.
+          debugPrint(
+              '[sync] skipping outbox message ${row.id}: conversation '
+              '${row.conversationId} not in local cache');
+          continue;
+        }
+
         // Trailing slash required — see message_repository for rationale.
         await _dio.post<void>(
           '/api/messages/',
           data: {
-            'id': row.id,
-            'conversation_id': row.conversationId,
-            'type': row.messageType,
+            'client_id': row.id,
+            'recipient_id': recipientId,
+            'message_type': row.messageType,
             if (row.content != null) 'content': row.content,
-            if (row.mediaRemoteUrl != null) 'media_url': row.mediaRemoteUrl,
             if (row.replyToId != null) 'reply_to_id': row.replyToId,
           },
         );
@@ -56,23 +71,13 @@ class SyncService {
   /// Fetches messages that arrived while the socket was down for one
   /// conversation.  Uses the most recent locally-stored message as a cursor.
   Future<void> fetchMissedMessages(String conversationId) async {
-    final latest = await (_db.select(_db.messagesTable)
-          ..where((m) => m.conversationId.equals(conversationId))
-          ..orderBy([
-            (m) =>
-                OrderingTerm(expression: m.createdAt, mode: OrderingMode.desc)
-          ])
-          ..limit(1))
-        .getSingleOrNull();
-
-    final since = latest?.createdAt.toUtc().toIso8601String();
-
     try {
       final resp = await _dio.get<Map<String, dynamic>>(
         '/api/conversations/$conversationId/messages',
-        queryParameters: since != null ? {'since': since} : null,
+        queryParameters: {'limit': 50},
       );
-      final items = (resp.data?['items'] as List<dynamic>?) ?? [];
+      // Backend returns MessagePage: { messages: [...], next_cursor: ... }
+      final items = (resp.data?['messages'] as List<dynamic>?) ?? [];
       for (final item in items) {
         final msg = Message.fromJson(item as Map<String, dynamic>);
         await _db.messagesDao.upsert(_toCompanion(msg));
@@ -87,44 +92,48 @@ class SyncService {
   /// Refreshes the conversation list and caches other-user profiles.
   Future<void> syncConversations() async {
     try {
+      // Backend returns a bare JSON array of ConversationResponse objects.
       // Trailing slash required — see contact_repository for rationale.
-      final resp =
-          await _dio.get<Map<String, dynamic>>('/api/conversations/');
-      final items = (resp.data?['items'] as List<dynamic>?) ?? [];
+      final resp = await _dio.get<List<dynamic>>('/api/conversations/');
+      final items = resp.data ?? [];
 
       for (final item in items) {
         final json = item as Map<String, dynamic>;
+
+        // 'other_user' is a nested UserPublic object, not a flat id field.
+        final u = json['other_user'] as Map<String, dynamic>?;
+        if (u == null) continue;
+
         await _db.conversationsDao.upsert(ConversationsTableCompanion(
           id: Value(json['id'] as String),
-          otherUserId: Value(json['other_user_id'] as String),
-          lastMessageId: Value(json['last_message_id'] as String?),
+          otherUserId: Value(u['id'] as String),
+          // 'last_message' is a nested MessageResponse (or null), not an id.
+          lastMessageId: Value(
+            (json['last_message'] as Map<String, dynamic>?)?['id'] as String?,
+          ),
           lastActivity: Value(
             DateTime.parse(json['last_activity'] as String).toLocal(),
           ),
           unreadCount: Value(json['unread_count'] as int? ?? 0),
         ));
 
-        final u = json['other_user'] as Map<String, dynamic>?;
-        if (u != null) {
-          await _db.usersDao.upsert(UsersTableCompanion(
-            id: Value(u['id'] as String),
-            name: Value(u['name'] as String),
-            phone: Value(u['phone'] as String? ?? ''),
-            avatarUrl: Value(u['avatar_url'] as String?),
-            lastSeen: Value(
-              u['last_seen'] != null
-                  ? DateTime.parse(u['last_seen'] as String).toLocal()
-                  : DateTime.now(),
-            ),
-            presence: Value(u['presence'] as String? ?? 'offline'),
-          ));
-        }
+        await _db.usersDao.upsert(UsersTableCompanion(
+          id: Value(u['id'] as String),
+          name: Value(u['name'] as String),
+          phone: Value(u['phone'] as String? ?? ''),
+          avatarUrl: Value(u['avatar_url'] as String?),
+          lastSeen: Value(
+            u['last_seen'] != null
+                ? DateTime.parse(u['last_seen'] as String).toLocal()
+                : DateTime.now(),
+          ),
+          presence: Value(u['presence'] as String? ?? 'offline'),
+        ));
 
         // Cache the last message if embedded.
         final lastMsg = json['last_message'] as Map<String, dynamic>?;
         if (lastMsg != null) {
-          await _db.messagesDao
-              .upsert(_toCompanion(Message.fromJson(lastMsg)));
+          await _db.messagesDao.upsert(_toCompanion(Message.fromJson(lastMsg)));
         }
       }
     } catch (_) {

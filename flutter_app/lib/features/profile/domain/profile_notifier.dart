@@ -3,13 +3,19 @@ import 'package:flutter_riverpod/legacy.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/mock/mock_data.dart';
 import '../../../shared/models/user.dart';
+import '../../auth/domain/auth_notifier.dart';
 import '../data/profile_repository.dart';
 
 class ProfileNotifier extends StateNotifier<AsyncValue<User>> {
   final ProfileRepository _repo;
+  final Ref _ref;
 
-  ProfileNotifier(this._repo) : super(const AsyncLoading()) {
+  ProfileNotifier(this._repo, this._ref) : super(const AsyncLoading()) {
     load();
+  }
+
+  void _syncAuthCache(User user) {
+    _ref.read(authNotifierProvider.notifier).updateCachedUser(user);
   }
 
   Future<void> load() async {
@@ -19,7 +25,9 @@ class ProfileNotifier extends StateNotifier<AsyncValue<User>> {
     }
     state = const AsyncLoading();
     try {
-      state = AsyncData(await _repo.getMe());
+      final user = await _repo.getMe();
+      state = AsyncData(user);
+      _syncAuthCache(user);
     } catch (e, st) {
       state = AsyncError(e, st);
     }
@@ -40,6 +48,7 @@ class ProfileNotifier extends StateNotifier<AsyncValue<User>> {
     }
     final updated = await _repo.updateName(name);
     state = AsyncData(updated);
+    _syncAuthCache(updated);
   }
 
   Future<void> updatePhone(String phone) async {
@@ -57,19 +66,20 @@ class ProfileNotifier extends StateNotifier<AsyncValue<User>> {
     }
     final updated = await _repo.updatePhone(phone);
     state = AsyncData(updated);
+    _syncAuthCache(updated);
   }
 
   Future<void> updateAvatar(String filePath) async {
     if (AppConfig.uiOnly) {
-      // Avatar upload needs the API; keep the current mock user locally.
       return;
     }
     final updated = await _repo.updateAvatar(filePath);
     state = AsyncData(updated);
+    _syncAuthCache(updated);
   }
 }
 
 final profileNotifierProvider =
     StateNotifierProvider<ProfileNotifier, AsyncValue<User>>((ref) {
-  return ProfileNotifier(ref.watch(profileRepositoryProvider));
+  return ProfileNotifier(ref.watch(profileRepositoryProvider), ref);
 });

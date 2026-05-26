@@ -25,10 +25,13 @@ dependencies:
   # WebRTC — added in prompt 15 (calling feature) with a Flutter-3.x-compatible version.
   # flutter_webrtc: ^0.10.0  ← 0.10.x references removed PluginRegistry.Registrar
 
-  # Firebase / FCM / Phone Auth
+  # Firebase / FCM / Auth (Google + Email/Password)
   firebase_core: ^4.9.0
   firebase_messaging: ^16.2.2
   firebase_auth: ^6.1.1
+  # Google Sign-In — runs the native Google account picker then exchanges
+  # the result for a Firebase credential via GoogleAuthProvider.credential.
+  google_sign_in: ^6.2.2
 
   # Local database (Drift + SQLite)
   drift: ^2.31.0
@@ -41,6 +44,8 @@ dependencies:
 
   # Media
   image_picker: ^1.2.2
+  image_cropper: ^9.0.0
+  flutter_image_compress: ^2.3.0
   file_picker: ^12.0.0-beta.4
   flutter_sound: ^9.30.0
   video_player: ^2.11.1
@@ -63,14 +68,26 @@ dependencies:
   # Wakelock — keeps the screen on during active calls
   wakelock_plus: ^1.2.0
 
-  # International phone-number input (country picker + flag + per-country validation)
-  intl_phone_field: ^3.2.0
-
   # Routing
   go_router: ^17.2.3
 
   cupertino_icons: ^1.0.8
   google_fonts: ^8.1.0
+  # Runtime splash control (preserve/remove APIs used in main.dart).
+  flutter_native_splash: ^2.4.0
+
+  # Settings sub-screens (notifications, sounds, privacy, help, about)
+  package_info_plus: ^10.1.0
+  url_launcher: ^6.3.1
+  audioplayers: ^6.1.0
+  local_auth: ^2.3.0
+
+  # Email-verification deep links (replaces deprecated firebase_dynamic_links).
+  app_links: ^6.3.2
+
+  # Opens the user's default mail client at the INBOX, not at compose
+  # (mailto: would open compose). Android-only intent wrapper.
+  android_intent_plus: ^5.2.0
 
 dev_dependencies:
   flutter_test:
@@ -82,12 +99,12 @@ dev_dependencies:
   # all providers are declared explicitly. Removing it breaks the analyzer version
   # conflict with riverpod 3.x + web_socket_channel 3.x + flutter_test SDK pins.
   flutter_launcher_icons: ^0.14.4
-  flutter_native_splash: ^2.4.0
 
 flutter:
   uses-material-design: true
   assets:
     - assets/
+    - assets/sounds/notifications/
 
 flutter_launcher_icons:
   android: "launcher_icon"
@@ -95,10 +112,10 @@ flutter_launcher_icons:
   image_path: "assets/lumin-logo.png"
 
 flutter_native_splash:
-  color: "#ffffff"
-  color_dark: "#000000"
-  image: "assets/lumin-logo-splash.png"
+  color: "#F4F6FB"
+  color_dark: "#1A2235"
+  image: "assets/lumin-splash-screen.png"
   android_12:
-    image: "assets/lumin-logo-splash.png"
-    icon_background_color: "#ffffff"
-    icon_background_color_dark: "#000000"
+    image: "assets/lumin-splash-screen.png"
+    icon_background_color: "#F4F6FB"
+    icon_background_color_dark: "#1A2235"

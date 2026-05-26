@@ -10,6 +10,7 @@ import '../domain/call_notifier.dart';
 import '../domain/call_state.dart';
 import 'widgets/call_controls.dart';
 import 'widgets/call_quality_badge.dart';
+import 'video_call_screen.dart' show WeakConnectionBanner;
 
 /// Audio call UI — wired to the live [callSessionProvider].
 class ActiveCallScreen extends ConsumerStatefulWidget {
@@ -181,11 +182,11 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen>
             if (session.phase == CallPhase.reconnecting)
               const ReconnectingOverlay(),
 
-            // ── Switch to audio prompt ────────────────────────────────
+            // ── Weak connection prompt ────────────────────────────────
             if (session.showSwitchToAudioPrompt)
-              _SwitchToAudioPrompt(
+              WeakConnectionBanner(
                 onSwitch: notifier.switchToAudioOnly,
-                onDismiss: notifier.dismissSwitchToAudioPrompt,
+                onKeep: notifier.dismissSwitchToAudioPrompt,
               ),
           ],
         ),
@@ -194,65 +195,3 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen>
   }
 }
 
-class _SwitchToAudioPrompt extends StatelessWidget {
-  final VoidCallback onSwitch;
-  final VoidCallback onDismiss;
-
-  const _SwitchToAudioPrompt(
-      {required this.onSwitch, required this.onDismiss});
-
-  @override
-  Widget build(BuildContext context) {
-    return Positioned(
-      top: 120,
-      left: 24,
-      right: 24,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: const Color(0xFF222B42),
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-                color: Colors.black38, blurRadius: 24, offset: Offset(0, 8))
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Poor video quality',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Switch to audio only to improve the call?',
-              style: TextStyle(color: Colors.white70, fontSize: 13),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: onDismiss,
-                  child: const Text('Not now',
-                      style: TextStyle(color: Colors.white54)),
-                ),
-                const SizedBox(width: 8),
-                TextButton(
-                  onPressed: onSwitch,
-                  child: const Text('Switch',
-                      style: TextStyle(color: AppColors.primary,
-                          fontWeight: FontWeight.w600)),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

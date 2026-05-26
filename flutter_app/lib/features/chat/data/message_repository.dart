@@ -13,7 +13,7 @@ class MessageRepository {
 
   Future<Message> sendMessage({
     required String clientId,
-    required String conversationId,
+    required String recipientId,
     required MessageType type,
     String? content,
     String? mediaId,
@@ -24,9 +24,9 @@ class MessageRepository {
     final resp = await _dio.post<Map<String, dynamic>>(
       '/api/messages/',
       data: {
-        'id': clientId,
-        'conversation_id': conversationId,
-        'type': type.name,
+        'client_id': clientId,
+        'recipient_id': recipientId,
+        'message_type': type.name,
         'content': ?content,
         'media_id': ?mediaId,
         'reply_to_id': ?replyToId,
@@ -49,7 +49,7 @@ class MessageRepository {
         'cursor': ?cursor,
       },
     );
-    final items = (resp.data?['items'] as List<dynamic>?) ?? [];
+    final items = (resp.data?['messages'] as List<dynamic>?) ?? [];
     return items
         .map((e) => Message.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -59,7 +59,7 @@ class MessageRepository {
 
   Future<void> markDelivered(List<String> messageIds) async {
     if (messageIds.isEmpty) return;
-    await _dio.post<void>(
+    await _dio.put<void>(
       '/api/messages/delivered',
       data: {'message_ids': messageIds},
     );
@@ -67,7 +67,7 @@ class MessageRepository {
 
   Future<void> markRead(List<String> messageIds) async {
     if (messageIds.isEmpty) return;
-    await _dio.post<void>(
+    await _dio.put<void>(
       '/api/messages/read',
       data: {'message_ids': messageIds},
     );
@@ -126,7 +126,7 @@ class MediaUploadResult {
 
   factory MediaUploadResult.fromJson(Map<String, dynamic> json) =>
       MediaUploadResult(
-        mediaId: json['media_id'] as String,
+        mediaId: json['id'] as String,
         url: json['url'] as String,
         thumbnailUrl: json['thumbnail_url'] as String?,
         width: json['width'] as int?,

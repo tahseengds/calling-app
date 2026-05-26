@@ -17,12 +17,12 @@
 abstract final class AppConfig {
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue: 'https://lumin.example.com',
+    defaultValue: 'https://lumin.tahseen.tech',
   );
 
   static const String signalingUrl = String.fromEnvironment(
     'SIGNALING_URL',
-    defaultValue: 'wss://lumin.example.com',
+    defaultValue: 'wss://lumin.tahseen.tech',
   );
 
   static const String appEnv = String.fromEnvironment(
@@ -38,4 +38,15 @@ abstract final class AppConfig {
   /// Enable for UI-preview / design-review builds only:
   ///   `--dart-define=UI_ONLY=true`
   static const bool uiOnly = bool.fromEnvironment('UI_ONLY');
+
+  // ── Public links shown in About screen ─────────────────────────────────
+  static const String termsUrl = String.fromEnvironment(
+    'TERMS_URL',
+    defaultValue: 'https://lumin.tahseen.tech/terms',
+  );
+
+  static const String privacyUrl = String.fromEnvironment(
+    'PRIVACY_URL',
+    defaultValue: 'https://lumin.tahseen.tech/privacy',
+  );
 }

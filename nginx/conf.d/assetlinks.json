@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.lumin.app",
+      "sha256_cert_fingerprints": [
+        "F6:4E:FE:22:03:89:CF:F8:2F:EC:EA:00:CF:4C:90:94:47:7F:06:CA:8E:53:D8:C7:07:9F:07:10:36:C3:1E:58"
+      ]
+    }
+  }
+]

@@ -9,10 +9,24 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
+  /// Set by main.dart so a notification tap can route into the app even when
+  /// the local notification (not FCM directly) was the entry point — e.g.
+  /// foreground messages we show ourselves via [showMessageNotification].
+  void Function(String conversationId)? onMessageNotificationTap;
+
   Future<void> init() async {
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
-    await _plugin.initialize(settings: const InitializationSettings(android: android));
+    await _plugin.initialize(
+      settings: const InitializationSettings(android: android),
+      onDidReceiveNotificationResponse: _handleTap,
+    );
     await _createChannels();
+  }
+
+  void _handleTap(NotificationResponse response) {
+    final payload = response.payload;
+    if (payload == null || payload.isEmpty) return;
+    onMessageNotificationTap?.call(payload);
   }
 
   Future<void> _createChannels() async {

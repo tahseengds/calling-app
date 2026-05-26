@@ -1,6 +1,5 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
@@ -19,19 +18,19 @@ class AddContactScreen extends ConsumerStatefulWidget {
 
 class _AddContactScreenState extends ConsumerState<AddContactScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _phoneCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
   final _nicknameCtrl = TextEditingController();
   bool _isLoading = false;
   _AddError? _addError;
 
   @override
   void dispose() {
-    _phoneCtrl.dispose();
+    _emailCtrl.dispose();
     _nicknameCtrl.dispose();
     super.dispose();
   }
 
-  String get _fullPhone => '+1${_phoneCtrl.text.replaceAll(RegExp(r'\D'), '')}';
+  String get _normalizedEmail => _emailCtrl.text.trim().toLowerCase();
 
   Future<void> _submit() async {
     setState(() => _addError = null);
@@ -39,7 +38,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
     setState(() => _isLoading = true);
     try {
       await ref.read(contactsNotifierProvider.notifier).addContact(
-            phone: _fullPhone,
+            email: _normalizedEmail,
             nickname: _nicknameCtrl.text.trim().isEmpty
                 ? null
                 : _nicknameCtrl.text.trim(),
@@ -57,15 +56,20 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
       setState(() => _addError = const _Duplicate());
     } on DioException catch (e) {
       if (!mounted) return;
+      final status = e.response?.statusCode;
       final code = (e.response?.data as Map?)?['code'] as String? ?? '';
       final msg = (e.response?.data as Map?)?['detail'] as String? ??
           'Could not add contact.';
       setState(() {
-        _addError = code == 'user_not_found'
-            ? const _NotFound()
-            : code == 'already_contact'
-                ? const _Duplicate()
-                : _OtherError(msg);
+        if (status == 404 || code == 'not_found' || code == 'user_not_found') {
+          _addError = const _NotFound();
+        } else if (status == 409 ||
+            code == 'conflict' ||
+            code == 'already_contact') {
+          _addError = const _Duplicate();
+        } else {
+          _addError = _OtherError(msg);
+        }
       });
     } catch (e) {
       if (!mounted) return;
@@ -104,24 +108,22 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  "Enter their phone number. We'll find them on Lumio — or you can invite them by text.",
+                  "Enter their email. We'll find them on Lumio — or you can invite them if they haven't joined yet.",
                   style: TextStyle(fontSize: 15, color: fg2, height: 1.45),
                 ),
                 const SizedBox(height: 28),
                 FlTextField(
-                  label: 'Phone number',
-                  controller: _phoneCtrl,
-                  hint: '(555) 000-0000',
-                  keyboardType: TextInputType.phone,
+                  label: 'Email',
+                  controller: _emailCtrl,
+                  hint: 'name@example.com',
+                  keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
-                  prefixWidget: const PhonePrefix(),
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(10),
-                  ],
                   validator: (v) {
-                    final d = v?.replaceAll(RegExp(r'\D'), '') ?? '';
-                    if (d.length < 10) return 'Enter a valid 10-digit number';
+                    final t = (v ?? '').trim();
+                    if (t.isEmpty) return 'Enter an email';
+                    final ok = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                        .hasMatch(t);
+                    if (!ok) return 'Enter a valid email';
                     return null;
                   },
                   onChanged: (_) => setState(() => _addError = null),
@@ -187,7 +189,7 @@ class _ErrorBanner extends StatelessWidget {
       _NotFound() => (
           Icons.person_search_outlined,
           'Not on Lumio yet',
-          'Send them an invite by text so they can join your family.',
+          'No one with that email has joined Lumio. Invite them so they can join your family.',
         ),
       _Duplicate() => (
           Icons.people_outline,
