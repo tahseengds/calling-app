@@ -36,7 +36,7 @@ async def get_user(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> UserPublic:
-    return await user_service.get_user(db, user_id)
+    return await user_service.get_user(db, current_user, user_id)
 
 
 @router.post("/fcm-token", status_code=status.HTTP_204_NO_CONTENT)

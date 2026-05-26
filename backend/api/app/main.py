@@ -15,6 +15,7 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.db import engine
+from app.dependencies import client_ip
 from app.services.health_service import (
     collect_health,
     wants_detailed_report,
@@ -75,13 +76,22 @@ def create_app() -> FastAPI:
     )
 
     # ── CORS ──────────────────────────────────────────────────────────────────
-    # The client is a mobile app — there is no browser origin restriction needed.
-    # Auth is header-based (Bearer token), not cookies, so wildcard is safe here.
+    # Mobile clients don't enforce CORS, so the only callers this matters for
+    # are browser-based tools (Swagger docs, ad-hoc Postman browser plugins).
+    # Allow just the production HTTPS origin with the verbs we actually use —
+    # cuts down on the surface a malicious page could probe through a browser.
+    _allowed_origins = [f"https://{settings.DOMAIN}"]
+    # In DEBUG, also accept localhost so dev tools can hit the API.
+    if settings.DEBUG:
+        _allowed_origins.extend([
+            "http://localhost",
+            "http://127.0.0.1",
+        ])
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_origins=_allowed_origins,
+        allow_methods=["GET", "POST", "PUT", "DELETE"],
+        allow_headers=["Authorization", "Content-Type"],
     )
 
     # ── Exception handlers ────────────────────────────────────────────────────
@@ -120,13 +130,10 @@ def create_app() -> FastAPI:
         Returns True only for requests that originate from localhost or a
         private RFC-1918 / Docker-internal address.
 
-        Nginx sets X-Real-IP; fall back to the raw ASGI client IP.
         The detailed health report (topology + environment) must never be
         served to external callers unauthenticated.
         """
-        ip = request.headers.get("x-real-ip") or (
-            request.client.host if request.client else ""
-        )
+        ip = client_ip(request)
         return ip in ("127.0.0.1", "::1", "localhost") or ip.startswith(
             ("10.", "172.16.", "172.17.", "172.18.", "172.19.", "172.20.",
              "172.21.", "172.22.", "172.23.", "172.24.", "172.25.", "172.26.",

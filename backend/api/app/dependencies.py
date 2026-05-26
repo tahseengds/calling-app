@@ -12,7 +12,27 @@ from app.models.user import User
 from app.utils.exceptions import RateLimitError, UnauthorizedError
 from app.utils.security import decode_access_token
 
-__all__ = ["get_db", "get_redis", "get_current_user", "rate_limit"]
+__all__ = ["get_db", "get_redis", "get_current_user", "rate_limit", "client_ip"]
+
+
+# ---------------------------------------------------------------------------
+# Client IP helper
+# ---------------------------------------------------------------------------
+
+def client_ip(request: Request) -> str:
+    """
+    Return the real client IP, honoring Nginx's X-Real-IP / first hop of
+    X-Forwarded-For. The raw ASGI client IP is Nginx's container IP, so
+    rate-limit buckets and internal-IP gates must NOT use it directly.
+    """
+    real = request.headers.get("x-real-ip")
+    if real:
+        return real.strip()
+    fwd = request.headers.get("x-forwarded-for")
+    if fwd:
+        # First hop is the original client.
+        return fwd.split(",", 1)[0].strip()
+    return request.client.host if request.client else "unknown"
 
 # auto_error=False so we can raise a 401 (not the default 403) when no token
 _bearer = HTTPBearer(auto_error=False)
@@ -75,7 +95,7 @@ def rate_limit(endpoint_name: str, max_calls: int, window_seconds: int):
         request: Request,
         redis: aioredis.Redis = Depends(get_redis),
     ) -> None:
-        ip = request.client.host if request.client else "unknown"
+        ip = client_ip(request)
         key = f"ratelimit:{ip}:{endpoint_name}"
         count = await redis.incr(key)
         if count == 1:

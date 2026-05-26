@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     MEDIA_BASE_PATH: str = "/app/media"
     MAX_IMAGE_SIZE_MB: int = 15
     MAX_VIDEO_SIZE_MB: int = 150
+    MAX_AUDIO_SIZE_MB: int = 10
     MAX_DOCUMENT_SIZE_MB: int = 25
     MAX_AVATAR_SIZE_MB: int = 5
 

@@ -69,14 +69,23 @@ async def list_call_history(
     has_more = len(rows) > limit
     rows = rows[:limit]
 
-    # Load the "other user" for each row — single round-trip per row is fine
-    # at limit=30, and avoids an awkward conditional join. If history grows
-    # huge we can switch to a batched IN-query.
+    # Batch-load every "other user" referenced by this page in one query.
+    # Previously this did one SELECT per row — 100 rows = 100 round-trips.
+    other_ids: set[UUID] = {
+        r.callee_id if r.caller_id == user.id else r.caller_id
+        for r in rows
+    }
+    users_by_id: dict[UUID, User] = {}
+    if other_ids:
+        users_r = await db.execute(
+            select(User).where(User.id.in_(other_ids))
+        )
+        users_by_id = {u.id: u for u in users_r.scalars().all()}
+
     items: list[CallRecordResponse] = []
     for r in rows:
         other_id: UUID = r.callee_id if r.caller_id == user.id else r.caller_id
-        other_r = await db.execute(select(User).where(User.id == other_id))
-        other = other_r.scalar_one_or_none()
+        other = users_by_id.get(other_id)
         if other is None:
             # User deleted — skip (don't 500 the whole page).
             continue

@@ -80,7 +80,7 @@ def _get_size_limit_mb(declared_type: str) -> int:
     return {
         "image": settings.MAX_IMAGE_SIZE_MB,
         "video": settings.MAX_VIDEO_SIZE_MB,
-        "audio": settings.MAX_DOCUMENT_SIZE_MB,
+        "audio": settings.MAX_AUDIO_SIZE_MB,
         "document": settings.MAX_DOCUMENT_SIZE_MB,
         "avatar": settings.MAX_AVATAR_SIZE_MB,
     }.get(declared_type, 25)

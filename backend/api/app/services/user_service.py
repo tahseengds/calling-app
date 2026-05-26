@@ -5,6 +5,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.contact import Contact
 from app.models.user import User
 from app.schemas.user import FcmTokenRequest, UpdateProfileRequest, UserMe, UserPublic
 from app.utils.exceptions import NotFoundError
@@ -23,7 +24,30 @@ async def update_profile(
     return UserMe.model_validate(user)
 
 
-async def get_user(db: AsyncSession, user_id: UUID) -> UserPublic:
+async def get_user(
+    db: AsyncSession, caller: User, user_id: UUID
+) -> UserPublic:
+    """
+    Look up a user by UUID. Only contacts may resolve full profiles —
+    non-contacts get a 404 so the endpoint can't be used to enumerate
+    email / last_seen for arbitrary users.
+
+    Looking up oneself is always permitted.
+    """
+    if user_id == caller.id:
+        return UserPublic.model_validate(caller)
+
+    contact_r = await db.execute(
+        select(Contact.id).where(
+            Contact.user_id == caller.id,
+            Contact.contact_user_id == user_id,
+        )
+    )
+    if contact_r.scalar_one_or_none() is None:
+        # Don't leak existence. 404 covers both "no such user" and
+        # "not in your contacts".
+        raise NotFoundError("User not found")
+
     result = await db.execute(
         select(User).where(User.id == user_id, User.is_active.is_(True))
     )
