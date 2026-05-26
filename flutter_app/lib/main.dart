@@ -10,6 +10,7 @@ import 'app.dart';
 import 'core/config/app_config.dart';
 import 'core/services/native_call_bridge.dart';
 import 'core/services/notification_service.dart';
+import 'core/services/pending_deep_link.dart';
 import 'core/services/signaling_service.dart';
 import 'core/services/sync_service.dart';
 import 'features/calling/domain/call_notifier.dart';
@@ -171,20 +172,5 @@ Future<void> _consumeInitialNativeCallData(
   }
 }
 
-// ── Pending deep-link ─────────────────────────────────────────────────────────
-// Written by FCM handler, consumed once by LuminApp._onFirstFrame.
-
-class _PendingDeepLinkNotifier extends Notifier<String?> {
-  @override
-  String? build() => null;
-  void set(String path) => state = path;
-  String? consume() {
-    final v = state;
-    state = null;
-    return v;
-  }
-}
-
-final pendingDeepLinkProvider =
-    NotifierProvider<_PendingDeepLinkNotifier, String?>(
-        _PendingDeepLinkNotifier.new);
+// pendingDeepLinkProvider lives in core/services/pending_deep_link.dart
+// so that app.dart can import it without cycling back through main.dart.

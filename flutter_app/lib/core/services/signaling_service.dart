@@ -130,10 +130,24 @@ class SignalingService {
   /// Fired on connect / reconnect — SyncService subscribes to this.
   VoidCallback? onReconnect;
 
+  /// Last access token we connected with. Used to short-circuit redundant
+  /// connect() calls (e.g. two rapid auth-state changes) so we don't
+  /// dispose a healthy socket mid-handshake and replace it with an
+  /// identical one.
+  String? _lastConnectedToken;
+
   bool get isConnected => _socket?.connected ?? false;
 
   void connect(String accessToken) {
+    // Re-entrancy guard: if the same token is already wired up and the
+    // socket is alive (or in the middle of reconnecting on its own),
+    // skip the dispose/recreate. Otherwise we'd tear down a healthy
+    // connection just to re-establish an identical one.
+    if (_socket != null && _lastConnectedToken == accessToken) {
+      return;
+    }
     _socket?.dispose();
+    _lastConnectedToken = accessToken;
     _socket = sio.io(
       AppConfig.signalingUrl,
       sio.OptionBuilder()
@@ -156,6 +170,7 @@ class SignalingService {
   /// Call after a token refresh so the next reconnect uses the fresh token.
   void updateToken(String accessToken) {
     _socket?.auth = {'token': accessToken};
+    _lastConnectedToken = accessToken;
   }
 
   void _attachListeners() {
@@ -394,10 +409,14 @@ class SignalingService {
     _socket?.emit('call:busy', {'call_id': callId, 'to': to});
   }
 
-  void disconnect() => _socket?.disconnect();
+  void disconnect() {
+    _socket?.disconnect();
+    _lastConnectedToken = null;
+  }
 
   void dispose() {
     _socket?.dispose();
+    _lastConnectedToken = null;
     _messageNewCtrl.close();
     _messageAckCtrl.close();
     _messageDeletedCtrl.close();

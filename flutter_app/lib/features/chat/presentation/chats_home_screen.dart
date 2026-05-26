@@ -98,33 +98,41 @@ class _ChatsHomeScreenState extends ConsumerState<ChatsHomeScreen> {
               child: Row(
                 children: _Filter.values.map((f) {
                   final isOn = f == _activeFilter;
+                  final label = _filterLabel(f);
                   return Padding(
                     padding:
                         const EdgeInsets.only(right: AppSpacing.space2),
-                    child: GestureDetector(
-                      onTap: () => setState(() => _activeFilter = f),
-                      child: Container(
-                        height: 36,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.space4,
-                        ),
-                        decoration: BoxDecoration(
-                          color:
-                              isOn ? AppColors.primary : Colors.transparent,
-                          border: Border.all(
-                            color: isOn
-                                ? Colors.transparent
-                                : lumioColors.hairline,
+                    child: Semantics(
+                      // Custom-painted GestureDetector chip — wrap so TalkBack
+                      // announces it as a selectable button, not a plain tap.
+                      button: true,
+                      selected: isOn,
+                      label: '$label filter',
+                      child: GestureDetector(
+                        onTap: () => setState(() => _activeFilter = f),
+                        child: Container(
+                          height: 36,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.space4,
                           ),
-                          borderRadius:
-                              BorderRadius.circular(AppRadius.pill),
-                        ),
-                        child: Center(
-                          child: Text(
-                            _filterLabel(f),
-                            style: AppTextStyles.secondaryMedium(
-                              color:
-                                  isOn ? Colors.white : lumioColors.fg1,
+                          decoration: BoxDecoration(
+                            color:
+                                isOn ? AppColors.primary : Colors.transparent,
+                            border: Border.all(
+                              color: isOn
+                                  ? Colors.transparent
+                                  : lumioColors.hairline,
+                            ),
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.pill),
+                          ),
+                          child: Center(
+                            child: Text(
+                              label,
+                              style: AppTextStyles.secondaryMedium(
+                                color:
+                                    isOn ? Colors.white : lumioColors.fg1,
+                              ),
                             ),
                           ),
                         ),

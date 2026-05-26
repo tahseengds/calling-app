@@ -35,25 +35,37 @@ class UserAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final tint = AppColors.avatarTintFor(displayName);
 
+    // Screen-reader label so TalkBack/VoiceOver announces who the avatar
+    // represents instead of "image".
+    final semantics = 'Avatar for $displayName';
+
     if (imageUrl != null && imageUrl!.isNotEmpty) {
-      return CircleAvatar(
-        radius: radius,
-        backgroundColor: tint,
-        child: ClipOval(
-          child: CachedNetworkImage(
-            imageUrl: imageUrl!,
-            width: radius * 2,
-            height: radius * 2,
-            fit: BoxFit.cover,
-            placeholder: (context, url) =>
-                _InitialsAvatar(initials: _initials, radius: radius, tint: tint),
-            errorWidget: (context, url, error) =>
-                _InitialsAvatar(initials: _initials, radius: radius, tint: tint),
+      return Semantics(
+        label: semantics,
+        image: true,
+        child: CircleAvatar(
+          radius: radius,
+          backgroundColor: tint,
+          child: ClipOval(
+            child: CachedNetworkImage(
+              imageUrl: imageUrl!,
+              width: radius * 2,
+              height: radius * 2,
+              fit: BoxFit.cover,
+              placeholder: (context, url) =>
+                  _InitialsAvatar(initials: _initials, radius: radius, tint: tint),
+              errorWidget: (context, url, error) =>
+                  _InitialsAvatar(initials: _initials, radius: radius, tint: tint),
+            ),
           ),
         ),
       );
     }
-    return _InitialsAvatar(initials: _initials, radius: radius, tint: tint);
+    return Semantics(
+      label: semantics,
+      image: true,
+      child: _InitialsAvatar(initials: _initials, radius: radius, tint: tint),
+    );
   }
 }
 

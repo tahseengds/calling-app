@@ -85,34 +85,39 @@ class _CallHistoryScreenState
                   final isOn = item == _filter;
                   return Padding(
                     padding: const EdgeInsets.only(right: AppSpacing.space2),
-                    child: GestureDetector(
-                      onTap: () => setState(() {
-                        _filter = item;
-                        _expandedId = null;
-                      }),
-                      child: Container(
-                        height: 36,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.space4),
-                        decoration: BoxDecoration(
-                          color: isOn
-                              ? AppColors.primary
-                              : Colors.transparent,
-                          border: Border.all(
+                    child: Semantics(
+                      button: true,
+                      selected: isOn,
+                      label: '$item filter',
+                      child: GestureDetector(
+                        onTap: () => setState(() {
+                          _filter = item;
+                          _expandedId = null;
+                        }),
+                        child: Container(
+                          height: 36,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.space4),
+                          decoration: BoxDecoration(
                             color: isOn
-                                ? Colors.transparent
-                                : lumioColors.hairline,
-                          ),
-                          borderRadius:
-                              BorderRadius.circular(AppRadius.pill),
-                        ),
-                        child: Center(
-                          child: Text(
-                            item,
-                            style: AppTextStyles.secondaryMedium(
+                                ? AppColors.primary
+                                : Colors.transparent,
+                            border: Border.all(
                               color: isOn
-                                  ? Colors.white
-                                  : lumioColors.fg1,
+                                  ? Colors.transparent
+                                  : lumioColors.hairline,
+                            ),
+                            borderRadius:
+                                BorderRadius.circular(AppRadius.pill),
+                          ),
+                          child: Center(
+                            child: Text(
+                              item,
+                              style: AppTextStyles.secondaryMedium(
+                                color: isOn
+                                    ? Colors.white
+                                    : lumioColors.fg1,
+                              ),
                             ),
                           ),
                         ),
@@ -331,46 +336,53 @@ class _CallRow extends ConsumerWidget {
               ),
             ),
           ),
-          // Expanded action row
-          if (isOpen)
-            Container(
-              padding:
-                  const EdgeInsets.fromLTRB(18, 4, 18, 16),
-              color: lumioColors.surfaceLo,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _ActionBtn(
-                      icon: LumioIcons.message,
-                      label: 'Message',
-                      onTap: () => _openChat(context, ref),
-                      lumioColors: lumioColors,
+          // Expanded action row — AnimatedSize so the expand/collapse
+          // glides instead of snapping.
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            alignment: Alignment.topCenter,
+            child: isOpen
+                ? Container(
+                    padding:
+                        const EdgeInsets.fromLTRB(18, 4, 18, 16),
+                    color: lumioColors.surfaceLo,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _ActionBtn(
+                            icon: LumioIcons.message,
+                            label: 'Message',
+                            onTap: () => _openChat(context, ref),
+                            lumioColors: lumioColors,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _ActionBtn(
+                            icon: LumioIcons.phone,
+                            label: 'Voice',
+                            onTap: () => _placeCall(
+                                context, ref, CallType.audio),
+                            lumioColors: lumioColors,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _ActionBtn(
+                            icon: LumioIcons.video,
+                            label: 'Video',
+                            filled: true,
+                            onTap: () => _placeCall(
+                                context, ref, CallType.video),
+                            lumioColors: lumioColors,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _ActionBtn(
-                      icon: LumioIcons.phone,
-                      label: 'Voice',
-                      onTap: () => _placeCall(
-                          context, ref, CallType.audio),
-                      lumioColors: lumioColors,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _ActionBtn(
-                      icon: LumioIcons.video,
-                      label: 'Video',
-                      filled: true,
-                      onTap: () => _placeCall(
-                          context, ref, CallType.video),
-                      lumioColors: lumioColors,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
         ],
       ),
     );

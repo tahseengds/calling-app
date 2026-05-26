@@ -38,7 +38,7 @@ import 'features/profile/presentation/screens/help_support_screen.dart';
 import 'features/profile/presentation/screens/message_sounds_screen.dart';
 import 'features/profile/presentation/screens/notification_settings_screen.dart';
 import 'features/profile/presentation/screens/privacy_screen.dart';
-import 'main.dart';
+import 'core/services/pending_deep_link.dart';
 
 // ── Router ────────────────────────────────────────────────────────────────────
 

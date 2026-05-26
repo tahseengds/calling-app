@@ -40,13 +40,8 @@ import '../../../shared/widgets/lumio_icons.dart';
 class _T {
   _T._();
 
-  // Primary — same as AppColors.primary (rgb 91 124 250)
-  static const Color primary = Color(0xFF5B7CFA);
-
-  // Status colours
-  static const Color success     = Color(0xFF34C77B); // online dot
-  static const Color danger      = Color(0xFFFF6B6B); // failed message
-  static const Color readTick    = Color(0xFF7CC1FF); // double-tick when read
+  // Status colour for read receipts (not in AppColors).
+  static const Color readTick = Color(0xFF7CC1FF);
 
   // Bubble: failed-send styling
   static const Color failedBubbleBg     = Color(0x2EFF6B6B); // 18 % opacity
@@ -397,7 +392,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
             width: 3,
             height: 36,
             decoration: BoxDecoration(
-              color: _T.primary,
+              color: AppColors.primary,
               borderRadius: BorderRadius.circular(1.5),
             ),
           ),
@@ -409,7 +404,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
               children: [
                 Text(
                   replySender,
-                  style: AppTextStyles.bodySemibold(color: _T.primary).copyWith(fontSize: 13),
+                  style: AppTextStyles.bodySemibold(color: AppColors.primary).copyWith(fontSize: 13),
                 ),
                 Text(
                   replyText,
@@ -474,7 +469,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
                     width: 10,
                     height: 10,
                     decoration: BoxDecoration(
-                      color: _T.success,
+                      color: AppColors.success,
                       shape: BoxShape.circle,
                       border: Border.all(
                         color: theme.scaffoldBackgroundColor,
@@ -500,7 +495,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
                   Text(
                     subtitle,
                     style: AppTextStyles.secondary(
-                      color: online ? _T.success : colors.fg2,
+                      color: online ? AppColors.success : colors.fg2,
                     ).copyWith(fontSize: 12),
                   ),
               ],
@@ -959,11 +954,8 @@ class _MessageRow extends StatelessWidget {
   final void Function(Message msg, bool mine, double topOffset) onShowContext;
   final VoidCallback                          onSwipeReply;
 
-  // TODO(backend): expose isDeleted and replyTo on the Message model.
-  // For now we read them defensively.
-  bool get _isDeleted => (msg as dynamic).isDeleted == true;
+  bool get _isDeleted => msg.isDeleted;
   ReplyPreview? get _replyTo => msg.replyTo;
-
   bool get _isFailed => msg.status == MessageStatus.failed;
 
   @override
@@ -1105,7 +1097,7 @@ class _Bubble extends StatelessWidget {
     final Color bg = _isFailed
         ? _T.failedBubbleBg
         : mine
-            ? _T.primary
+            ? AppColors.primary
             : (Theme.of(context).cardTheme.color ?? Theme.of(context).cardColor);
 
     final Color fg = (mine || _isFailed) ? Colors.white : colors.fg1;
@@ -1378,7 +1370,7 @@ class _ReplyPreview extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border(
           left: BorderSide(
-            color: mine ? _T.replyPreviewBorder : _T.primary,
+            color: mine ? _T.replyPreviewBorder : AppColors.primary,
             width: 3,
           ),
         ),
@@ -1389,7 +1381,7 @@ class _ReplyPreview extends StatelessWidget {
           Text(
             senderName,
             style: AppTextStyles.caption(
-              color: mine ? Colors.white.withValues(alpha: 0.9) : _T.primary,
+              color: mine ? Colors.white.withValues(alpha: 0.9) : AppColors.primary,
             ).copyWith(fontWeight: FontWeight.w600, fontSize: 12),
           ),
           const SizedBox(height: 2),
@@ -1441,7 +1433,7 @@ class _Timestamp extends StatelessWidget {
         Text(
           _label,
           style: AppTextStyles.caption(
-            color: _isFailed ? _T.danger : colors.fg2,
+            color: _isFailed ? AppColors.danger : colors.fg2,
           ).copyWith(
             fontSize:   11,
             fontWeight: _isFailed ? FontWeight.w600 : FontWeight.w400,
@@ -1458,7 +1450,7 @@ class _Timestamp extends StatelessWidget {
             onTap: onRetry,
             child: Text(
               'Retry',
-              style: AppTextStyles.caption(color: _T.danger).copyWith(
+              style: AppTextStyles.caption(color: AppColors.danger).copyWith(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
               ),
@@ -1503,7 +1495,7 @@ class _MessageStatusIcon extends StatelessWidget {
       MessageStatus.failed => const Icon(
           Icons.warning_rounded,
           size:  12,
-          color: _T.danger,
+          color: AppColors.danger,
         ),
     };
   }
@@ -1921,9 +1913,7 @@ class _ChatInputBarState extends State<_ChatInputBar>
               ),
             ),
 
-            // ── In-pill icon button ────────────────────────────────────────
-            // The dedicated emoji button was removed (it was a no-op TODO).
-            // Users can still send emoji via the system emoji keyboard.
+            // ── In-pill attach button ──────────────────────────────────────
             Padding(
               padding: const EdgeInsets.only(right: 8, bottom: 6),
               child: Transform.rotate(
@@ -1952,10 +1942,10 @@ class _ChatInputBarState extends State<_ChatInputBar>
       onLongPressEnd: _hasText ? null : (_) => _endRecording(),
       onLongPressCancel: _hasText ? null : _endRecording,
       child: Material(
-        color:           _T.primary,
+        color:           AppColors.primary,
         shape:           const CircleBorder(),
         clipBehavior:    Clip.antiAlias,
-        shadowColor:     _T.primary.withValues(alpha: 0.32),
+        shadowColor:     AppColors.primary.withValues(alpha: 0.32),
         elevation:       6,
         child: SizedBox(
           width:  _kSendBtn,
@@ -2028,15 +2018,15 @@ class _ChatInputBarState extends State<_ChatInputBar>
                   height: _kRecBtn,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: _isCancelling ? AppColors.danger : _T.primary,
+                    color: _isCancelling ? AppColors.danger : AppColors.primary,
                     border: Border.all(color: t.scaffoldBackgroundColor, width: 4),
                     boxShadow: [
                       BoxShadow(
-                        color: _isCancelling ? AppColors.danger.withValues(alpha: 0.22) : _T.primary.withValues(alpha: 0.22),
+                        color: _isCancelling ? AppColors.danger.withValues(alpha: 0.22) : AppColors.primary.withValues(alpha: 0.22),
                         spreadRadius: 6,
                       ),
                       BoxShadow(
-                        color: _isCancelling ? AppColors.danger.withValues(alpha: 0.42) : _T.primary.withValues(alpha: 0.38),
+                        color: _isCancelling ? AppColors.danger.withValues(alpha: 0.42) : AppColors.primary.withValues(alpha: 0.38),
                         blurRadius: 24,
                         offset: const Offset(0, 12),
                       ),
