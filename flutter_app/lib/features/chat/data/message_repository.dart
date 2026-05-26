@@ -9,6 +9,12 @@ class MessageRepository {
 
   MessageRepository(this._dio);
 
+  /// Backend message_type / upload type is
+  /// 'text' | 'image' | 'video' | 'audio' | 'document'. The Dart enum spells
+  /// the document variant `file`, so we translate at the wire boundary.
+  static String wireType(MessageType type) =>
+      type == MessageType.file ? 'document' : type.name;
+
   // ── Send ──────────────────────────────────────────────────────────────────
 
   Future<Message> sendMessage({
@@ -26,7 +32,7 @@ class MessageRepository {
       data: {
         'client_id': clientId,
         'recipient_id': recipientId,
-        'message_type': type.name,
+        'message_type': wireType(type),
         'content': ?content,
         'media_id': ?mediaId,
         'reply_to_id': ?replyToId,
@@ -37,7 +43,11 @@ class MessageRepository {
 
   // ── Fetch ─────────────────────────────────────────────────────────────────
 
-  Future<List<Message>> fetchMessages(
+  /// Fetches a page of messages (newest first). The backend returns both
+  /// the page and an opaque [nextCursor] string — pass it back as `cursor`
+  /// on the next call to load older messages. `nextCursor` is null when
+  /// the conversation has been fully drained.
+  Future<MessagePage> fetchMessages(
     String conversationId, {
     String? cursor,
     int limit = 40,
@@ -49,10 +59,14 @@ class MessageRepository {
         'cursor': ?cursor,
       },
     );
-    final items = (resp.data?['messages'] as List<dynamic>?) ?? [];
-    return items
-        .map((e) => Message.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final data = resp.data ?? const <String, dynamic>{};
+    final items = (data['messages'] as List<dynamic>?) ?? const [];
+    return MessagePage(
+      messages: items
+          .map((e) => Message.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      nextCursor: data['next_cursor'] as String?,
+    );
   }
 
   // ── Receipts ──────────────────────────────────────────────────────────────
@@ -82,10 +96,12 @@ class MessageRepository {
   // ── Media upload ──────────────────────────────────────────────────────────
 
   /// Uploads a file and returns the `media_id` + signed URLs.
+  /// [type] must be the *wire* type — `'image' | 'video' | 'audio' | 'document'`
+  /// — not the Dart enum name. Use [wireType] or pass the literal directly.
   /// [onProgress] reports (sent, total) bytes for the progress indicator.
   Future<MediaUploadResult> uploadMedia({
     required File file,
-    required String type, // 'image' | 'video' | 'audio' | 'file'
+    required String type,
     void Function(int sent, int total)? onProgress,
     CancelToken? cancelToken,
   }) async {
@@ -106,6 +122,20 @@ class MessageRepository {
     return MediaUploadResult.fromJson(resp.data!);
   }
 }
+
+/// A single page of messages from `/api/conversations/{id}/messages`.
+///
+/// [nextCursor] is opaque — pass it as the `cursor` query parameter on the
+/// next request to load older messages. It encodes `(created_at, id)`
+/// server-side; treating it as a message UUID would 500 the backend's
+/// `decode_cursor`.
+class MessagePage {
+  final List<Message> messages;
+  final String? nextCursor;
+
+  const MessagePage({required this.messages, required this.nextCursor});
+}
+
 
 class MediaUploadResult {
   final String mediaId;

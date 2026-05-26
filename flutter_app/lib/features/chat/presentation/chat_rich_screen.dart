@@ -7,10 +7,13 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_sound/flutter_sound.dart' hide PlayerState;
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -219,6 +222,100 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
     ref
         .read(chatProvider(widget.conversationId).notifier)
         .sendMedia(file, MessageType.audio, replyToId: _replyingTo?.id);
+    _cancelReply();
+  }
+
+  // ── Attachment pickers ─────────────────────────────────────────────────────
+
+  /// Pick an image from the gallery, compress, send.
+  Future<void> _attachImageFromGallery() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      // Pre-resize on-device — saves bandwidth + the backend's WebP step
+      // is faster on a smaller bitmap.
+      maxWidth: 2560,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+    await _sendImageFile(File(picked.path));
+  }
+
+  /// Capture from the camera, compress, send.
+  Future<void> _attachImageFromCamera() async {
+    final cam = await Permission.camera.request();
+    if (!cam.isGranted) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Camera permission is required.')),
+      );
+      return;
+    }
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.camera,
+      maxWidth: 2560,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+    await _sendImageFile(File(picked.path));
+  }
+
+  Future<void> _sendImageFile(File source) async {
+    File toUpload = source;
+    // flutter_image_compress can shave another 30–60 % off without visible
+    // loss. Fall back to the picker's output if compression fails.
+    try {
+      final dir = await getTemporaryDirectory();
+      final target =
+          '${dir.path}/img_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final compressed = await FlutterImageCompress.compressAndGetFile(
+        source.path,
+        target,
+        minWidth: 2560,
+        quality: 80,
+        format: CompressFormat.jpeg,
+      );
+      if (compressed != null) {
+        toUpload = File(compressed.path);
+      }
+    } catch (_) {
+      // Use the picker's output as-is.
+    }
+    if (!mounted) return;
+    ref
+        .read(chatProvider(widget.conversationId).notifier)
+        .sendMedia(toUpload, MessageType.image, replyToId: _replyingTo?.id);
+    _cancelReply();
+  }
+
+  Future<void> _attachVideo() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickVideo(
+      source: ImageSource.gallery,
+      // Cap absurdly-long picks so the upload doesn't take forever; the
+      // backend still enforces its own 150 MB limit.
+      maxDuration: const Duration(minutes: 10),
+    );
+    if (picked == null) return;
+    if (!mounted) return;
+    ref
+        .read(chatProvider(widget.conversationId).notifier)
+        .sendMedia(File(picked.path), MessageType.video,
+            replyToId: _replyingTo?.id);
+    _cancelReply();
+  }
+
+  Future<void> _attachDocument() async {
+    // file_picker 12+ — pickFile returns a single PlatformFile.
+    final picked = await FilePicker.pickFile(type: FileType.any);
+    if (picked == null) return;
+    final path = picked.path;
+    if (path == null) return;
+    if (!mounted) return;
+    ref
+        .read(chatProvider(widget.conversationId).notifier)
+        .sendMedia(File(path), MessageType.file, replyToId: _replyingTo?.id);
     _cancelReply();
   }
 
@@ -573,7 +670,10 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
                 subtitle: 'Pick one from your gallery.',
                 color: AppColors.primary,
                 c: c,
-                onTap: () => Navigator.of(context).pop(),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _attachImageFromGallery();
+                },
               ),
               const SizedBox(height: 10),
               _AttachListItem(
@@ -582,16 +682,22 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
                 subtitle: 'Send a video from your gallery.',
                 color: AppColors.danger,
                 c: c,
-                onTap: () => Navigator.of(context).pop(),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _attachVideo();
+                },
               ),
               const SizedBox(height: 10),
               _AttachListItem(
                 icon: Icons.camera_alt_outlined,
                 title: 'Camera',
-                subtitle: 'Take a new photo or video.',
+                subtitle: 'Take a new photo.',
                 color: AppColors.success,
                 c: c,
-                onTap: () => Navigator.of(context).pop(),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _attachImageFromCamera();
+                },
               ),
               const SizedBox(height: 10),
               _AttachListItem(
@@ -600,7 +706,10 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
                 subtitle: 'Share a file, like a PDF.',
                 color: const Color(0xFFF0A93B),
                 c: c,
-                onTap: () => Navigator.of(context).pop(),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _attachDocument();
+                },
               ),
               const SizedBox(height: 14),
               Text(

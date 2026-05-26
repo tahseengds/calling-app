@@ -141,12 +141,12 @@ class _FakeMessageRepository extends MessageRepository {
   @override
   Future<void> markDelivered(List<String> ids) async {}
   @override
-  Future<List<Message>> fetchMessages(
+  Future<MessagePage> fetchMessages(
     String conversationId, {
     String? cursor,
     int limit = 40,
   }) async =>
-      [];
+      const MessagePage(messages: [], nextCursor: null);
   @override
   Future<void> deleteMessage(String id) async {}
 }

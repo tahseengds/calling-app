@@ -258,7 +258,6 @@ async def fetch_messages(
     media_ids = [m.media_id for m in page_rows if m.media_id and m.deleted_at is None]
     media_map: dict = {}
     if media_ids:
-        from sqlalchemy import in_
         mf_result = await db.execute(
             select(MediaFile).where(MediaFile.id.in_(media_ids))
         )

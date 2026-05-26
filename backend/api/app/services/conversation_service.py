@@ -190,8 +190,14 @@ async def list_conversations(
     """
     All conversations where *user* is a participant, newest activity first.
     Each item includes the other participant, last message, and unread count.
+
+    Avoids N+1 by batching the four lookups (other users, last messages,
+    their media, unread counts) into one query each.
     """
-    result = await db.execute(
+    from app.services.media_service import media_file_to_response
+
+    # 1) Fetch the conversation rows in a single query.
+    conv_result = await db.execute(
         select(Conversation)
         .where(
             or_(
@@ -201,54 +207,88 @@ async def list_conversations(
         )
         .order_by(Conversation.last_activity.desc())
     )
-    conversations = result.scalars().all()
+    conversations = conv_result.scalars().all()
+    if not conversations:
+        return []
 
-    responses: list[ConversationResponse] = []
+    other_user_ids: set[UUID] = set()
+    last_message_ids: set[UUID] = set()
+    conv_ids: list[UUID] = []
     for conv in conversations:
-        other_user_id: UUID = (
+        conv_ids.append(conv.id)
+        other_user_ids.add(
             conv.participant_b
             if conv.participant_a == user.id
             else conv.participant_a
         )
+        if conv.last_message_id is not None:
+            last_message_ids.add(conv.last_message_id)
 
-        # Load the other participant
-        other_result = await db.execute(
-            select(User).where(User.id == other_user_id)
+    # 2) Batch-fetch the other participants.
+    users_result = await db.execute(
+        select(User).where(User.id.in_(other_user_ids))
+    )
+    users_by_id: dict[UUID, User] = {u.id: u for u in users_result.scalars().all()}
+
+    # 3) Batch-fetch the last messages.
+    messages_by_id: dict[UUID, Message] = {}
+    media_ids_to_load: set[UUID] = set()
+    if last_message_ids:
+        msg_result = await db.execute(
+            select(Message).where(Message.id.in_(last_message_ids))
         )
-        other_user = other_result.scalar_one()
+        for msg in msg_result.scalars().all():
+            messages_by_id[msg.id] = msg
+            if msg.media_id is not None and msg.deleted_at is None:
+                media_ids_to_load.add(msg.media_id)
 
-        # Load the last message (if any), with its media
+    # 4) Batch-fetch the media files referenced by those last messages.
+    media_by_id: dict[UUID, MediaResponse] = {}
+    if media_ids_to_load:
+        mf_result = await db.execute(
+            select(MediaFile).where(MediaFile.id.in_(media_ids_to_load))
+        )
+        for mf in mf_result.scalars().all():
+            media_by_id[mf.id] = media_file_to_response(mf)
+
+    # 5) Single aggregate query for unread counts across all conversations.
+    unread_result = await db.execute(
+        select(Message.conversation_id, func.count())
+        .select_from(MessageReceipt)
+        .join(Message, Message.id == MessageReceipt.message_id)
+        .where(
+            Message.conversation_id.in_(conv_ids),
+            MessageReceipt.user_id == user.id,
+            MessageReceipt.read_at.is_(None),
+            Message.deleted_at.is_(None),
+        )
+        .group_by(Message.conversation_id)
+    )
+    unread_by_conv: dict[UUID, int] = dict(unread_result.all())
+
+    # 6) Assemble responses.
+    responses: list[ConversationResponse] = []
+    for conv in conversations:
+        other_user_id = (
+            conv.participant_b
+            if conv.participant_a == user.id
+            else conv.participant_a
+        )
+        other_user = users_by_id.get(other_user_id)
+        if other_user is None:
+            # Other user deleted — skip the row rather than 500 the page.
+            continue
+
         last_message: MessageResponse | None = None
-        if conv.last_message_id:
-            msg_result = await db.execute(
-                select(Message).where(Message.id == conv.last_message_id)
-            )
-            msg = msg_result.scalar_one_or_none()
-            if msg:
-                media_resp: MediaResponse | None = None
-                if msg.media_id and msg.deleted_at is None:
-                    mf_r = await db.execute(
-                        select(MediaFile).where(MediaFile.id == msg.media_id)
-                    )
-                    mf = mf_r.scalar_one_or_none()
-                    if mf:
-                        from app.services.media_service import media_file_to_response
-                        media_resp = media_file_to_response(mf)
+        if conv.last_message_id is not None:
+            msg = messages_by_id.get(conv.last_message_id)
+            if msg is not None:
+                media_resp = (
+                    media_by_id.get(msg.media_id)
+                    if msg.media_id is not None and msg.deleted_at is None
+                    else None
+                )
                 last_message = _msg_to_response(msg, media_resp)
-
-        # Count unread: receipts belonging to *user* with read_at IS NULL
-        unread_result = await db.execute(
-            select(func.count())
-            .select_from(MessageReceipt)
-            .join(Message, Message.id == MessageReceipt.message_id)
-            .where(
-                Message.conversation_id == conv.id,
-                MessageReceipt.user_id == user.id,
-                MessageReceipt.read_at.is_(None),
-                Message.deleted_at.is_(None),
-            )
-        )
-        unread_count: int = unread_result.scalar() or 0
 
         responses.append(
             ConversationResponse(
@@ -256,7 +296,7 @@ async def list_conversations(
                 other_user=UserPublic.model_validate(other_user),
                 last_message=last_message,
                 last_activity=conv.last_activity,
-                unread_count=unread_count,
+                unread_count=unread_by_conv.get(conv.id, 0),
             )
         )
 

@@ -263,7 +263,7 @@ class ChatNotifier extends Notifier<ChatState> {
     try {
       final upload = await ref.read(messageRepositoryProvider).uploadMedia(
             file: file,
-            type: type.name,
+            type: MessageRepository.wireType(type),
             onProgress: (sent, total) {
               onProgress?.call(sent, total);
               db.pendingMediaUploadsDao.upsert(
@@ -338,20 +338,23 @@ class ChatNotifier extends Notifier<ChatState> {
     state = state.copyWith(isLoadingOlder: true);
 
     try {
-      final older = await ref.read(messageRepositoryProvider).fetchMessages(
+      final page = await ref.read(messageRepositoryProvider).fetchMessages(
             _conversationId,
             cursor: state.oldestCursor,
           );
-      if (older.isEmpty) {
+      if (page.messages.isEmpty) {
         state = state.copyWith(isLoadingOlder: false, hasOlderMessages: false);
         return;
       }
-      for (final msg in older) {
+      for (final msg in page.messages) {
         await ref.read(messageLocalDaoProvider).upsertMessage(msg);
       }
+      // Forward the server's opaque cursor verbatim — it encodes
+      // (created_at, id) and the backend will refuse anything else.
       state = state.copyWith(
         isLoadingOlder: false,
-        oldestCursor: older.first.id,
+        oldestCursor: page.nextCursor,
+        hasOlderMessages: page.nextCursor != null,
       );
     } catch (_) {
       state = state.copyWith(isLoadingOlder: false);
