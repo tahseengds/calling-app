@@ -56,6 +56,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
   GoogleSignIn get _google =>
       _googleOverride ??= GoogleSignIn(scopes: const ['email']);
 
+  /// Set while [_tryRestoreSession] is doing a `POST /api/auth/refresh`.
+  /// Exposed so the Dio interceptor can await this instead of firing its
+  /// own parallel refresh during cold start — two refreshes with the
+  /// same refresh-token trip the backend's reuse-detection guard and
+  /// revoke every session for the user.
+  Future<bool>? _refreshInFlight;
+  Future<bool>? get refreshInFlight => _refreshInFlight;
+
   AuthNotifier(
     this._repo,
     this._secure,
@@ -124,6 +132,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
           'showing splash until network restore completes');
     }
 
+    // Publish the in-flight refresh BEFORE doing any HTTP work so the Dio
+    // interceptor (which may fire on a parallel screen mount) can await
+    // this instead of POSTing /api/auth/refresh with the same token.
+    final refreshDone = Completer<bool>();
+    _refreshInFlight = refreshDone.future;
     try {
       final deviceId = await _secure.readDeviceId();
       final tokens = await _repo.refreshAccessToken(
@@ -136,6 +149,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await _secure.saveCachedUserJson(jsonEncode(me.toJson()));
       state = AuthAuthenticated(me: me);
       debugPrint('[auth] restore: refreshed + getMe ok → AuthAuthenticated');
+      refreshDone.complete(true);
 
       final fcm = _ref.read(fcmTokenServiceProvider);
       unawaited(fcm.registerCurrentToken());
@@ -150,6 +164,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         await _secure.deleteCachedUser();
         _ref.read(authTokenProvider.notifier).clear();
         state = const AuthUnauthenticated();
+        refreshDone.complete(false);
         return;
       }
 
@@ -165,6 +180,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
             'cached AuthAuthenticated — will retry on next API call. '
             'error=$e');
       }
+      refreshDone.complete(false);
+    } finally {
+      _refreshInFlight = null;
     }
   }
 

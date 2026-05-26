@@ -7,6 +7,7 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1091,6 +1092,11 @@ class _Bubble extends StatelessWidget {
 
   bool get _isFailed => msg.status == MessageStatus.failed;
   bool get _isAudio => msg.type == MessageType.audio;
+  bool get _isImage => msg.type == MessageType.image;
+  bool get _isVideo => msg.type == MessageType.video;
+  bool get _isFile  => msg.type == MessageType.file;
+  bool get _isVisualMedia => _isImage || _isVideo;
+  bool get _hasCaption => (msg.content?.isNotEmpty ?? false);
 
   @override
   Widget build(BuildContext context) {
@@ -1110,6 +1116,16 @@ class _Bubble extends StatelessWidget {
 
     final radius = _bubbleRadius(mine);
 
+    // Image/video bubbles get a small uniform inset so the preview's clipped
+    // corners sit just inside the bubble outline. Reply-preview and caption
+    // both demand the existing 6/10 padding layout. Plain text/audio/file
+    // keep the original 14/10 padding.
+    final EdgeInsets bubblePadding = _isVisualMedia && replyTo == null
+        ? const EdgeInsets.all(4)
+        : replyTo != null
+            ? const EdgeInsets.fromLTRB(6, 6, 6, 10)
+            : const EdgeInsets.symmetric(horizontal: 14, vertical: 10);
+
     return Container(
       decoration: BoxDecoration(
         color:        bg,
@@ -1119,10 +1135,7 @@ class _Bubble extends StatelessWidget {
           BoxShadow(color: Color(0x0A000000), blurRadius: 4, offset: Offset(0, 1)),
         ],
       ),
-      // Extra top padding only when there's a reply preview block
-      padding: replyTo != null
-          ? const EdgeInsets.fromLTRB(6, 6, 6, 10)
-          : const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: bubblePadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -1137,24 +1150,263 @@ class _Bubble extends StatelessWidget {
             ),
             const SizedBox(height: 8),
           ],
-          // ── Message text or Audio ─────────────────────────────────────
-          Padding(
-            padding: replyTo != null
-                ? const EdgeInsets.symmetric(horizontal: 8)
-                : EdgeInsets.zero,
-            child: _isAudio
-                ? _AudioMessageContent(
-                    audioUrl: msg.media?.url,
-                    durationSeconds: msg.media?.durationSeconds ?? 0,
-                    fgColor: fg,
-                  )
-                : Text(
-                    msg.content ?? '',
-                    style: AppTextStyles.body(color: fg),
-                  ),
-          ),
+          // ── Body: image / video / file / audio / text ─────────────────
+          if (_isVisualMedia)
+            _MediaVisualContent(
+              msg: msg,
+              fgColor: fg,
+              innerRadius: BorderRadius.circular(_T.bigR - 6),
+            )
+          else if (_isFile)
+            _FileMessageContent(msg: msg, fgColor: fg)
+          else
+            Padding(
+              padding: replyTo != null
+                  ? const EdgeInsets.symmetric(horizontal: 8)
+                  : EdgeInsets.zero,
+              child: _isAudio
+                  ? _AudioMessageContent(
+                      audioUrl: msg.media?.url,
+                      durationSeconds: msg.media?.durationSeconds ?? 0,
+                      fgColor: fg,
+                    )
+                  : Text(
+                      msg.content ?? '',
+                      style: AppTextStyles.body(color: fg),
+                    ),
+            ),
+          // ── Optional caption under image / video ──────────────────────
+          if (_isVisualMedia && _hasCaption) ...[
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(6, 0, 6, 4),
+              child: Text(
+                msg.content ?? '',
+                style: AppTextStyles.body(color: fg),
+              ),
+            ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+// ─── Visual media (image / video) bubble content ────────────────────────────
+// Renders the optimistic local file (for not-yet-uploaded messages) or the
+// remote URL (once the server has it). Videos overlay a play badge on top of
+// the first-frame thumbnail when available, falling back to a solid tile.
+
+class _MediaVisualContent extends StatelessWidget {
+  const _MediaVisualContent({
+    required this.msg,
+    required this.fgColor,
+    required this.innerRadius,
+  });
+
+  final Message msg;
+  final Color fgColor;
+  final BorderRadius innerRadius;
+
+  bool get _isVideo => msg.type == MessageType.video;
+
+  /// Choose the best image source: thumbnail for videos (when present),
+  /// otherwise the media's primary url. Returns null if the message has no
+  /// media attached yet (shouldn't normally happen for sent media).
+  String? get _previewUrl {
+    final media = msg.media;
+    if (media == null) return null;
+    if (_isVideo && media.thumbnailUrl != null && media.thumbnailUrl!.isNotEmpty) {
+      return media.thumbnailUrl;
+    }
+    return media.url;
+  }
+
+  bool _isLocalPath(String url) =>
+      !url.startsWith('http://') && !url.startsWith('https://');
+
+  Widget _buildPreview(BuildContext context) {
+    final url = _previewUrl;
+    // Constrain to a reasonable preview size — the bubble already caps width
+    // to 78% of the screen, this caps height so a tall portrait doesn't push
+    // the whole list off-screen.
+    final maxH = MediaQuery.of(context).size.height * 0.42;
+
+    Widget child;
+    if (url == null) {
+      child = _MediaPlaceholder(isVideo: _isVideo);
+    } else if (_isLocalPath(url)) {
+      child = Image.file(
+        File(url.startsWith('file://') ? Uri.parse(url).toFilePath() : url),
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _MediaPlaceholder(isVideo: _isVideo),
+      );
+    } else {
+      child = CachedNetworkImage(
+        imageUrl: url,
+        fit: BoxFit.cover,
+        placeholder: (_, _) => _MediaLoading(isVideo: _isVideo),
+        errorWidget: (_, _, _) => _MediaPlaceholder(isVideo: _isVideo),
+      );
+    }
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxH, minHeight: 120, minWidth: 160),
+      child: ClipRRect(
+        borderRadius: innerRadius,
+        child: AspectRatio(
+          aspectRatio: _aspectRatio(),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              child,
+              if (_isVideo)
+                const Center(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0x80000000),
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.all(10),
+                      child: Icon(
+                        Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 32,
+                      ),
+                    ),
+                  ),
+                ),
+              if (msg.status == MessageStatus.sending)
+                const Positioned(
+                  right: 6,
+                  bottom: 6,
+                  child: SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  double _aspectRatio() {
+    final w = msg.media?.width;
+    final h = msg.media?.height;
+    if (w != null && h != null && w > 0 && h > 0) {
+      // Clamp so very-tall or very-wide media stays usable in the list.
+      return (w / h).clamp(0.6, 1.8);
+    }
+    return 4 / 3;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _buildPreview(context);
+  }
+}
+
+class _MediaPlaceholder extends StatelessWidget {
+  const _MediaPlaceholder({required this.isVideo});
+  final bool isVideo;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: const Color(0x33000000),
+      child: Center(
+        child: Icon(
+          isVideo ? Icons.movie_outlined : Icons.broken_image_outlined,
+          color: Colors.white70,
+          size: 36,
+        ),
+      ),
+    );
+  }
+}
+
+class _MediaLoading extends StatelessWidget {
+  const _MediaLoading({required this.isVideo});
+  final bool isVideo;
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: Color(0x22000000),
+      child: Center(
+        child: SizedBox(
+          width: 22,
+          height: 22,
+          child: CircularProgressIndicator(
+            strokeWidth: 2,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.white70),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── File / document bubble content ─────────────────────────────────────────
+
+class _FileMessageContent extends StatelessWidget {
+  const _FileMessageContent({required this.msg, required this.fgColor});
+
+  final Message msg;
+  final Color fgColor;
+
+  String get _fileName {
+    final url = msg.media?.url ?? '';
+    if (url.isEmpty) return 'Attachment';
+    final cleaned = url.split('?').first;
+    final segment = cleaned.split(RegExp(r'[\\/]')).last;
+    return segment.isEmpty ? 'Attachment' : segment;
+  }
+
+  String? get _sizeLabel {
+    final bytes = msg.media?.sizeBytes;
+    if (bytes == null || bytes <= 0) return null;
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final subColor = fgColor.withValues(alpha: 0.75);
+    final size = _sizeLabel;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.insert_drive_file_outlined, color: fgColor, size: 28),
+        const SizedBox(width: 10),
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _fileName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.bodySemibold(color: fgColor).copyWith(fontSize: 14),
+              ),
+              if (size != null)
+                Text(
+                  size,
+                  style: AppTextStyles.caption(color: subColor).copyWith(fontSize: 12),
+                ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

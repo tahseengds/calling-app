@@ -21,9 +21,32 @@ final dioProvider = Provider<Dio>((ref) {
     // Read the in-memory access token (never from disk).
     getAccessToken: () => ref.read(authTokenProvider),
 
-    // Single-flight refresh — TokenInterceptor serializes concurrent 401s.
+    // Single-flight refresh — TokenInterceptor serializes concurrent 401s
+    // inside this interceptor, and the AuthNotifier.refreshInFlight check
+    // below serializes against the cold-start auth-restore path so the
+    // two never POST /api/auth/refresh with the same token in parallel
+    // (which would trip the backend's reuse-detection and revoke every
+    // session for the user).
     refreshTokens: () async {
       refreshWasAuthRejected = false;
+
+      // ── Cold-start race guard ──────────────────────────────────────
+      // If AuthNotifier is in the middle of restoring (it ran its own
+      // refresh between cache restore and the optimistic
+      // AuthAuthenticated), wait for it instead of POSTing a parallel
+      // refresh with the same token.
+      final authPending =
+          ref.read(authNotifierProvider.notifier).refreshInFlight;
+      if (authPending != null) {
+        final ok = await authPending;
+        if (ok && ref.read(authTokenProvider) != null) {
+          return true;
+        }
+        // AuthNotifier already decided this session is dead — don't
+        // double-trip its bookkeeping by also flagging refreshWasAuthRejected.
+        return false;
+      }
+
       final savedRefresh = await secure.readRefreshToken();
       final deviceId = await secure.readDeviceId();
       if (savedRefresh == null) {
@@ -60,12 +83,19 @@ final dioProvider = Provider<Dio>((ref) {
 
     // Called when refresh itself fails — but only force a sign-out when the
     // server actually rejected the refresh token. Transient transport errors
-    // are deliberately treated as "try again later".
+    // are deliberately treated as "try again later", and a cold-start race
+    // where AuthNotifier is still resolving the session shouldn't yank the
+    // user to /login mid-restore.
     onAuthExpired: () {
       if (AppConfig.uiOnly) return;
-      if (refreshWasAuthRejected) {
-        ref.read(authNotifierProvider.notifier).forceSignOut();
+      if (!refreshWasAuthRejected) return;
+      // Belt-and-suspenders: if AuthNotifier is still restoring, defer to
+      // its outcome — its rotated refresh-token may already be saved and
+      // forceSignOut would wipe it.
+      if (ref.read(authNotifierProvider.notifier).refreshInFlight != null) {
+        return;
       }
+      ref.read(authNotifierProvider.notifier).forceSignOut();
     },
   );
 
