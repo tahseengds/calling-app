@@ -25,25 +25,48 @@ from PIL import Image
 
 from app.config import settings
 
-# ── Phone counter ─────────────────────────────────────────────────────────────
+# ── Email counter ─────────────────────────────────────────────────────────────
 _counter = itertools.count(7000)
 
 
-def _next_phone() -> str:
-    return f"+1555{next(_counter):07d}"
+def _next_email() -> str:
+    return f"media{next(_counter)}@example.com"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-async def _register(client: AsyncClient, phone: str, name: str = "User") -> str:
-    r = await client.post("/api/auth/register", json={
-        "name": name, "phone": phone, "password": "secret99",
-    })
+from app.services import auth_service
+
+
+def _stub_firebase(monkeypatch: pytest.MonkeyPatch, claims: dict) -> None:
+    async def _fake(_id_token: str) -> dict:
+        return claims
+
+    monkeypatch.setattr(auth_service, "verify_firebase_id_token", _fake)
+
+
+async def _signin(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+    email: str,
+    name: str = "User",
+) -> str:
+    _stub_firebase(
+        monkeypatch,
+        {
+            "sub": f"fb-{email}",
+            "email": email,
+            "email_verified": True,
+            "name": name,
+            "firebase": {"sign_in_provider": "password"},
+        },
+    )
+    r = await client.post(
+        "/api/auth/firebase-signin",
+        json={"firebase_id_token": "stub", "device_id": "test-device", "name": name},
+    )
     assert r.status_code == 200, r.text
-    otp = r.json()["debug_otp"]
-    r2 = await client.post("/api/auth/verify-otp", json={"phone": phone, "otp": otp})
-    assert r2.status_code == 200, r2.text
-    return r2.json()["access_token"]
+    return r.json()["access_token"]
 
 
 def _auth(token: str) -> dict:
@@ -73,10 +96,10 @@ def _make_wav(seconds: float = 0.5) -> bytes:
 # ── Image upload tests ────────────────────────────────────────────────────────
 
 async def test_image_upload_creates_webp_and_thumbnail(
-    client: AsyncClient,
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    phone = _next_phone()
-    token = await _register(client, phone)
+    email = _next_email()
+    token = await _signin(client, monkeypatch, email)
 
     jpeg_bytes = _make_jpeg(100, 100)
 
@@ -106,9 +129,11 @@ async def test_image_upload_creates_webp_and_thumbnail(
     assert thumb_path.exists(), f"Thumbnail not found: {thumb_path}"
 
 
-async def test_magic_byte_mismatch_rejected(client: AsyncClient) -> None:
-    phone = _next_phone()
-    token = await _register(client, phone)
+async def test_magic_byte_mismatch_rejected(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    email = _next_email()
+    token = await _signin(client, monkeypatch, email)
 
     # PDF bytes masquerading as a JPEG
     fake_jpeg = b"%PDF-1.4 fake pdf content here\n" + b"\x00" * 100
@@ -124,8 +149,8 @@ async def test_magic_byte_mismatch_rejected(client: AsyncClient) -> None:
 
 
 async def test_oversize_file_rejected(client: AsyncClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    phone = _next_phone()
-    token = await _register(client, phone)
+    email = _next_email()
+    token = await _signin(client, monkeypatch, email)
 
     # Temporarily reduce the image size limit to ~100 bytes (0.0001 MB)
     monkeypatch.setattr(settings, "MAX_IMAGE_SIZE_MB", 0)
@@ -145,9 +170,11 @@ async def test_oversize_file_rejected(client: AsyncClient, monkeypatch: pytest.M
 
 # ── Signed URL verification tests ─────────────────────────────────────────────
 
-async def test_verify_signature_valid(client: AsyncClient) -> None:
-    phone = _next_phone()
-    token = await _register(client, phone)
+async def test_verify_signature_valid(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    email = _next_email()
+    token = await _signin(client, monkeypatch, email)
 
     # Upload an image to get a real signed URL
     r = await client.post(
@@ -173,9 +200,11 @@ async def test_verify_signature_valid(client: AsyncClient) -> None:
     assert r2.status_code == 204
 
 
-async def test_verify_signature_tampered_returns_403(client: AsyncClient) -> None:
-    phone = _next_phone()
-    token = await _register(client, phone)
+async def test_verify_signature_tampered_returns_403(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    email = _next_email()
+    token = await _signin(client, monkeypatch, email)
 
     r = await client.post(
         "/api/media/upload",
@@ -195,9 +224,11 @@ async def test_verify_signature_tampered_returns_403(client: AsyncClient) -> Non
     assert r2.status_code == 403
 
 
-async def test_verify_signature_expired_returns_403(client: AsyncClient) -> None:
-    phone = _next_phone()
-    token = await _register(client, phone)
+async def test_verify_signature_expired_returns_403(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    email = _next_email()
+    token = await _signin(client, monkeypatch, email)
 
     r = await client.post(
         "/api/media/upload",
@@ -222,9 +253,11 @@ async def test_verify_signature_expired_returns_403(client: AsyncClient) -> None
 
 # ── Audio upload test ─────────────────────────────────────────────────────────
 
-async def test_voice_note_produces_aac_with_duration(client: AsyncClient) -> None:
-    phone = _next_phone()
-    token = await _register(client, phone)
+async def test_voice_note_produces_aac_with_duration(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    email = _next_email()
+    token = await _signin(client, monkeypatch, email)
 
     wav_bytes = _make_wav(seconds=1.0)
 
@@ -253,9 +286,11 @@ async def test_voice_note_produces_aac_with_duration(client: AsyncClient) -> Non
 
 # ── Avatar upload test ────────────────────────────────────────────────────────
 
-async def test_avatar_upload_updates_user_profile(client: AsyncClient) -> None:
-    phone = _next_phone()
-    token = await _register(client, phone)
+async def test_avatar_upload_updates_user_profile(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    email = _next_email()
+    token = await _signin(client, monkeypatch, email)
 
     jpeg_bytes = _make_jpeg(300, 300)
 
@@ -285,17 +320,19 @@ async def test_avatar_upload_updates_user_profile(client: AsyncClient) -> None:
 
 # ── Media message integration test ───────────────────────────────────────────
 
-async def test_media_message_includes_nested_media(client: AsyncClient) -> None:
+async def test_media_message_includes_nested_media(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Acceptance check 4: a media message serialises with a populated media object."""
-    phone_a, phone_b = _next_phone(), _next_phone()
-    token_a = await _register(client, phone_a, "Alice")
-    token_b = await _register(client, phone_b, "Bob")
+    email_a, email_b = _next_email(), _next_email()
+    token_a = await _signin(client, monkeypatch, email_a, "Alice")
+    token_b = await _signin(client, monkeypatch, email_b, "Bob")
 
-    alice_id = (await client.get("/api/users/me", headers=_auth(token_a))).json()["id"]
+    _alice_id = (await client.get("/api/users/me", headers=_auth(token_a))).json()["id"]
     bob_id = (await client.get("/api/users/me", headers=_auth(token_b))).json()["id"]
 
     # Add contacts (reciprocal)
-    r = await client.post("/api/contacts/", json={"phone": phone_b}, headers=_auth(token_a))
+    r = await client.post("/api/contacts/", json={"email": email_b}, headers=_auth(token_a))
     assert r.status_code == 201
 
     # Alice uploads a media file

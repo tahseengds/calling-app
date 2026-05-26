@@ -39,6 +39,19 @@ def _stub_verifier_raises(
     monkeypatch.setattr(auth_service, "verify_firebase_id_token", _fake)
 
 
+def _claims_for(email: str, name: str | None = None) -> dict[str, Any]:
+    """Standard email/password Firebase claims."""
+    out: dict[str, Any] = {
+        "sub": f"fb-{email}",
+        "email": email,
+        "email_verified": True,
+        "firebase": {"sign_in_provider": "password"},
+    }
+    if name is not None:
+        out["name"] = name
+    return out
+
+
 async def _signin(
     client: AsyncClient,
     *,
@@ -63,10 +76,10 @@ async def _signin(
 @pytest.mark.asyncio
 async def test_firebase_signin_creates_user_on_first_call(
     client: AsyncClient,
-    phone: str,
+    email: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _stub_verifier(monkeypatch, {"phone_number": phone, "name": "Aunt Liz"})
+    _stub_verifier(monkeypatch, _claims_for(email, name="Aunt Liz"))
 
     r = await _signin(client, name="Aunt Liz")
 
@@ -81,16 +94,16 @@ async def test_firebase_signin_creates_user_on_first_call(
 @pytest.mark.asyncio
 async def test_firebase_signin_returning_user_keeps_existing_name(
     client: AsyncClient,
-    phone: str,
+    email: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A second sign-in must NOT overwrite the user's name with a stale claim."""
-    _stub_verifier(monkeypatch, {"phone_number": phone, "name": "Original"})
+    _stub_verifier(monkeypatch, _claims_for(email, name="Original"))
     r1 = await _signin(client, name="Original")
     assert r1.status_code == 200
 
     # Second call passes a different `name` — the row's name should not change.
-    _stub_verifier(monkeypatch, {"phone_number": phone, "name": "Different"})
+    _stub_verifier(monkeypatch, _claims_for(email, name="Different"))
     r2 = await _signin(client, name="Should be ignored")
     assert r2.status_code == 200
     tokens = r2.json()
@@ -118,17 +131,12 @@ async def test_firebase_signin_invalid_token_returns_401(
 
 
 @pytest.mark.asyncio
-async def test_firebase_signin_missing_phone_claim_returns_422(
+async def test_firebase_signin_missing_uid_returns_422(
     client: AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    # Token verified but with no phone_number — e.g. signed in via email.
-    _stub_verifier_raises(
-        monkeypatch,
-        ValidationFailedError(
-            "Firebase ID token is missing phone_number — sign in by phone"
-        ),
-    )
+    """A verified token with no `sub`/`user_id` claim is malformed → 422."""
+    _stub_verifier(monkeypatch, {"email": "x@example.com"})
     r = await _signin(client)
     assert r.status_code == 422
     assert r.json()["code"] == "validation_failed"
@@ -137,16 +145,13 @@ async def test_firebase_signin_missing_phone_claim_returns_422(
 @pytest.mark.asyncio
 async def test_firebase_signin_stores_fcm_token(
     client: AsyncClient,
-    phone: str,
+    email: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _stub_verifier(monkeypatch, {"phone_number": phone})
+    _stub_verifier(monkeypatch, _claims_for(email))
     r = await _signin(client, fcm_token="fcm-abcdef")
     assert r.status_code == 200
 
-    # Reach into the DB via /api/users/me — fcm_token is not in the
-    # public schema, so verify indirectly by signing out + back in and
-    # confirming the same user_id surfaces.
     tokens = r.json()
     me = await client.get(
         "/api/users/me",
@@ -158,28 +163,26 @@ async def test_firebase_signin_stores_fcm_token(
 @pytest.mark.asyncio
 async def test_firebase_signin_reactivates_inactive_user(
     client: AsyncClient,
-    phone: str,
+    email: str,
     monkeypatch: pytest.MonkeyPatch,
     redis_client,
 ) -> None:
-    """A user deactivated via the old register-pending flow should be
-    re-activated when they pass Firebase's SMS challenge."""
+    """A deactivated user should be re-activated on next Firebase sign-in."""
     from sqlalchemy.ext.asyncio import create_async_engine
     from sqlalchemy.pool import NullPool
-    from sqlalchemy import update
+    from sqlalchemy import select, update
 
     from app.config import settings
     from app.models.user import User
 
-    # Create the row directly in the DB in an inactive state.
-    _stub_verifier(monkeypatch, {"phone_number": phone})
+    _stub_verifier(monkeypatch, _claims_for(email))
     r1 = await _signin(client)
     assert r1.status_code == 200
 
     engine = create_async_engine(settings.DATABASE_URL, poolclass=NullPool)
     async with engine.begin() as conn:
         await conn.execute(
-            update(User).where(User.phone == phone).values(is_active=False)
+            update(User).where(User.email == email).values(is_active=False)
         )
     await engine.dispose()
 
@@ -189,24 +192,24 @@ async def test_firebase_signin_reactivates_inactive_user(
 
     engine = create_async_engine(settings.DATABASE_URL, poolclass=NullPool)
     async with engine.begin() as conn:
-        from sqlalchemy import select
-
         res = await conn.execute(
-            select(User.is_active).where(User.phone == phone)
+            select(User.is_active).where(User.email == email)
         )
         assert res.scalar_one() is True
     await engine.dispose()
 
 
 @pytest.mark.asyncio
-async def test_firebase_signin_default_name_uses_phone_tail(
+async def test_firebase_signin_default_name_falls_back_to_email_local(
     client: AsyncClient,
-    phone: str,
+    email: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """When neither client-supplied name nor Firebase 'name' claim is
-    available, fall back to "User <last-4-digits>"."""
-    _stub_verifier(monkeypatch, {"phone_number": phone})  # no name claim
+    available, fall back to the email local-part."""
+    claims = _claims_for(email)
+    claims.pop("name", None)
+    _stub_verifier(monkeypatch, claims)
     r = await _signin(client)  # no name in body either
     assert r.status_code == 200
     tokens = r.json()
@@ -216,4 +219,5 @@ async def test_firebase_signin_default_name_uses_phone_tail(
         headers={"Authorization": f"Bearer {tokens['access_token']}"},
     )
     assert me.status_code == 200
-    assert me.json()["name"] == f"User {phone[-4:]}"
+    expected_local = email.split("@")[0]
+    assert me.json()["name"] == expected_local

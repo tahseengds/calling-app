@@ -21,32 +21,38 @@ class ContactRepository {
         .toList();
   }
 
-  /// Look up the target user by [email] (preferred) or [phone] (legacy
-  /// accounts). Exactly one must be non-null. [nickname] is an optional
+  /// Same as [getContacts] but preserves the contact-row id alongside the
+  /// nested user — needed for DELETE /api/contacts/{contact_id}, since the
+  /// backend keys removal by the row id, not the target user's id.
+  Future<List<ContactEntry>> getContactEntries() async {
+    final resp = await _dio.get<List<dynamic>>('/api/contacts/');
+    return (resp.data ?? [])
+        .map((e) => ContactEntry.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Look up the target user by [email]. [nickname] is an optional
   /// display name local to the caller's contact list.
   Future<User> addContact({
-    String? email,
-    String? phone,
+    required String email,
     String? nickname,
   }) async {
-    assert(
-      (email == null) ^ (phone == null),
-      'addContact requires exactly one of email or phone',
-    );
     final resp = await _dio.post<Map<String, dynamic>>(
       '/api/contacts/',
       data: {
-        if (email != null) 'email': email,
-        if (phone != null) 'phone': phone,
-        if (nickname != null) 'nickname': nickname,
+        'email': email,
+        'nickname': ?nickname,
       },
     );
     // Backend returns ContactResponse; user data is in 'contact_user'.
     return User.fromJson(resp.data!['contact_user'] as Map<String, dynamic>);
   }
 
-  Future<void> removeContact(String userId) =>
-      _dio.delete('/api/contacts/$userId');
+  /// Remove a contact by its **contact row id** (NOT the target user's id).
+  /// The contact id is the `id` field of the ContactResponse returned by
+  /// `getContacts()` / `addContact()`.
+  Future<void> removeContact(String contactId) =>
+      _dio.delete('/api/contacts/$contactId');
 
   // ── Blocking ──────────────────────────────────────────────────────────
   //
@@ -74,8 +80,27 @@ class ContactRepository {
   }
 }
 
-/// One contact row, carrying the contact-row id (needed for the block
-/// endpoint) alongside the nested user.
+/// One contact row, carrying the contact-row id alongside the nested user.
+class ContactEntry {
+  final String contactId;
+  final User user;
+  final bool isBlocked;
+
+  const ContactEntry({
+    required this.contactId,
+    required this.user,
+    required this.isBlocked,
+  });
+
+  factory ContactEntry.fromJson(Map<String, dynamic> json) => ContactEntry(
+        contactId: json['id'] as String,
+        user: User.fromJson(json['contact_user'] as Map<String, dynamic>),
+        isBlocked: json['is_blocked'] as bool? ?? false,
+      );
+}
+
+/// One blocked contact row — same shape as [ContactEntry] but historically
+/// kept separate so the blocked-contacts screen has a dedicated type.
 class BlockedContactEntry {
   final String contactId;
   final User user;

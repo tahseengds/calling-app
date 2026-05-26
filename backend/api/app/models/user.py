@@ -22,11 +22,8 @@ class User(Base):
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
-    # phone is optional — phone-based sign-in was removed in favor of Google
-    # and email/password. Older rows from the phone-auth era keep their value.
-    phone: Mapped[str | None] = mapped_column(String(20), unique=True)
-    # email is the primary identifier for the new auth flow (Google or
-    # email/password). Nullable for the same reason as phone.
+    # email is the primary identifier (Google or email/password sign-in).
+    # Nullable to tolerate legacy rows from before email was introduced.
     email: Mapped[str | None] = mapped_column(String(254), unique=True, index=True)
     # Firebase UID — stable across sessions for a given identity within our
     # Firebase project. Use this as the lookup key when trading a Firebase ID

@@ -15,15 +15,6 @@ import '../../calling/domain/call_notifier.dart';
 import '../../calling/domain/call_state.dart';
 import '../../calling/presentation/widgets/permission_denied_screen.dart';
 
-String _formatPhoneDisplay(String phone) {
-  final digits = phone.replaceAll(RegExp(r'\D'), '');
-  if (digits.length == 11 && digits.startsWith('1')) {
-    final d = digits.substring(1);
-    return '+1 (${d.substring(0, 3)}) ${d.substring(3, 6)} · ${d.substring(6)}';
-  }
-  return phone;
-}
-
 class ContactsScreen extends ConsumerStatefulWidget {
   const ContactsScreen({super.key});
 
@@ -106,7 +97,6 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
     return all
         .where((u) =>
             u.name.toLowerCase().contains(q) ||
-            (u.phone ?? '').contains(q) ||
             (u.email ?? '').toLowerCase().contains(q))
         .toList();
   }
@@ -400,10 +390,7 @@ class _ContactRow extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      user.email ??
-                          (user.phone != null
-                              ? _formatPhoneDisplay(user.phone!)
-                              : ''),
+                      user.email ?? '',
                       style: TextStyle(
                         fontSize: 14,
                         color: colors.fg2,

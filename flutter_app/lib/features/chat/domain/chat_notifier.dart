@@ -106,7 +106,6 @@ class ChatNotifier extends Notifier<ChatState> {
           otherUser: User(
             id: userRow.id,
             name: userRow.name,
-            phone: userRow.phone,
             avatarUrl: userRow.avatarUrl,
             lastSeen: userRow.lastSeen,
             presence: PresenceStatus.values.firstWhere(

@@ -12,7 +12,7 @@ The verified token carries:
   - email
   - email_verified
   - name, picture (optional)
-  - firebase.sign_in_provider → 'google.com' | 'password' | 'phone'
+  - firebase.sign_in_provider → 'google.com' | 'password'
 
 For password sign-ins we additionally require `email_verified == true`
 so unverified accounts cannot mint server-side JWTs.
@@ -97,9 +97,7 @@ async def verify_firebase_id_token(id_token: str) -> dict[str, Any]:
 
     # Enforce email verification for password sign-ins. Google sign-ins
     # always come back with email_verified == true, so the same check is
-    # a no-op there. Phone sign-ins are no longer supported but if one
-    # ever arrives (legacy client) we let it through — the caller has no
-    # email to verify.
+    # a no-op there.
     provider = (claims.get("firebase") or {}).get("sign_in_provider")
     if provider == "password" and not claims.get("email_verified"):
         raise UnauthorizedError(

@@ -141,7 +141,7 @@ class _BlockedContactsScreenState extends ConsumerState<BlockedContactsScreen> {
                   ),
                   title: Text(entry.user.name,
                       style: AppTextStyles.body(color: colors.fg1)),
-                  subtitle: Text(entry.user.email ?? entry.user.phone ?? '',
+                  subtitle: Text(entry.user.email ?? '',
                       style: AppTextStyles.caption(color: colors.fg3)),
                   trailing: TextButton(
                     onPressed: () => _unblock(entry),

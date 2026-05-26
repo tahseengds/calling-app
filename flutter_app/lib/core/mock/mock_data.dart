@@ -5,7 +5,7 @@ abstract final class MockData {
   static final User currentUser = User(
     id: 'mock-me',
     name: 'Rose Martinez',
-    phone: '+14155550142',
+    email: 'rose@example.com',
     lastSeen: DateTime.now(),
     presence: PresenceStatus.online,
   );
@@ -14,28 +14,28 @@ abstract final class MockData {
     User(
       id: 'mock-1',
       name: 'Mom',
-      phone: '+15559876543',
+      email: 'mom@example.com',
       lastSeen: DateTime.now().subtract(const Duration(minutes: 5)),
       presence: PresenceStatus.online,
     ),
     User(
       id: 'mock-2',
       name: 'Dad',
-      phone: '+15557654321',
+      email: 'dad@example.com',
       lastSeen: DateTime.now().subtract(const Duration(hours: 2)),
       presence: PresenceStatus.away,
     ),
     User(
       id: 'mock-3',
       name: 'Sarah',
-      phone: '+15551112222',
+      email: 'sarah@example.com',
       lastSeen: DateTime.now().subtract(const Duration(days: 1)),
       presence: PresenceStatus.offline,
     ),
     User(
       id: 'mock-4',
       name: 'Grandma Rose',
-      phone: '+15553334444',
+      email: 'grandma@example.com',
       lastSeen: DateTime.now().subtract(const Duration(minutes: 30)),
       presence: PresenceStatus.online,
     ),

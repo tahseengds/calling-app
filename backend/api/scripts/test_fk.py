@@ -10,14 +10,14 @@ async def main() -> None:
         # Insert a user
         user_id = str(uuid.uuid4())
         await s.execute(text(
-            "INSERT INTO users (id, name, phone, password_hash) "
-            "VALUES (:id, 'Test', '+10000000001', 'x')"
+            "INSERT INTO users (id, name, password_hash) "
+            "VALUES (:id, 'Test', 'x')"
         ), {"id": user_id})
 
         user2_id = str(uuid.uuid4())
         await s.execute(text(
-            "INSERT INTO users (id, name, phone, password_hash) "
-            "VALUES (:id, 'Test2', '+10000000002', 'x')"
+            "INSERT INTO users (id, name, password_hash) "
+            "VALUES (:id, 'Test2', 'x')"
         ), {"id": user2_id})
 
         # Insert a conversation

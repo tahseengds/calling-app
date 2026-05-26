@@ -120,7 +120,11 @@ class SyncService {
         await _db.usersDao.upsert(UsersTableCompanion(
           id: Value(u['id'] as String),
           name: Value(u['name'] as String),
-          phone: Value(u['phone'] as String? ?? ''),
+          // Drift schema still carries a non-nullable phone column from the
+          // pre-Firebase era. Backend no longer returns phone; pass an empty
+          // string so the upsert satisfies the local schema until a Drift
+          // migration drops the column.
+          phone: const Value(''),
           avatarUrl: Value(u['avatar_url'] as String?),
           lastSeen: Value(
             u['last_seen'] != null

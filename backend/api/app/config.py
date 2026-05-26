@@ -41,7 +41,6 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     DOMAIN: str = "lumin.example.com"  # TODO: replace domain
     MEDIA_URL_SCHEME: str = "https"  # set to http when serving without TLS (e.g. IP-only)
-    OTP_TTL_SECONDS: int = 300
 
 
 settings = Settings()

@@ -49,24 +49,13 @@ async def _load_contact(
 async def add_contact(
     db: AsyncSession, user: User, req: AddContactRequest
 ) -> ContactResponse:
-    # Resolve target by email (preferred) or phone (legacy).
-    if not req.email and not req.phone:
-        raise ValidationFailedError("Provide an email or phone to add a contact")
-
-    if req.email:
-        result = await db.execute(
-            select(User).where(User.email == req.email, User.is_active.is_(True))
-        )
-        target = result.scalar_one_or_none()
-        if not target:
-            raise NotFoundError("No active user with that email")
-    else:
-        result = await db.execute(
-            select(User).where(User.phone == req.phone, User.is_active.is_(True))
-        )
-        target = result.scalar_one_or_none()
-        if not target:
-            raise NotFoundError("No active user with that phone number")
+    # Resolve target by email.
+    result = await db.execute(
+        select(User).where(User.email == req.email, User.is_active.is_(True))
+    )
+    target = result.scalar_one_or_none()
+    if not target:
+        raise NotFoundError("No active user with that email")
 
     if target.id == user.id:
         raise ValidationFailedError("You cannot add yourself as a contact")

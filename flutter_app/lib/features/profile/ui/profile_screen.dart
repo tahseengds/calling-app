@@ -309,7 +309,7 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        user.email ?? user.phone ?? '',
+                        user.email ?? '',
                         style: TextStyle(
                           fontSize: 15,
                           color: colors.fg2,
@@ -334,11 +334,6 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                           icon: LumioIcons.edit,
                           label: 'Edit name',
                           onTap: _editName,
-                        ),
-                        SettingsTile(
-                          icon: LumioIcons.phone,
-                          label: 'Change number',
-                          onTap: () => context.push('/profile/change-number'),
                         ),
                         SettingsTile(
                           icon: LumioIcons.shield,

@@ -39,7 +39,7 @@ class ProfileNotifier extends StateNotifier<AsyncValue<User>> {
       state = AsyncData(User(
         id: current.id,
         name: name,
-        phone: current.phone,
+        email: current.email,
         avatarUrl: current.avatarUrl,
         lastSeen: current.lastSeen,
         presence: current.presence,
@@ -47,24 +47,6 @@ class ProfileNotifier extends StateNotifier<AsyncValue<User>> {
       return;
     }
     final updated = await _repo.updateName(name);
-    state = AsyncData(updated);
-    _syncAuthCache(updated);
-  }
-
-  Future<void> updatePhone(String phone) async {
-    if (AppConfig.uiOnly) {
-      final current = state.value ?? MockData.currentUser;
-      state = AsyncData(User(
-        id: current.id,
-        name: current.name,
-        phone: phone,
-        avatarUrl: current.avatarUrl,
-        lastSeen: current.lastSeen,
-        presence: current.presence,
-      ));
-      return;
-    }
-    final updated = await _repo.updatePhone(phone);
     state = AsyncData(updated);
     _syncAuthCache(updated);
   }

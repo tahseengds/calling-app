@@ -33,7 +33,6 @@ import 'features/settings/ui/app_lock_gate.dart';
 // Profile screens
 import 'features/profile/presentation/screens/about_screen.dart';
 import 'features/profile/presentation/screens/blocked_contacts_screen.dart';
-import 'features/profile/presentation/screens/change_number_screen.dart';
 import 'features/profile/presentation/screens/edit_name_screen.dart';
 import 'features/profile/presentation/screens/help_support_screen.dart';
 import 'features/profile/presentation/screens/message_sounds_screen.dart';
@@ -138,9 +137,6 @@ final _routerProvider = Provider<GoRouter>((ref) {
           path: '/call/history',
           builder: (_, _) => const CallHistoryScreen()),
       // ── Profile ───────────────────────────────────────────────────────────
-      GoRoute(
-          path: '/profile/change-number',
-          builder: (_, _) => const ChangeNumberScreen()),
       GoRoute(
           path: '/profile/edit-name',
           builder: (_, _) => const EditNameScreen()),

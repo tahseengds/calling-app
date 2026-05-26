@@ -46,15 +46,15 @@ def clean_db() -> None:
     asyncio.run(_truncate())
 
 
-# ── unique phone number generator ─────────────────────────────────────────────
+# ── unique email generator ────────────────────────────────────────────────────
 _counter = itertools.count(1)
 
 
 @pytest.fixture
-def phone() -> str:
-    """Return a unique E.164 phone number per test invocation."""
+def email() -> str:
+    """Return a unique email address per test invocation."""
     n = next(_counter)
-    return f"+1555{n:07d}"
+    return f"test{n}@example.com"
 
 
 # ── function-scoped Redis client ───────────────────────────────────────────────

@@ -21,14 +21,6 @@ class ProfileRepository {
     return User.fromJson(resp.data!);
   }
 
-  Future<User> updatePhone(String phone) async {
-    final resp = await _dio.put<Map<String, dynamic>>(
-      '/api/users/me',
-      data: {'phone': phone},
-    );
-    return User.fromJson(resp.data!);
-  }
-
   Future<User> updateAvatar(String filePath) async {
     final formData = FormData.fromMap({
       'file': await MultipartFile.fromFile(filePath),

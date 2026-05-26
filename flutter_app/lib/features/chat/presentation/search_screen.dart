@@ -37,7 +37,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return contacts
         .where((u) =>
             u.name.toLowerCase().contains(q) ||
-            (u.phone ?? '').contains(q) ||
             (u.email ?? '').toLowerCase().contains(q))
         .toList();
   }
@@ -257,7 +256,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       ),
                       title: _highlighted(u.name, _query,
                           colors.fg1, AppTextStyles.bodySemibold(color: colors.fg1).copyWith(fontSize: 15)),
-                      subtitle: Text(u.email ?? u.phone ?? '',
+                      subtitle: Text(u.email ?? '',
                           style: AppTextStyles.secondary(color: colors.fg2)
                               .copyWith(fontSize: 13)),
                       trailing: Material(

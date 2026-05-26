@@ -6,7 +6,6 @@ the async Redis client. No HTTP concerns here — raise AppError subclasses
 and let the router/exception handler convert them to JSON responses.
 """
 import logging
-import random
 from datetime import datetime, timedelta, timezone
 
 import redis.asyncio as aioredis
@@ -18,144 +17,24 @@ from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.schemas.auth import (
     FirebaseSignInRequest,
-    LoginRequest,
     LogoutRequest,
     RefreshRequest,
-    RegisterRequest,
-    RegisterResponse,
     TokenResponse,
-    VerifyOtpRequest,
 )
 from app.services.firebase_auth_service import verify_firebase_id_token
-from app.utils.exceptions import ConflictError, UnauthorizedError, ValidationFailedError
+from app.utils.exceptions import UnauthorizedError, ValidationFailedError
 from app.utils.security import (
     create_access_token,
     create_refresh_token,
     decode_access_token,
-    hash_password,
     hash_refresh_token,
-    verify_password,
 )
 
 logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Register
-# ---------------------------------------------------------------------------
-
-async def register(
-    db: AsyncSession,
-    redis: aioredis.Redis,
-    req: RegisterRequest,
-) -> RegisterResponse:
-    # Reject if an *active* account already owns this phone
-    result = await db.execute(
-        select(User).where(User.phone == req.phone, User.is_active.is_(True))
-    )
-    if result.scalar_one_or_none():
-        raise ConflictError("Phone number is already registered")
-
-    # Upsert: create or update the pending (inactive) user
-    result = await db.execute(select(User).where(User.phone == req.phone))
-    user = result.scalar_one_or_none()
-
-    if user is None:
-        user = User(
-            name=req.name,
-            phone=req.phone,
-            password_hash=hash_password(req.password),
-            is_active=False,
-        )
-        db.add(user)
-    else:
-        user.name = req.name
-        user.password_hash = hash_password(req.password)
-
-    await db.commit()
-
-    # Generate and store a 6-digit OTP
-    otp = f"{random.randint(0, 999_999):06d}"
-    await redis.setex(f"otp:{req.phone}", settings.OTP_TTL_SECONDS, otp)
-    await redis.setex(f"otp_attempts:{req.phone}", settings.OTP_TTL_SECONDS, "0")
-
-    # TODO: integrate SMS provider to deliver the OTP to req.phone
-    if settings.DEBUG:
-        logger.debug("OTP for %s: %s", req.phone, otp)
-    else:
-        logger.info("OTP generated for registration (phone not logged in production)")
-
-    return RegisterResponse(
-        otp_sent=True,
-        debug_otp=otp if settings.DEBUG else None,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Verify OTP
-# ---------------------------------------------------------------------------
-
-async def verify_otp(
-    db: AsyncSession,
-    redis: aioredis.Redis,
-    req: VerifyOtpRequest,
-) -> TokenResponse:
-    stored_otp: str | None = await redis.get(f"otp:{req.phone}")
-    if stored_otp is None:
-        raise ValidationFailedError("OTP expired or not found — please request a new one")
-
-    attempts = await redis.incr(f"otp_attempts:{req.phone}")
-    if attempts > 5:
-        await redis.delete(f"otp:{req.phone}", f"otp_attempts:{req.phone}")
-        raise ValidationFailedError("Too many failed OTP attempts — please register again")
-
-    if stored_otp != req.otp:
-        raise ValidationFailedError("Incorrect OTP")
-
-    # Activate the user
-    result = await db.execute(select(User).where(User.phone == req.phone))
-    user = result.scalar_one_or_none()
-    if not user:
-        raise ValidationFailedError("User not found")
-
-    user.is_active = True
-    await db.commit()
-
-    await redis.delete(f"otp:{req.phone}", f"otp_attempts:{req.phone}")
-
-    return await issue_tokens(db, user, device_id="default")
-
-
-# ---------------------------------------------------------------------------
-# Login
-# ---------------------------------------------------------------------------
-
-async def login(
-    db: AsyncSession,
-    redis: aioredis.Redis,
-    req: LoginRequest,
-) -> TokenResponse:
-    result = await db.execute(select(User).where(User.phone == req.phone))
-    user = result.scalar_one_or_none()
-
-    if not user or not user.password_hash or not verify_password(req.password, user.password_hash):
-        raise UnauthorizedError("Invalid phone or password")
-
-    if not user.is_active:
-        raise UnauthorizedError("Account not verified — please complete OTP verification")
-
-    if req.fcm_token:
-        user.fcm_token = req.fcm_token
-        user.fcm_token_updated_at = datetime.now(timezone.utc)
-
-    user.last_seen = datetime.now(timezone.utc)
-    await db.commit()
-
-    return await issue_tokens(db, user, device_id=req.device_id)
-
-
-# ---------------------------------------------------------------------------
-# Firebase sign-in (phone via Firebase Auth)
+# Firebase sign-in (Google or email/password via Firebase Auth)
 # ---------------------------------------------------------------------------
 
 async def firebase_signin(
@@ -177,7 +56,9 @@ async def firebase_signin(
         only the sign-in gate.
     """
     claims = await verify_firebase_id_token(req.firebase_id_token)
-    uid: str = claims.get("sub") or claims["user_id"]
+    uid: str | None = claims.get("sub") or claims.get("user_id")
+    if not uid:
+        raise ValidationFailedError("Firebase ID token is missing UID")
     email = (claims.get("email") or "").strip().lower() or None
     provider = (claims.get("firebase") or {}).get("sign_in_provider")
 
@@ -349,13 +230,15 @@ async def logout(
         record.revoked_at = datetime.now(timezone.utc)
         await db.commit()
 
-    # Blacklist the access token's jti for its remaining lifetime
+    # Blacklist the access token's jti for its remaining lifetime.
+    # Narrow except — only swallow JWT decode failures (token already
+    # invalid means nothing to blacklist). Other errors should surface.
     try:
         payload = decode_access_token(raw_access_token)
-        jti: str | None = payload.get("jti")
-        if jti:
-            exp: int = payload.get("exp", 0)
-            remaining = max(1, int(exp - datetime.now(timezone.utc).timestamp()))
-            await redis.setex(f"token_revoked:{jti}", remaining, "1")
-    except Exception:
-        pass  # Token already invalid — nothing to blacklist
+    except UnauthorizedError:
+        return
+    jti: str | None = payload.get("jti")
+    if jti:
+        exp: int = payload.get("exp", 0)
+        remaining = max(1, int(exp - datetime.now(timezone.utc).timestamp()))
+        await redis.setex(f"token_revoked:{jti}", remaining, "1")

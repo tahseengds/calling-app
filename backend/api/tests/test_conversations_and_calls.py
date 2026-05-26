@@ -1,9 +1,8 @@
 """
 Tests for POST /api/conversations/ (get-or-create) and GET /api/calls/history.
 
-Auth uses /api/auth/firebase-signin with the Firebase verifier stubbed (same
-pattern as test_firebase_signin.py) — that's the production auth path, and it
-works regardless of DEBUG (unlike the deprecated /register + /verify-otp).
+Auth uses /api/auth/firebase-signin with the Firebase verifier stubbed —
+that's the production auth path.
 
 Covers:
   - POST /api/conversations/ creates a conversation when none exists
@@ -32,13 +31,13 @@ from app.models.call_record import CallRecord
 from app.services import auth_service
 
 
-# ── Phone number generator ────────────────────────────────────────────────────
+# ── Email generator ───────────────────────────────────────────────────────────
 
-_phone_counter = itertools.count(20_000)
+_email_counter = itertools.count(20_000)
 
 
-def _next_phone() -> str:
-    return f"+1555{next(_phone_counter):07d}"
+def _next_email() -> str:
+    return f"conv{next(_email_counter)}@example.com"
 
 
 def _auth(token: str) -> dict:
@@ -59,14 +58,20 @@ async def _signin(
     client: AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
     *,
-    phone: str,
+    email: str,
     name: str,
     device_id: str,
 ) -> tuple[str, str]:
     """Sign in via firebase-signin with a stubbed verifier; returns (token, user_id)."""
     _stub_firebase(
         monkeypatch,
-        {"phone_number": phone, "uid": f"fb-{phone}", "firebase": {}},
+        {
+            "sub": f"fb-{email}",
+            "email": email,
+            "email_verified": True,
+            "name": name,
+            "firebase": {"sign_in_provider": "password"},
+        },
     )
     r = await client.post(
         "/api/auth/firebase-signin",
@@ -83,10 +88,10 @@ async def _signin(
     return token, me.json()["id"]
 
 
-async def _add_contact(client: AsyncClient, token: str, other_phone: str) -> str:
-    """Adds *other_phone* to *token*'s contact list. Returns the contact row id."""
+async def _add_contact(client: AsyncClient, token: str, other_email: str) -> str:
+    """Adds *other_email* to *token*'s contact list. Returns the contact row id."""
     r = await client.post(
-        "/api/contacts/", json={"phone": other_phone}, headers=_auth(token)
+        "/api/contacts/", json={"email": other_email}, headers=_auth(token)
     )
     assert r.status_code == 201, r.text
     return r.json()["id"]
@@ -99,20 +104,20 @@ async def _setup_pair(
     """
     Sign Alice + Bob in via stubbed Firebase, make them reciprocal contacts.
 
-    Returns (alice_token, bob_token, alice_id, bob_id, alice_phone, bob_phone).
+    Returns (alice_token, bob_token, alice_id, bob_id, alice_email, bob_email).
     """
-    alice_phone, bob_phone = _next_phone(), _next_phone()
+    alice_email, bob_email = _next_email(), _next_email()
     alice_token, alice_id = await _signin(
         client, monkeypatch,
-        phone=alice_phone, name="Alice", device_id="alice-dev",
+        email=alice_email, name="Alice", device_id="alice-dev",
     )
     bob_token, bob_id = await _signin(
         client, monkeypatch,
-        phone=bob_phone, name="Bob", device_id="bob-dev",
+        email=bob_email, name="Bob", device_id="bob-dev",
     )
-    await _add_contact(client, alice_token, bob_phone)
-    await _add_contact(client, bob_token, alice_phone)
-    return alice_token, bob_token, alice_id, bob_id, alice_phone, bob_phone
+    await _add_contact(client, alice_token, bob_email)
+    await _add_contact(client, bob_token, alice_email)
+    return alice_token, bob_token, alice_id, bob_id, alice_email, bob_email
 
 
 # ── POST /api/conversations/ ──────────────────────────────────────────────────
@@ -190,11 +195,11 @@ async def test_open_conversation_with_non_contact_forbidden(
 ) -> None:
     alice_token, _ = await _signin(
         client, monkeypatch,
-        phone=_next_phone(), name="Alice", device_id="alice-dev",
+        email=_next_email(), name="Alice", device_id="alice-dev",
     )
     _, stranger_id = await _signin(
         client, monkeypatch,
-        phone=_next_phone(), name="Stranger", device_id="stranger-dev",
+        email=_next_email(), name="Stranger", device_id="stranger-dev",
     )
     r = await client.post(
         "/api/conversations/",
@@ -276,11 +281,7 @@ async def _insert_call(
     started_at: datetime | None = None,
     duration_seconds: int | None = 42,
 ) -> uuid.UUID:
-    """Insert a CallRecord directly via a NullPool engine.
-
-    Call records are normally written by the signalling service; tests fabricate
-    them since they're the dependency under test for the history endpoint.
-    """
+    """Insert a CallRecord directly via a NullPool engine."""
     engine = create_async_engine(settings.DATABASE_URL, poolclass=NullPool)
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
     cid = uuid.uuid4()
@@ -305,7 +306,7 @@ async def test_call_history_empty(
 ) -> None:
     alice_token, _ = await _signin(
         client, monkeypatch,
-        phone=_next_phone(), name="Alice", device_id="alice-dev",
+        email=_next_email(), name="Alice", device_id="alice-dev",
     )
     r = await client.get("/api/calls/history", headers=_auth(alice_token))
     assert r.status_code == 200, r.text
@@ -380,7 +381,7 @@ async def test_call_history_excludes_other_users(
     )
     _, charlie_id = await _signin(
         client, monkeypatch,
-        phone=_next_phone(), name="Charlie", device_id="charlie-dev",
+        email=_next_email(), name="Charlie", device_id="charlie-dev",
     )
 
     # Call between Charlie and Bob — Alice must not see it

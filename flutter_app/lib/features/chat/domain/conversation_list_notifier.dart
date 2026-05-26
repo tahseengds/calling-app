@@ -98,7 +98,6 @@ class ConversationListNotifier
         otherUser: User(
           id: userRow.id,
           name: userRow.name,
-          phone: userRow.phone,
           avatarUrl: userRow.avatarUrl,
           lastSeen: userRow.lastSeen,
           presence: PresenceStatus.values.firstWhere(
@@ -131,7 +130,7 @@ class ConversationListNotifier
         otherUser: User(
           id: 'rose',
           name: 'Grandma Rose',
-          phone: '+15551234567',
+          email: 'rose@example.com',
           lastSeen: now.subtract(const Duration(minutes: 2)),
           presence: PresenceStatus.online,
         ),
@@ -145,7 +144,7 @@ class ConversationListNotifier
         otherUser: User(
           id: 'mike',
           name: 'Dad Mike',
-          phone: '+15559876543',
+          email: 'mike@example.com',
           lastSeen: now.subtract(const Duration(hours: 1)),
           presence: PresenceStatus.offline,
         ),

@@ -12,6 +12,7 @@ Covers:
   - Blocked contact cannot send a message (403)
 """
 import asyncio
+import itertools
 import json
 import uuid
 
@@ -19,46 +20,68 @@ import pytest
 import redis.asyncio as aioredis
 from httpx import AsyncClient
 
-from app.config import settings
+from app.services import auth_service
 
-# ── Phone counter ─────────────────────────────────────────────────────────────
-import itertools
+# ── Email counter ─────────────────────────────────────────────────────────────
 _counter = itertools.count(9000)
 
 
-def _next_phone() -> str:
-    return f"+1555{next(_counter):07d}"
+def _next_email() -> str:
+    return f"msg{next(_counter)}@example.com"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-async def _register(client: AsyncClient, phone: str, name: str = "User") -> str:
-    r = await client.post("/api/auth/register", json={
-        "name": name, "phone": phone, "password": "secret99",
-    })
+
+def _stub_firebase(monkeypatch: pytest.MonkeyPatch, claims: dict) -> None:
+    async def _fake(_id_token: str) -> dict:
+        return claims
+
+    monkeypatch.setattr(auth_service, "verify_firebase_id_token", _fake)
+
+
+async def _signin(
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+    email: str,
+    name: str = "User",
+) -> str:
+    _stub_firebase(
+        monkeypatch,
+        {
+            "sub": f"fb-{email}",
+            "email": email,
+            "email_verified": True,
+            "name": name,
+            "firebase": {"sign_in_provider": "password"},
+        },
+    )
+    r = await client.post(
+        "/api/auth/firebase-signin",
+        json={"firebase_id_token": "stub", "device_id": "test-device", "name": name},
+    )
     assert r.status_code == 200, r.text
-    otp = r.json()["debug_otp"]
-    r2 = await client.post("/api/auth/verify-otp", json={"phone": phone, "otp": otp})
-    assert r2.status_code == 200, r2.text
-    return r2.json()["access_token"]
+    return r.json()["access_token"]
 
 
 def _auth(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
 
-async def _setup_pair(client: AsyncClient) -> tuple[str, str, str, str]:
+async def _setup_pair(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> tuple[str, str, str, str]:
     """Register Alice and Bob, add them as contacts. Returns (alice_token, bob_token, alice_id, bob_id)."""
-    phone_a, phone_b = _next_phone(), _next_phone()
-    token_a = await _register(client, phone_a, "Alice")
-    token_b = await _register(client, phone_b, "Bob")
+    email_a, email_b = _next_email(), _next_email()
+    token_a = await _signin(client, monkeypatch, email_a, "Alice")
+    token_b = await _signin(client, monkeypatch, email_b, "Bob")
 
     # Get user IDs
     alice_id = (await client.get("/api/users/me", headers=_auth(token_a))).json()["id"]
     bob_id = (await client.get("/api/users/me", headers=_auth(token_b))).json()["id"]
 
     # Add contact (reciprocal)
-    r = await client.post("/api/contacts/", json={"phone": phone_b}, headers=_auth(token_a))
+    r = await client.post("/api/contacts/", json={"email": email_b}, headers=_auth(token_a))
     assert r.status_code == 201, r.text
 
     return token_a, token_b, alice_id, bob_id
@@ -67,9 +90,9 @@ async def _setup_pair(client: AsyncClient) -> tuple[str, str, str, str]:
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
 async def test_send_text_message_creates_conversation_and_receipt(
-    client: AsyncClient,
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    token_a, token_b, alice_id, bob_id = await _setup_pair(client)
+    token_a, token_b, alice_id, bob_id = await _setup_pair(client, monkeypatch)
 
     client_id = str(uuid.uuid4())
     r = await client.post(
@@ -106,9 +129,11 @@ async def test_send_text_message_creates_conversation_and_receipt(
 
 
 async def test_send_message_publishes_to_redis(
-    client: AsyncClient, redis_client: aioredis.Redis
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+    redis_client: aioredis.Redis,
 ) -> None:
-    token_a, token_b, alice_id, bob_id = await _setup_pair(client)
+    token_a, _token_b, _alice_id, bob_id = await _setup_pair(client, monkeypatch)
 
     # Subscribe to Bob's delivery channel before sending
     pubsub = redis_client.pubsub()
@@ -147,8 +172,10 @@ async def test_send_message_publishes_to_redis(
     assert received["event"] == "new_message"
 
 
-async def test_idempotent_resend_returns_original(client: AsyncClient) -> None:
-    token_a, token_b, alice_id, bob_id = await _setup_pair(client)
+async def test_idempotent_resend_returns_original(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token_a, _token_b, _alice_id, bob_id = await _setup_pair(client, monkeypatch)
 
     client_id = str(uuid.uuid4())
     payload = {
@@ -177,11 +204,14 @@ async def test_idempotent_resend_returns_original(client: AsyncClient) -> None:
     assert len(r3.json()["messages"]) == 1
 
 
-async def test_cursor_pagination_correct_order(client: AsyncClient) -> None:
-    token_a, token_b, alice_id, bob_id = await _setup_pair(client)
+async def test_cursor_pagination_correct_order(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token_a, _token_b, _alice_id, bob_id = await _setup_pair(client, monkeypatch)
 
     # Send 5 messages
     sent_ids = []
+    r = None
     for i in range(5):
         cid = str(uuid.uuid4())
         r = await client.post(
@@ -230,9 +260,11 @@ async def test_cursor_pagination_correct_order(client: AsyncClient) -> None:
 
 
 async def test_mark_read_updates_status_and_publishes(
-    client: AsyncClient, redis_client: aioredis.Redis
+    client: AsyncClient,
+    monkeypatch: pytest.MonkeyPatch,
+    redis_client: aioredis.Redis,
 ) -> None:
-    token_a, token_b, alice_id, bob_id = await _setup_pair(client)
+    token_a, token_b, alice_id, bob_id = await _setup_pair(client, monkeypatch)
 
     client_id = str(uuid.uuid4())
     r = await client.post(
@@ -291,8 +323,10 @@ async def test_mark_read_updates_status_and_publishes(
     assert bob_conv["unread_count"] == 0
 
 
-async def test_soft_delete_leaves_tombstone(client: AsyncClient) -> None:
-    token_a, token_b, alice_id, bob_id = await _setup_pair(client)
+async def test_soft_delete_leaves_tombstone(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token_a, _token_b, _alice_id, bob_id = await _setup_pair(client, monkeypatch)
 
     client_id = str(uuid.uuid4())
     r = await client.post(
@@ -328,9 +362,9 @@ async def test_soft_delete_leaves_tombstone(client: AsyncClient) -> None:
 
 
 async def test_non_participant_cannot_fetch_conversation(
-    client: AsyncClient,
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    token_a, token_b, alice_id, bob_id = await _setup_pair(client)
+    token_a, _token_b, _alice_id, bob_id = await _setup_pair(client, monkeypatch)
 
     # Alice sends a message to create a conversation
     r = await client.post(
@@ -347,8 +381,8 @@ async def test_non_participant_cannot_fetch_conversation(
     conv_id = r.json()["conversation_id"]
 
     # Carol is a stranger
-    phone_c = _next_phone()
-    token_c = await _register(client, phone_c, "Carol")
+    email_c = _next_email()
+    token_c = await _signin(client, monkeypatch, email_c, "Carol")
 
     r2 = await client.get(
         f"/api/conversations/{conv_id}/messages", headers=_auth(token_c)
@@ -356,8 +390,10 @@ async def test_non_participant_cannot_fetch_conversation(
     assert r2.status_code == 403
 
 
-async def test_blocked_contact_cannot_send(client: AsyncClient) -> None:
-    token_a, token_b, alice_id, bob_id = await _setup_pair(client)
+async def test_blocked_contact_cannot_send(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token_a, token_b, alice_id, bob_id = await _setup_pair(client, monkeypatch)
 
     # Alice gets the contact_id for Bob
     r = await client.get("/api/contacts/", headers=_auth(token_a))
@@ -401,8 +437,10 @@ async def test_blocked_contact_cannot_send(client: AsyncClient) -> None:
     assert r4.status_code == 403
 
 
-async def test_only_sender_can_delete_message(client: AsyncClient) -> None:
-    token_a, token_b, alice_id, bob_id = await _setup_pair(client)
+async def test_only_sender_can_delete_message(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    token_a, token_b, _alice_id, bob_id = await _setup_pair(client, monkeypatch)
 
     client_id = str(uuid.uuid4())
     r = await client.post(

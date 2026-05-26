@@ -8,29 +8,14 @@ from app.schemas.user import UserPublic
 
 
 class AddContactRequest(BaseModel):
-    """
-    Caller supplies *one* of email or phone to look up the target user.
-    Email is the primary identifier under the new auth flow; phone is
-    accepted for backward compatibility / legacy accounts.
-    """
-    email: str | None = None
-    phone: str | None = None
-    nickname: str | None = None
+    """Look up the target user by email."""
 
-    @field_validator("phone")
-    @classmethod
-    def validate_phone(cls, v: str | None) -> str | None:
-        if v is None:
-            return None
-        if not re.match(r"^\+[1-9]\d{7,14}$", v):
-            raise ValueError("Phone must be E.164 format, e.g. +14155552671")
-        return v
+    email: str
+    nickname: str | None = None
 
     @field_validator("email")
     @classmethod
-    def validate_email(cls, v: str | None) -> str | None:
-        if v is None:
-            return None
+    def validate_email(cls, v: str) -> str:
         v = v.strip().lower()
         if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", v):
             raise ValueError("Enter a valid email address")
