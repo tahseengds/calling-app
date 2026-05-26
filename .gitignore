@@ -3,6 +3,15 @@
 firebase-service-account.json
 google-services.json
 
+# Raw Claude Code session transcripts.
+# These contain every tool result verbatim, including config files, JWTs,
+# and API keys. Always run docs/sessions/sanitize.ps1 (or equivalent
+# regex pass — see docs/sessions/README.md) before committing. Sanitized
+# JSONLs under docs/sessions/ are explicitly allowed via the exception
+# below.
+*.jsonl
+!docs/sessions/*.jsonl
+
 # Python
 *.pyc
 __pycache__/
