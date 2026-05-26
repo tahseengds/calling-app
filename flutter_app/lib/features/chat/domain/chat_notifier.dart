@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -250,7 +251,7 @@ class ChatNotifier extends Notifier<ChatState> {
     } catch (e, st) {
       // Mark as failed — user can retry via long-press. Log so we can
       // see the actual failure in `flutter logs` instead of guessing.
-      debugPrint('[chat] sendText failed for $clientId: $e\n$st');
+      _logSendFailure('sendText', clientId, 'text', e, st);
       await ref.read(messageLocalDaoProvider).updateStatus(
             clientId,
             MessageStatus.failed,
@@ -324,11 +325,32 @@ class ChatNotifier extends Notifier<ChatState> {
       await ref.read(messageLocalDaoProvider).markSynced(clientId);
       await db.pendingMediaUploadsDao.markDone(clientId);
     } catch (e, st) {
-      debugPrint('[chat] sendMedia failed for $clientId: $e\n$st');
+      _logSendFailure('sendMedia', clientId, type.name, e, st);
       await ref.read(messageLocalDaoProvider).updateStatus(
             clientId,
             MessageStatus.failed,
           );
+    }
+  }
+
+  /// Verbose log for media send failures — surface the status code AND
+  /// the server's response body so 415/413/422 from /api/media/upload
+  /// or /api/messages/ are diagnosable from `flutter logs` directly.
+  void _logSendFailure(
+    String origin,
+    String clientId,
+    String type,
+    Object error,
+    StackTrace st,
+  ) {
+    if (error is DioException) {
+      final req = error.requestOptions;
+      final resp = error.response;
+      debugPrint('[chat] $origin failed for $clientId ($type): '
+          '${req.method} ${req.path} → ${resp?.statusCode} '
+          'body=${resp?.data} dio=${error.type} msg=${error.message}');
+    } else {
+      debugPrint('[chat] $origin failed for $clientId ($type): $error\n$st');
     }
   }
 
@@ -354,17 +376,63 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     try {
+      // For media messages we need a media_id — the backend's
+      // SendMessageRequest validator rejects non-text without one (422).
+      // We don't persist the server-side media_id locally, so on retry
+      // re-upload the original file from pending_media_uploads. This also
+      // covers the case where the *original* failure happened during the
+      // upload itself — there's nothing to reuse anyway.
+      String? mediaId;
+      final db = ref.read(appDatabaseProvider);
+
+      if (msg.type != MessageType.text) {
+        final pendingRows = await (db.select(db.pendingMediaUploadsTable)
+              ..where((u) => u.localId.equals(messageId))
+              ..limit(1))
+            .get();
+        final pending = pendingRows.firstOrNull;
+        if (pending == null) {
+          debugPrint('[chat] retry: no pending_media_uploads row for '
+              '$messageId — cannot re-upload media. Marking failed.');
+          await ref.read(messageLocalDaoProvider).updateStatus(
+                messageId,
+                MessageStatus.failed,
+              );
+          return;
+        }
+        final file = File(pending.filePath);
+        if (!await file.exists()) {
+          debugPrint('[chat] retry: local file gone (${pending.filePath}) '
+              '— cannot re-upload. Marking failed.');
+          await ref.read(messageLocalDaoProvider).updateStatus(
+                messageId,
+                MessageStatus.failed,
+              );
+          return;
+        }
+
+        final upload = await ref.read(messageRepositoryProvider).uploadMedia(
+              file: file,
+              type: MessageRepository.wireType(msg.type),
+            );
+        mediaId = upload.mediaId;
+      }
+
       final result = await ref.read(messageRepositoryProvider).sendMessage(
             clientId: messageId,
             recipientId: recipientId,
             type: msg.type,
             content: msg.content,
+            mediaId: mediaId,
             replyToId: msg.replyToId,
           );
       await ref.read(messageLocalDaoProvider).upsertMessage(result);
       await ref.read(messageLocalDaoProvider).markSynced(messageId);
+      if (msg.type != MessageType.text) {
+        await db.pendingMediaUploadsDao.markDone(messageId);
+      }
     } catch (e, st) {
-      debugPrint('[chat] retry failed for $messageId: $e\n$st');
+      _logSendFailure('retry', messageId, msg.type.name, e, st);
       await ref.read(messageLocalDaoProvider).updateStatus(
             messageId,
             MessageStatus.failed,

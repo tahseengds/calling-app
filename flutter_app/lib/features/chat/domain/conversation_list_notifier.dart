@@ -114,11 +114,14 @@ class ConversationListNotifier
     return result;
   }
 
+  // No emoji prefix — the conversation row already renders a type-specific
+  // icon next to this string, and emoji + icon + word read as three duplicate
+  // labels for the same attachment.
   String _mediaPreview(MessageType type) => switch (type) {
-        MessageType.image => '📷 Photo',
-        MessageType.video => '🎥 Video',
-        MessageType.audio => '🎵 Voice note',
-        MessageType.file => '📎 File',
+        MessageType.image => 'Photo',
+        MessageType.video => 'Video',
+        MessageType.audio => 'Voice note',
+        MessageType.file => 'File',
         MessageType.text => '',
       };
 
@@ -156,7 +159,7 @@ class ConversationListNotifier
       Conversation(
         id: 'fam',
         otherUser: MockData.currentUser,
-        lastMessagePreview: '📷 Photo',
+        lastMessagePreview: 'Photo',
         lastMessageType: MessageType.image,
         lastActivity: now.subtract(const Duration(days: 1)),
         unreadCount: 0,

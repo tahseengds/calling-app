@@ -86,6 +86,13 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
 
   Message? _replyingTo;
 
+  /// Refreshes relative timestamps ("Just now", "2m ago", app-bar "last seen…")
+  /// while the screen is open. Without this they freeze at the value they had
+  /// when the row was first built. 30 s strikes a balance: the "Just now" →
+  /// absolute-time switch (at 2 minutes) lags by at most one tick, while the
+  /// setState cost is negligible (ListView.builder only rebuilds visible rows).
+  Timer? _clockTicker;
+
   /// Resolve the other user's display name. Prefers live data from the chat
   /// state, falls back to the contactName the caller passed (e.g. from
   /// conversation list), then a generic placeholder.
@@ -109,10 +116,14 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    _clockTicker = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    _clockTicker?.cancel();
     _inputCtrl.dispose();
     _scrollCtrl.dispose();
     _inputFocus.dispose();
@@ -189,10 +200,13 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
     return DateFormat.MMMd().format(dt.toLocal());
   }
 
+  /// Scroll to the newest message. The list is rendered with `reverse: true`
+  /// so the newest message lives at scroll offset 0 — no max-extent estimation
+  /// dance, just go to the top of the (visually inverted) viewport.
   void _scrollToBottom() {
     if (!_scrollCtrl.hasClients) return;
     _scrollCtrl.animateTo(
-      _scrollCtrl.position.maxScrollExtent,
+      0,
       duration: const Duration(milliseconds: 200),
       curve: Curves.easeOut,
     );
@@ -553,12 +567,19 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
 
     final myId = _currentUserId;
 
+    // Render reversed: ListView's index 0 sits at the visual bottom of the
+    // viewport, so the newest message is on screen the moment the chat opens
+    // — no post-frame scroll dance, no estimated-extent jitter. The items
+    // list is built oldest→newest, so reversing makes [0] = newest.
+    final reversedItems = items.reversed.toList(growable: false);
+
     return ListView.builder(
       controller: _scrollCtrl,
+      reverse: true,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      itemCount: items.length,
+      itemCount: reversedItems.length,
       itemBuilder: (context, i) {
-        final item = items[i];
+        final item = reversedItems[i];
         return switch (item.kind) {
           _ItemKind.separator => _DateSeparator(
               date:   item.date!,
