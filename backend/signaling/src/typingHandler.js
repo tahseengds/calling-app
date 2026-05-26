@@ -1,11 +1,17 @@
 'use strict';
 const { redisClient } = require('./redis');
+const { isLimited } = require('./rateLimit');
 const logger = require('./logger');
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function registerTypingHandlers(io, socket) {
   const { userId } = socket;
 
-  socket.on('typing:start', async ({ to }) => {
+  socket.on('typing:start', async (payload) => {
+    if (isLimited(userId, 'typing:start')) return;
+    const { to } = payload || {};
+    if (typeof to !== 'string' || !UUID_RE.test(to)) return;
     try {
       // Key uses sorted pair so both directions share the same namespace
       const pair = [userId, to].sort().join(':');
@@ -17,7 +23,10 @@ function registerTypingHandlers(io, socket) {
     }
   });
 
-  socket.on('typing:stop', async ({ to }) => {
+  socket.on('typing:stop', async (payload) => {
+    if (isLimited(userId, 'typing:stop')) return;
+    const { to } = payload || {};
+    if (typeof to !== 'string' || !UUID_RE.test(to)) return;
     try {
       const pair = [userId, to].sort().join(':');
       await redisClient.del(`typing:${pair}:${userId}`);

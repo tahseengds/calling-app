@@ -1,22 +1,29 @@
 'use strict';
 const { redisClient } = require('./redis');
 const { getContactUserIds } = require('./db');
+const { isLimited } = require('./rateLimit');
 const logger = require('./logger');
 
 const PRESENCE_TTL_S = 3600;
+const ALLOWED_STATUSES = new Set(['online', 'offline', 'away', 'busy']);
 
 /**
  * Broadcast a presence status to all of userId's contacts that currently have
- * a live socket session.
+ * a live socket session. Uses MGET to batch the session lookups so it's one
+ * round-trip regardless of contact count.
  */
 async function broadcastPresence(io, userId, status) {
   const lastSeen = new Date().toISOString();
   try {
     const contactIds = await getContactUserIds(userId);
-    for (const contactId of contactIds) {
-      const sessionKey = await redisClient.get(`socket_sessions:${contactId}`);
-      if (sessionKey) {
-        io.to(contactId).emit('presence:update', { userId, status, lastSeen });
+    if (contactIds.length === 0) return;
+    const keys = contactIds.map((id) => `socket_sessions:${id}`);
+    const sessions = await redisClient.mget(keys);
+    for (let i = 0; i < contactIds.length; i++) {
+      if (sessions[i]) {
+        io.to(contactIds[i]).emit('presence:update', {
+          userId, status, lastSeen,
+        });
       }
     }
   } catch (err) {
@@ -28,7 +35,10 @@ function registerPresenceHandlers(io, socket) {
   const { userId } = socket;
 
   // Client explicitly sets its status (e.g., 'busy', 'away')
-  socket.on('presence:update', async ({ status }) => {
+  socket.on('presence:update', async (payload) => {
+    if (isLimited(userId, 'presence:update')) return;
+    const { status } = payload || {};
+    if (typeof status !== 'string' || !ALLOWED_STATUSES.has(status)) return;
     try {
       const lastSeen = new Date().toISOString();
       await redisClient.set(
@@ -43,16 +53,33 @@ function registerPresenceHandlers(io, socket) {
     }
   });
 
-  // Client requests current presence for a list of users (e.g., on chat list open)
-  socket.on('presence:get', async ({ userIds }, callback) => {
+  // Client requests current presence for a list of users (e.g., on chat list open).
+  // Batched into a single MGET so the latency is the same whether the user
+  // requests 1 or 50 contacts.
+  socket.on('presence:get', async (payload, callback) => {
+    if (isLimited(userId, 'presence:get')) {
+      if (typeof callback === 'function') callback({});
+      return;
+    }
+    const userIds = Array.isArray(payload?.userIds) ? payload.userIds : [];
+    // Cap to a sane upper bound — a malicious client can't ask us to scan
+    // arbitrarily large key sets.
+    const sliced = userIds.slice(0, 100).filter((u) => typeof u === 'string');
     try {
       const result = {};
-      for (const uid of (Array.isArray(userIds) ? userIds : [])) {
-        const raw = await redisClient.get(`user_presence:${uid}`);
-        result[uid] = raw
+      if (sliced.length === 0) {
+        if (typeof callback === 'function') callback(result);
+        else socket.emit('presence:data', result);
+        return;
+      }
+      const keys = sliced.map((u) => `user_presence:${u}`);
+      const raws = await redisClient.mget(keys);
+      sliced.forEach((u, i) => {
+        const raw = raws[i];
+        result[u] = raw
           ? JSON.parse(raw)
           : { status: 'offline', lastSeen: null };
-      }
+      });
       if (typeof callback === 'function') {
         callback(result);
       } else {
