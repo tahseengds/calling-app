@@ -177,19 +177,33 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
         child: CircularProgressIndicator(color: AppColors.primary),
       );
     }
-    
+
+    Future<void> onRefresh() =>
+        ref.read(contactsNotifierProvider.notifier).load();
+
     if (state.error != null && state.contacts.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      return RefreshIndicator(
+        onRefresh: onRefresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           children: [
-            Icon(LumioIcons.wifiOff, size: 48, color: colors.fg3),
-            const SizedBox(height: 16),
-            Text('Could not load contacts', style: TextStyle(color: colors.fg2)),
-            const SizedBox(height: 16),
-            TextButton(
-              onPressed: () => ref.read(contactsNotifierProvider.notifier).load(),
-              child: const Text('Retry'),
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.5,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(LumioIcons.wifiOff, size: 48, color: colors.fg3),
+                    const SizedBox(height: 16),
+                    Text('Could not load contacts', style: TextStyle(color: colors.fg2)),
+                    const SizedBox(height: 16),
+                    TextButton(
+                      onPressed: onRefresh,
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ],
         ),
@@ -197,13 +211,26 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
     }
 
     if (filtered.isEmpty && !state.isLoading) {
-      return _EmptyState(
-        isSearching: _query.isNotEmpty,
-        onAdd: () => context.push('/contacts/add'),
+      return RefreshIndicator(
+        onRefresh: onRefresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          children: [
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.55,
+              child: _EmptyState(
+                isSearching: _query.isNotEmpty,
+                onAdd: () => context.push('/contacts/add'),
+              ),
+            ),
+          ],
+        ),
       );
     }
 
-    return Container(
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: Container(
       decoration: BoxDecoration(
         color: theme.cardTheme.color,
         border: Border.all(color: colors.hairline),
@@ -212,7 +239,9 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
         child: ListView.separated(
-          shrinkWrap: true,
+          // AlwaysScrollableScrollPhysics enables pull-to-refresh even when
+          // the list is short enough not to scroll on its own.
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.zero,
           itemCount: filtered.length,
           separatorBuilder: (context, index) => Divider(
@@ -248,6 +277,7 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
             );
           },
         ),
+      ),
       ),
     );
   }
@@ -338,7 +368,7 @@ class _ContactRow extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onLongPress: () => _showRemoveDialog(context),
-        onTap: () {},
+        onTap: onMessage,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
           child: Row(

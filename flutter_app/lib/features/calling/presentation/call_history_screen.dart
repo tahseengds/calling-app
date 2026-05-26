@@ -60,20 +60,12 @@ class _CallHistoryScreenState
                   children: [
                     Text('Calls',
                         style: AppTextStyles.h1(color: lumioColors.fg1)),
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: Icon(LumioIcons.search,
-                              color: lumioColors.fg1),
-                          onPressed: () =>
-                              context.push('/chat/search'),
-                        ),
-                        IconButton(
-                          icon:
-                              Icon(LumioIcons.more, color: lumioColors.fg1),
-                          onPressed: () {},
-                        ),
-                      ],
+                    IconButton(
+                      icon: Icon(LumioIcons.search,
+                          color: lumioColors.fg1),
+                      tooltip: 'Search',
+                      onPressed: () =>
+                          context.push('/chat/search'),
                     ),
                   ],
                 ),
@@ -136,35 +128,65 @@ class _CallHistoryScreenState
               child: historyAsync.when(
                 loading: () => const Center(
                     child: CircularProgressIndicator()),
-                error: (e, _) => Center(
-                  child: Text(
-                    'Could not load calls',
-                    style: AppTextStyles.secondary(color: lumioColors.fg2),
+                error: (e, _) => RefreshIndicator(
+                  onRefresh: () async =>
+                      ref.invalidate(_callHistoryProvider),
+                  child: ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    children: [
+                      SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.5,
+                        child: Center(
+                          child: Text(
+                            'Could not load calls',
+                            style: AppTextStyles.secondary(
+                                color: lumioColors.fg2),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 data: (records) {
                   final filtered = _applyFilter(records);
                   if (filtered.isEmpty) {
-                    return _EmptyState(lumioColors: lumioColors);
+                    return RefreshIndicator(
+                      onRefresh: () async =>
+                          ref.invalidate(_callHistoryProvider),
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.6,
+                            child: _EmptyState(lumioColors: lumioColors),
+                          ),
+                        ],
+                      ),
+                    );
                   }
-                  return ListView.builder(
-                    padding:
-                        const EdgeInsets.all(AppSpacing.space4),
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      return _CallRow(
-                        record: filtered[index],
-                        isFirst: index == 0,
-                        isLast: index == filtered.length - 1,
-                        isOpen: _expandedId == filtered[index].id,
-                        onTap: () => setState(() {
-                          _expandedId = _expandedId == filtered[index].id
-                              ? null
-                              : filtered[index].id;
-                        }),
-                        lumioColors: lumioColors,
-                      );
-                    },
+                  return RefreshIndicator(
+                    onRefresh: () async =>
+                        ref.invalidate(_callHistoryProvider),
+                    child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding:
+                          const EdgeInsets.all(AppSpacing.space4),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        return _CallRow(
+                          record: filtered[index],
+                          isFirst: index == 0,
+                          isLast: index == filtered.length - 1,
+                          isOpen: _expandedId == filtered[index].id,
+                          onTap: () => setState(() {
+                            _expandedId = _expandedId == filtered[index].id
+                                ? null
+                                : filtered[index].id;
+                          }),
+                          lumioColors: lumioColors,
+                        );
+                      },
+                    ),
                   );
                 },
               ),

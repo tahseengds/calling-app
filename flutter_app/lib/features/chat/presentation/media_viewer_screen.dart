@@ -81,12 +81,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
                       fontSize: 12)),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert_rounded, color: Colors.white),
-            onPressed: () {},
-          ),
-        ],
       ),
       body: widget.kind == 'image' ? _buildImage() : _buildVideo(),
     );

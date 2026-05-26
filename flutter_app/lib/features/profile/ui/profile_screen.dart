@@ -200,7 +200,11 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
-        child: CustomScrollView(
+        child: RefreshIndicator(
+          onRefresh: () =>
+              ref.read(profileNotifierProvider.notifier).load(),
+          child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             // ── App bar ──────────────────────────────────────────────────
             SliverAppBar(
@@ -216,15 +220,6 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                   color: colors.fg1,
                 ),
               ),
-              actions: [
-                IconButton(
-                  icon: Icon(
-                    LumioIcons.more,
-                    color: colors.fg2,
-                  ),
-                  onPressed: () {},
-                ),
-              ],
             ),
 
             // ── Avatar + name ────────────────────────────────────────────
@@ -399,6 +394,7 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

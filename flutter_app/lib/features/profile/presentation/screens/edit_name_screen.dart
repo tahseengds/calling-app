@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/widgets/dismiss_keyboard.dart';
 import '../../../../shared/widgets/lumio_icons.dart';
 import '../../domain/profile_notifier.dart';
 
@@ -162,7 +163,8 @@ class _EditNameScreenState extends ConsumerState<EditNameScreen> {
         ],
       ),
       body: SafeArea(
-        child: Padding(
+        child: DismissKeyboard(
+          child: Padding(
           padding: const EdgeInsets.all(AppSpacing.space4),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -198,6 +200,7 @@ class _EditNameScreenState extends ConsumerState<EditNameScreen> {
               ),
             ],
           ),
+        ),
         ),
       ),
     );

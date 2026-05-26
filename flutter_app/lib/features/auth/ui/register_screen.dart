@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/config/app_config.dart';
+import '../../../shared/widgets/dismiss_keyboard.dart';
 import '../../../shared/widgets/fl_button.dart';
 import '../../../shared/widgets/fl_text_field.dart';
 import '../domain/auth_notifier.dart';
@@ -147,7 +148,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
-        child: SingleChildScrollView(
+        child: DismissKeyboard(
+          child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
           child: Form(
             key: _formKey,
@@ -220,7 +222,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 FlButton(
                   label: 'Create account',
                   loadingLabel: 'Creating…',
-                  onPressed: _isLoading ? null : _submitEmail,
+                  onPressed: (_isLoading || _isGoogleLoading) ? null : _submitEmail,
                   isLoading: _isLoading,
                 ),
                 const SizedBox(height: 20),
@@ -229,7 +231,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 _GoogleButton(
                   label: 'Continue with Google',
                   onPressed:
-                      _isGoogleLoading ? null : _submitGoogle,
+                      (_isLoading || _isGoogleLoading) ? null : _submitGoogle,
                   isLoading: _isGoogleLoading,
                 ),
                 const SizedBox(height: 20),
@@ -274,6 +276,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               ],
             ),
           ),
+        ),
         ),
       ),
     );

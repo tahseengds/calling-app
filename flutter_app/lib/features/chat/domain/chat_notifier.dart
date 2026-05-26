@@ -186,6 +186,26 @@ class ChatNotifier extends Notifier<ChatState> {
 
   // ── Send text ─────────────────────────────────────────────────────────────
 
+  /// Resolve the other party's user id for outbound message sends.
+  ///
+  /// Prefers the live `state.otherUser` (loaded during _init), and falls
+  /// back to the cached conversation row in Drift so we can still send
+  /// during the small race between the screen mounting and `otherUser`
+  /// being hydrated from the local DB.
+  ///
+  /// Returns null only when neither source can produce one — at which
+  /// point the send is left in `failed` state and the user can retry.
+  Future<String?> _resolveRecipientId() async {
+    final liveId = state.otherUser?.id;
+    if (liveId != null && liveId.isNotEmpty) return liveId;
+
+    final db = ref.read(appDatabaseProvider);
+    final rows = await (db.select(db.conversationsTable)
+          ..where((c) => c.id.equals(_conversationId)))
+        .get();
+    return rows.firstOrNull?.otherUserId;
+  }
+
   Future<void> sendText(String content, {String? replyToId}) async {
     if (content.trim().isEmpty) return;
     _stopTyping();
@@ -206,10 +226,19 @@ class ChatNotifier extends Notifier<ChatState> {
     // Write to Drift immediately → optimistic UI.
     await ref.read(messageLocalDaoProvider).upsertMessage(optimistic);
 
+    final recipientId = await _resolveRecipientId();
+    if (recipientId == null) {
+      await ref.read(messageLocalDaoProvider).updateStatus(
+            clientId,
+            MessageStatus.failed,
+          );
+      return;
+    }
+
     try {
       final result = await ref.read(messageRepositoryProvider).sendMessage(
             clientId: clientId,
-            recipientId: state.otherUser!.id,
+            recipientId: recipientId,
             type: MessageType.text,
             content: content.trim(),
             replyToId: replyToId,
@@ -260,6 +289,15 @@ class ChatNotifier extends Notifier<ChatState> {
     );
     await ref.read(messageLocalDaoProvider).upsertMessage(optimistic);
 
+    final recipientId = await _resolveRecipientId();
+    if (recipientId == null) {
+      await ref.read(messageLocalDaoProvider).updateStatus(
+            clientId,
+            MessageStatus.failed,
+          );
+      return;
+    }
+
     try {
       final upload = await ref.read(messageRepositoryProvider).uploadMedia(
             file: file,
@@ -278,7 +316,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
       final result = await ref.read(messageRepositoryProvider).sendMessage(
             clientId: clientId,
-            recipientId: state.otherUser!.id,
+            recipientId: recipientId,
             type: type,
             mediaId: upload.mediaId,
             replyToId: replyToId,
@@ -306,10 +344,19 @@ class ChatNotifier extends Notifier<ChatState> {
           MessageStatus.sending,
         );
 
+    final recipientId = await _resolveRecipientId();
+    if (recipientId == null) {
+      await ref.read(messageLocalDaoProvider).updateStatus(
+            messageId,
+            MessageStatus.failed,
+          );
+      return;
+    }
+
     try {
       final result = await ref.read(messageRepositoryProvider).sendMessage(
             clientId: messageId,
-            recipientId: state.otherUser!.id,
+            recipientId: recipientId,
             type: msg.type,
             content: msg.content,
             replyToId: msg.replyToId,

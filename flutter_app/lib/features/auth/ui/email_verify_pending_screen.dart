@@ -34,6 +34,7 @@ class _EmailVerifyPendingScreenState
     extends ConsumerState<EmailVerifyPendingScreen> {
   bool _isChecking = false;
   bool _isResending = false;
+  bool _isOpeningMail = false;
   int _resendCooldown = 0;
   Timer? _cooldownTimer;
   Timer? _pollTimer;
@@ -97,6 +98,10 @@ class _EmailVerifyPendingScreenState
   }
 
   Future<void> _openMailApp() async {
+    // Debounce: a slow Android intent fire-up shouldn't allow a frustrated
+    // second tap to fire another intent.
+    if (_isOpeningMail) return;
+    setState(() => _isOpeningMail = true);
     // On Android: launch ACTION_MAIN with category APP_EMAIL — the system
     // picks the default mail client and opens it at its launch screen
     // (i.e. the inbox), not at compose. mailto: would always land on
@@ -129,6 +134,14 @@ class _EmailVerifyPendingScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not open mail app.')),
       );
+    } finally {
+      // Allow a short cooldown so accidental double-taps don't race, but
+      // the user can re-trigger if the first attempt did nothing.
+      if (mounted) {
+        Future.delayed(const Duration(milliseconds: 800), () {
+          if (mounted) setState(() => _isOpeningMail = false);
+        });
+      }
     }
   }
 
@@ -225,7 +238,7 @@ class _EmailVerifyPendingScreenState
               const SizedBox(height: 32),
               FlButton(
                 label: 'Open mail app',
-                onPressed: _openMailApp,
+                onPressed: _isOpeningMail ? null : _openMailApp,
               ),
               const SizedBox(height: 12),
               Center(

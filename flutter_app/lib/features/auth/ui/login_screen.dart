@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/config/app_config.dart';
+import '../../../shared/widgets/dismiss_keyboard.dart';
 import '../../../shared/widgets/fl_button.dart';
 import '../../../shared/widgets/fl_text_field.dart';
 import '../../../shared/widgets/lumio_logo.dart';
@@ -128,7 +129,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
-        child: SingleChildScrollView(
+        child: DismissKeyboard(
+          child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
           child: Form(
             key: _formKey,
@@ -174,7 +176,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 FlButton(
                   label: 'Sign in',
                   loadingLabel: 'Signing in…',
-                  onPressed: _isLoading ? null : _submitEmail,
+                  onPressed: (_isLoading || _isGoogleLoading) ? null : _submitEmail,
                   isLoading: _isLoading,
                 ),
                 const SizedBox(height: 20),
@@ -183,7 +185,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 _GoogleButton(
                   label: 'Continue with Google',
                   onPressed:
-                      _isGoogleLoading ? null : _submitGoogle,
+                      (_isLoading || _isGoogleLoading) ? null : _submitGoogle,
                   isLoading: _isGoogleLoading,
                 ),
                 const SizedBox(height: 24),
@@ -229,6 +231,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ],
             ),
           ),
+        ),
         ),
       ),
     );

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/dismiss_keyboard.dart';
 import '../../../shared/widgets/fl_button.dart';
 import '../../../shared/widgets/fl_text_field.dart';
 import '../../../shared/widgets/lumio_back_button.dart';
@@ -88,7 +89,8 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: SafeArea(
-        child: SingleChildScrollView(
+        child: DismissKeyboard(
+          child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
           child: Form(
             key: _formKey,
@@ -146,16 +148,12 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                   onPressed: _isLoading ? null : _submit,
                   isLoading: _isLoading,
                 ),
-                if (_addError is _NotFound) ...[
-                  const SizedBox(height: 12),
-                  FlOutlineButton(
-                    label: 'Send them an invite',
-                    onPressed: () {},
-                  ),
-                ],
+                // "Send invite" was previously a dead button. Drop it until
+                // we have a real invite flow (share_plus + deep link).
               ],
             ),
           ),
+        ),
         ),
       ),
     );

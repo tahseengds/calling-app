@@ -361,7 +361,6 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
             onSend: _sendMessage,
             onRecordAudio: _sendAudioMessage,
             onAttach: () => _showAttachmentSheet(context),
-            onEmoji:  () {}, // TODO(backend): open emoji picker
             onChanged: () => ref
                 .read(chatProvider(widget.conversationId).notifier)
                 .onUserTyping(),
@@ -1623,14 +1622,14 @@ class _DashedBorderPainter extends CustomPainter {
 }
 
 // ─── Chat input bar ───────────────────────────────────────────────────────────
-// Layout (from the HTML spec):
+// Layout:
 //
 //   ┌─────────────────────────────────────┐  ┌───────┐
-//   │  [TextField……………………………] [😊] [📎] │  │ 🎤/➤ │
+//   │  [TextField…………………………………………] [📎] │  │ 🎤/➤ │
 //   └─────────────────────────────────────┘  └───────┘
 //          ← pill (flex 1) →                  ← 48 px ──┘
 //
-// The emoji and attach buttons sit INSIDE the pill on the right.
+// The attach button sits INSIDE the pill on the right.
 // The mic/send button is a standalone 48-px circle OUTSIDE the pill.
 // When the text field has content the send icon fades in; mic fades out.
 
@@ -1641,7 +1640,6 @@ class _ChatInputBar extends StatefulWidget {
     required this.onSend,
     required this.onRecordAudio,
     required this.onAttach,
-    required this.onEmoji,
     required this.lumioColors,
     required this.theme,
     this.onChanged,
@@ -1655,7 +1653,6 @@ class _ChatInputBar extends StatefulWidget {
   /// Callers are responsible for uploading and deleting the file.
   final void Function(File file, int seconds) onRecordAudio;
   final VoidCallback onAttach;
-  final VoidCallback onEmoji;
   final LumioColors  lumioColors;
   final ThemeData    theme;
 
@@ -1903,33 +1900,20 @@ class _ChatInputBarState extends State<_ChatInputBar>
               ),
             ),
 
-            // ── In-pill icon buttons ────────────────────────────────────────
+            // ── In-pill icon button ────────────────────────────────────────
+            // The dedicated emoji button was removed (it was a no-op TODO).
+            // Users can still send emoji via the system emoji keyboard.
             Padding(
               padding: const EdgeInsets.only(right: 8, bottom: 6),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Emoji
-                  _PillIconButton(
-                    icon:    LumioIcons.smile,
-                    color:   c.fg2,
-                    size:    _kIconBtn,
-                    iconSz:  _kIconSz,
-                    onTap:   widget.onEmoji,
-                  ),
-                  const SizedBox(width: 2),
-                  // Attach
-                  Transform.rotate(
-                    angle: math.pi / 4,
-                    child: _PillIconButton(
-                      icon:    Icons.attach_file_rounded,
-                      color:   c.fg2,
-                      size:    _kIconBtn,
-                      iconSz:  _kIconSz,
-                      onTap:   widget.onAttach,
-                    ),
-                  ),
-                ],
+              child: Transform.rotate(
+                angle: math.pi / 4,
+                child: _PillIconButton(
+                  icon:    Icons.attach_file_rounded,
+                  color:   c.fg2,
+                  size:    _kIconBtn,
+                  iconSz:  _kIconSz,
+                  onTap:   widget.onAttach,
+                ),
               ),
             ),
           ],
