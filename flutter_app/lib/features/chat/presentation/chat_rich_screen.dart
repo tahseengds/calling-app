@@ -229,9 +229,16 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
       file.delete().catchError((_) => file);
       return;
     }
-    ref
-        .read(chatProvider(widget.conversationId).notifier)
-        .sendMedia(file, MessageType.audio, replyToId: _replyingTo?.id);
+    // Pass the recorded duration so the optimistic bubble shows the real
+    // length immediately — without it, the audio bubble would default to
+    // 1s until the server response with the ffprobe-normalized value
+    // overwrites it.
+    ref.read(chatProvider(widget.conversationId).notifier).sendMedia(
+          file,
+          MessageType.audio,
+          replyToId: _replyingTo?.id,
+          durationSeconds: duration,
+        );
     _cancelReply();
   }
 
@@ -999,12 +1006,17 @@ class _MessageRow extends StatelessWidget {
               // ── Bubble ───────────────────────────────────────────────────
               Builder(
                 builder: (bubbleContext) {
+                  // Deleted bubbles have no actionable context (reply/copy/
+                  // forward/delete are all meaningless on a tombstone). Failed
+                  // bubbles use long-press to open the retry/delete sheet via
+                  // onTap instead.
+                  final canShowContext = !_isFailed && !_isDeleted;
                   return GestureDetector(
-                    onLongPress: _isFailed ? null : () {
+                    onLongPress: canShowContext ? () {
                       final box = bubbleContext.findRenderObject() as RenderBox?;
                       final offset = box?.localToGlobal(Offset.zero).dy ?? MediaQuery.of(bubbleContext).size.height / 2;
                       onShowContext(msg, mine, offset);
-                    },
+                    } : null,
                     onTap: _isFailed ? () => _showFailedSheet(context) : null,
                     child: _isDeleted
                         ? _DeletedBubble(mine: mine, colors: colors)

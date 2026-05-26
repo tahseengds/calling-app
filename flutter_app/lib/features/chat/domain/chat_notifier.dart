@@ -265,6 +265,7 @@ class ChatNotifier extends Notifier<ChatState> {
     File file,
     MessageType type, {
     String? replyToId,
+    int? durationSeconds,
     void Function(int sent, int total)? onProgress,
   }) async {
     final clientId = _uuid.v4();
@@ -286,7 +287,13 @@ class ChatNotifier extends Notifier<ChatState> {
       conversationId: _conversationId,
       senderId: _currentUserId,
       type: type,
-      media: MediaAttachment(url: file.path), // local path for optimistic UI
+      // local path for optimistic UI. durationSeconds is what the caller
+      // recorded — without it the audio bubble defaults to "1s" until
+      // the server response arrives with ffprobe-normalized duration.
+      media: MediaAttachment(
+        url: file.path,
+        durationSeconds: durationSeconds,
+      ),
       status: MessageStatus.sending,
       createdAt: now,
       replyToId: replyToId,

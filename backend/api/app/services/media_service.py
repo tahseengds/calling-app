@@ -64,6 +64,11 @@ _ALLOWED: dict[str, set[str]] = {
         "audio/webm", "audio/wav", "audio/x-wav",
         "audio/x-m4a", "audio/amr", "audio/mpeg",
         "audio/x-ms-wma",
+        # flutter_sound's default codec (Codec.aacADTS) writes ADTS-framed
+        # AAC, which libmagic identifies under the x-hx- prefix. Accept
+        # the common variants so voice notes from the mobile app stop
+        # bouncing with 415.
+        "audio/x-hx-aac-adts", "audio/aacp", "audio/x-aac",
     },
     "document": {
         "application/pdf",
