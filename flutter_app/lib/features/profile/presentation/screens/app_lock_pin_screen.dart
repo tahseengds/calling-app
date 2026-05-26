@@ -91,6 +91,7 @@ class _AppLockPinScreenState extends ConsumerState<AppLockPinScreen> {
         elevation: 0,
         leading: IconButton(
           icon: Icon(LumioIcons.back, color: colors.fg1),
+          tooltip: 'Back',
           onPressed: () {
             if (isSetup) {
               Navigator.of(context).pop();
@@ -155,7 +156,7 @@ class _AppLockPinScreenState extends ConsumerState<AppLockPinScreen> {
                 ),
               ),
             ],
-          ),
+        ),
         ),
       ),
     );

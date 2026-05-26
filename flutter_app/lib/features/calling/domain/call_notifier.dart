@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -426,7 +427,12 @@ class CallNotifier extends Notifier<CallSession?> {
       await _webrtc!.addIceCandidate(
         candidate is Map<String, dynamic> ? candidate : {},
       );
-    } catch (_) {}
+    } catch (e) {
+      // Don't bring down the call for a single bad candidate, but log so
+      // a repeating ICE-add failure (which would mean media never connects)
+      // is visible during debugging.
+      debugPrint('[call] addIceCandidate failed: $e');
+    }
   }
 
   Future<void> _handleIceRestartOffer(Map<String, dynamic> payload) async {
@@ -445,7 +451,9 @@ class CallNotifier extends Notifier<CallSession?> {
             to: session.peerUser.id,
             answer: answer,
           );
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[call] ICE restart answer failed: $e');
+    }
   }
 
   void _handleRemoteHangup(CallHangupEvent event) {

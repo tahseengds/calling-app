@@ -63,6 +63,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.close_rounded, color: Colors.white),
+          tooltip: 'Close',
           onPressed: () => context.pop(),
         ),
         title: Column(
@@ -117,7 +118,7 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
               aspectRatio: _vpCtrl!.value.aspectRatio,
               child: VideoPlayer(_vpCtrl!),
             ),
-          ),
+        ),
           if (_showControls) ...[
             GestureDetector(
               onTap: () {

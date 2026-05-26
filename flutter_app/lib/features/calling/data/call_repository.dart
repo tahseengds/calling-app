@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/storage/local_db.dart';
@@ -35,10 +36,9 @@ class CallRepository {
 
   /// Fetch paginated call history from the API and write to Drift.
   ///
-  /// The `/api/calls/history` endpoint is not yet implemented on the
-  /// backend (tracked as a follow-up). When it 404s we silently return an
-  /// empty list — the UI keeps streaming from the local Drift cache via
-  /// [watchCachedHistory], so calls made on *this* device still appear.
+  /// On any DioException we degrade to an empty list — the UI keeps streaming
+  /// from the local Drift cache via [watchCachedHistory], so calls made on
+  /// *this* device still appear.
   Future<List<CallRecord>> getCallHistory({
     String? cursor,
     int limit = 30,
@@ -75,29 +75,8 @@ class CallRepository {
       }
       return records;
     } on DioException catch (e) {
-      // 404 → endpoint not yet shipped. Other errors → log and degrade.
-      if (e.response?.statusCode != 404) {
-        // ignore: avoid_print
-        print('[call_repository] getCallHistory failed: ${e.message}');
-      }
+      debugPrint('[call_repository] getCallHistory failed: ${e.message}');
       return const [];
-    }
-  }
-
-  /// Fetch a single call record.
-  ///
-  /// Same caveat as [getCallHistory]: returns null when the endpoint is
-  /// unavailable rather than throwing.
-  Future<CallRecord?> getCall(String callId) async {
-    try {
-      final resp =
-          await _dio.get<Map<String, dynamic>>('/api/calls/$callId');
-      if (resp.data == null) {
-        return null;
-      }
-      return CallRecord.fromJson(resp.data!);
-    } on DioException {
-      return null;
     }
   }
 

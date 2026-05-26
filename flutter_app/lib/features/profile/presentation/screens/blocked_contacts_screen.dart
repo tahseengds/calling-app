@@ -65,8 +65,9 @@ class _BlockedContactsScreenState extends ConsumerState<BlockedContactsScreen> {
         elevation: 0,
         leading: IconButton(
           icon: Icon(LumioIcons.back, color: colors.fg1),
+        tooltip: 'Back',
           onPressed: () => context.pop(),
-        ),
+      ),
         title:
             Text('Blocked contacts', style: AppTextStyles.h1(color: colors.fg1)),
       ),

@@ -148,6 +148,7 @@ class _MessageSoundsScreenState extends ConsumerState<MessageSoundsScreen> {
         elevation: 0,
         leading: IconButton(
           icon: Icon(LumioIcons.back, color: colors.fg1),
+          tooltip: 'Back',
           onPressed: () => context.pop(),
         ),
         title: Text(_titleFor(widget.kind),
@@ -157,7 +158,7 @@ class _MessageSoundsScreenState extends ConsumerState<MessageSoundsScreen> {
         child: async.when(
           loading: () => const Center(
             child: CircularProgressIndicator(color: AppColors.primary),
-          ),
+        ),
           error: (_, _) => Center(
             child: Text('Could not load sounds',
                 style: AppTextStyles.body(color: colors.fg2)),

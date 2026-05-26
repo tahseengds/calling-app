@@ -295,8 +295,14 @@ class SignalingService {
     });
   }
 
-  Map<String, dynamic>? _asMap(dynamic data) =>
-      data is Map<String, dynamic> ? data : null;
+  Map<String, dynamic>? _asMap(dynamic data) {
+    if (data is Map<String, dynamic>) return data;
+    // Log once per dropped event — the server changing shape would otherwise
+    // be invisible (events would just silently stop arriving in the UI).
+    debugPrint('[signaling] dropped malformed event payload: '
+        '${data?.runtimeType}');
+    return null;
+  }
 
   // ── Emit helpers ─────────────────────────────────────────────────────────
 

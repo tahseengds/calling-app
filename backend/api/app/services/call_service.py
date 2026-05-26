@@ -22,6 +22,7 @@ from app.schemas.call import (
     encode_cursor,
 )
 from app.schemas.user import UserPublic
+from app.utils.exceptions import ValidationFailedError
 
 
 async def list_call_history(
@@ -49,17 +50,20 @@ async def list_call_history(
     )
 
     if cursor is not None:
+        # A bad cursor used to silently reset to page 1, masking client bugs
+        # (e.g. the headline #4 fix). Now we reject it so the client knows.
         try:
             cursor_ts, cursor_id = decode_cursor(cursor)
-        except Exception:
-            cursor_ts, cursor_id = None, None  # type: ignore[assignment]
-        if cursor_ts is not None:
-            stmt = stmt.where(
-                or_(
-                    order_ts < cursor_ts,
-                    and_(order_ts == cursor_ts, CallRecord.id < cursor_id),
-                )
+        except Exception as exc:
+            raise ValidationFailedError(
+                "Invalid cursor — start a fresh page without one"
+            ) from exc
+        stmt = stmt.where(
+            or_(
+                order_ts < cursor_ts,
+                and_(order_ts == cursor_ts, CallRecord.id < cursor_id),
             )
+        )
 
     stmt = stmt.order_by(order_ts.desc(), CallRecord.id.desc()).limit(limit + 1)
 

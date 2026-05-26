@@ -126,6 +126,7 @@ class _EditNameScreenState extends ConsumerState<EditNameScreen> {
         elevation: 0,
         leading: IconButton(
           icon: Icon(LumioIcons.back, color: colors.fg1),
+          tooltip: 'Back',
           onPressed: () => context.pop(),
         ),
         title: Text(
@@ -159,7 +160,7 @@ class _EditNameScreenState extends ConsumerState<EditNameScreen> {
                       ),
                     ),
             ),
-          ),
+        ),
         ],
       ),
       body: SafeArea(
@@ -188,8 +189,9 @@ class _EditNameScreenState extends ConsumerState<EditNameScreen> {
                   suffixIcon: _controller.text.isNotEmpty
                       ? IconButton(
                           icon: Icon(Icons.clear, color: colors.fg3, size: 20),
+                        tooltip: 'Clear',
                           onPressed: () => _controller.clear(),
-                        )
+                      )
                       : null,
                 ),
               ),

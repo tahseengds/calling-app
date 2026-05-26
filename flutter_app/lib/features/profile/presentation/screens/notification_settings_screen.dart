@@ -29,6 +29,7 @@ class NotificationSettingsScreen extends ConsumerWidget {
         elevation: 0,
         leading: IconButton(
           icon: Icon(LumioIcons.back, color: colors.fg1),
+          tooltip: 'Back',
           onPressed: () => context.pop(),
         ),
         title: Text('Notifications', style: AppTextStyles.h1(color: colors.fg1)),
@@ -37,7 +38,7 @@ class NotificationSettingsScreen extends ConsumerWidget {
         child: async.when(
           loading: () => const Center(
             child: CircularProgressIndicator(color: AppColors.primary),
-          ),
+        ),
           error: (e, _) => _ErrorRetry(
             onRetry: () =>
                 ref.read(notificationSettingsProvider.notifier).load(),

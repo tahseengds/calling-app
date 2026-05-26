@@ -100,6 +100,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 children: [
                   IconButton(
                     icon: Icon(LumioIcons.back, color: lumioColors.fg1),
+                    tooltip: 'Back',
                     onPressed: () => context.pop(),
                   ),
                   Expanded(
@@ -158,7 +159,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             ),
                         ],
                       ),
-                    ),
+                  ),
                   ),
                   const SizedBox(width: 8),
                 ],

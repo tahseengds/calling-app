@@ -29,6 +29,7 @@ class PrivacyScreen extends ConsumerWidget {
         elevation: 0,
         leading: IconButton(
           icon: Icon(LumioIcons.back, color: colors.fg1),
+          tooltip: 'Back',
           onPressed: () => context.pop(),
         ),
         title: Text('Privacy', style: AppTextStyles.h1(color: colors.fg1)),
@@ -37,7 +38,7 @@ class PrivacyScreen extends ConsumerWidget {
         child: async.when(
           loading: () => const Center(
             child: CircularProgressIndicator(color: AppColors.primary),
-          ),
+        ),
           error: (_, _) => Center(
             child: TextButton(
               onPressed: () =>
@@ -361,6 +362,7 @@ class _VisibilityPickerScreen extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: Icon(LumioIcons.back, color: colors.fg1),
+          tooltip: 'Back',
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text(title, style: AppTextStyles.h1(color: colors.fg1)),
@@ -378,7 +380,7 @@ class _VisibilityPickerScreen extends StatelessWidget {
                   onChanged: (chosen) => Navigator.of(context).pop(chosen),
                 ),
             ],
-          ),
+        ),
         ),
       ),
     );
@@ -401,6 +403,7 @@ class _OnlinePickerScreen extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: Icon(LumioIcons.back, color: colors.fg1),
+          tooltip: 'Back',
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text('Online', style: AppTextStyles.h1(color: colors.fg1)),
@@ -418,7 +421,7 @@ class _OnlinePickerScreen extends StatelessWidget {
                   onChanged: (chosen) => Navigator.of(context).pop(chosen),
                 ),
             ],
-          ),
+        ),
         ),
       ),
     );
@@ -441,6 +444,7 @@ class _GroupsPickerScreen extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: Icon(LumioIcons.back, color: colors.fg1),
+          tooltip: 'Back',
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text('Who can add me to groups',
@@ -459,7 +463,7 @@ class _GroupsPickerScreen extends StatelessWidget {
                   onChanged: (chosen) => Navigator.of(context).pop(chosen),
                 ),
             ],
-          ),
+        ),
         ),
       ),
     );
@@ -491,6 +495,7 @@ class _AutoLockPickerScreen extends StatelessWidget {
         elevation: 0,
         leading: IconButton(
           icon: Icon(LumioIcons.back, color: colors.fg1),
+          tooltip: 'Back',
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: Text('Auto-lock', style: AppTextStyles.h1(color: colors.fg1)),
@@ -508,7 +513,7 @@ class _AutoLockPickerScreen extends StatelessWidget {
                   onChanged: (chosen) => Navigator.of(context).pop(chosen),
                 ),
             ],
-          ),
+        ),
         ),
       ),
     );

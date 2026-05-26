@@ -125,6 +125,7 @@ class _HelpSupportScreenState extends ConsumerState<HelpSupportScreen> {
         elevation: 0,
         leading: IconButton(
           icon: Icon(LumioIcons.back, color: colors.fg1),
+          tooltip: 'Back',
           onPressed: () => context.pop(),
         ),
         title:
@@ -261,7 +262,7 @@ class _HelpSupportScreenState extends ConsumerState<HelpSupportScreen> {
                 ),
               ),
             ],
-          ),
+        ),
         ),
         ),
       ),

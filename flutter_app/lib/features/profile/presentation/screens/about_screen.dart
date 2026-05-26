@@ -77,6 +77,7 @@ class _AboutScreenState extends State<AboutScreen> {
         elevation: 0,
         leading: IconButton(
           icon: Icon(LumioIcons.back, color: colors.fg1),
+          tooltip: 'Back',
           onPressed: () => context.pop(),
         ),
         title: Text('About', style: AppTextStyles.h1(color: colors.fg1)),
@@ -151,7 +152,7 @@ class _AboutScreenState extends State<AboutScreen> {
               ),
               const SizedBox(height: AppSpacing.space6),
             ],
-          ),
+        ),
         ),
       ),
     );

@@ -422,6 +422,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
           ),
           IconButton(
             icon: Icon(Icons.close_rounded, size: 20, color: c.fg2),
+            tooltip: 'Back',
             onPressed: _cancelReply,
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(),
@@ -503,7 +504,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
                     ).copyWith(fontSize: 12),
                   ),
               ],
-            ),
+          ),
           ),
         ],
       ),
@@ -1737,7 +1738,18 @@ class _ChatInputBarState extends State<_ChatInputBar>
     // Mic permission is requested via the long-press gesture starting — we
     // confirm it before touching the recorder so we can short-circuit cleanly.
     final mic = await Permission.microphone.request();
-    if (!mic.isGranted) return;
+    if (!mic.isGranted) {
+      // Previously silent — left the user wondering why the long-press did
+      // nothing. Surface a snackbar so the failure mode is visible.
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Microphone access is required to record a voice note.'),
+          ),
+        );
+      }
+      return;
+    }
 
     try {
       if (!_recorderOpen) {
@@ -1749,10 +1761,19 @@ class _ChatInputBarState extends State<_ChatInputBar>
           '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.aac';
       await _recorder.startRecorder(toFile: path, codec: Codec.aacADTS);
       _currentRecordingPath = path;
-    } catch (_) {
-      // If the recorder can't start (codec, hardware, etc.), bail out
-      // silently — the UI never enters recording state.
+    } catch (e) {
+      // If the recorder can't start (codec, hardware, etc.), tell the user
+      // instead of failing silently. They'll see the long-press did nothing
+      // otherwise.
+      debugPrint('[chat] recorder startup failed: $e');
       _currentRecordingPath = null;
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not start the recorder. Try again.'),
+          ),
+        );
+      }
       return;
     }
 

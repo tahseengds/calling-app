@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/config/app_config.dart';
@@ -246,8 +247,10 @@ class ChatNotifier extends Notifier<ChatState> {
       // Server response may differ in status/timestamps.
       await ref.read(messageLocalDaoProvider).upsertMessage(result);
       await ref.read(messageLocalDaoProvider).markSynced(clientId);
-    } catch (_) {
-      // Mark as failed — user can retry via long-press.
+    } catch (e, st) {
+      // Mark as failed — user can retry via long-press. Log so we can
+      // see the actual failure in `flutter logs` instead of guessing.
+      debugPrint('[chat] sendText failed for $clientId: $e\n$st');
       await ref.read(messageLocalDaoProvider).updateStatus(
             clientId,
             MessageStatus.failed,
@@ -324,7 +327,8 @@ class ChatNotifier extends Notifier<ChatState> {
       await ref.read(messageLocalDaoProvider).upsertMessage(result);
       await ref.read(messageLocalDaoProvider).markSynced(clientId);
       await db.pendingMediaUploadsDao.markDone(clientId);
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[chat] sendMedia failed for $clientId: $e\n$st');
       await ref.read(messageLocalDaoProvider).updateStatus(
             clientId,
             MessageStatus.failed,
@@ -363,7 +367,8 @@ class ChatNotifier extends Notifier<ChatState> {
           );
       await ref.read(messageLocalDaoProvider).upsertMessage(result);
       await ref.read(messageLocalDaoProvider).markSynced(messageId);
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[chat] retry failed for $messageId: $e\n$st');
       await ref.read(messageLocalDaoProvider).updateStatus(
             messageId,
             MessageStatus.failed,
@@ -403,7 +408,8 @@ class ChatNotifier extends Notifier<ChatState> {
         oldestCursor: page.nextCursor,
         hasOlderMessages: page.nextCursor != null,
       );
-    } catch (_) {
+    } catch (e, st) {
+      debugPrint('[chat] loadOlderMessages failed: $e\n$st');
       state = state.copyWith(isLoadingOlder: false);
     }
   }

@@ -62,6 +62,15 @@ io.on('connection', async (socket) => {
   const { userId } = socket;
   logger.info({ event: 'connected', userId, socketId: socket.id });
 
+  // Named ping handler so we can remove it on disconnect — engine.io can
+  // re-use the underlying connection (e.g. transport upgrades), and an
+  // unnamed listener would accumulate over the connection's lifetime.
+  const onPing = async (packet) => {
+    if (packet.type === 'ping') {
+      await redisClient.expire(`socket_sessions:${userId}`, 3600);
+    }
+  };
+
   try {
     // Register in Redis and join user's own room for targeted emits
     await redisClient.set(`socket_sessions:${userId}`, socket.id, 'EX', 3600);
@@ -76,11 +85,7 @@ io.on('connection', async (socket) => {
     await broadcastPresence(io, userId, 'online');
 
     // Refresh session TTL on each received ping so long-lived connections stay registered
-    socket.conn.on('packet', async (packet) => {
-      if (packet.type === 'ping') {
-        await redisClient.expire(`socket_sessions:${userId}`, 3600);
-      }
-    });
+    socket.conn.on('packet', onPing);
   } catch (err) {
     logger.error({ event: 'connection_setup_error', userId, error: err.message });
   }
@@ -94,6 +99,14 @@ io.on('connection', async (socket) => {
   // ── Disconnect ──────────────────────────────────────────────────────────────
   socket.on('disconnect', async (reason) => {
     logger.info({ event: 'disconnected', userId, reason });
+    // Detach the packet listener so it doesn't leak into a reused engine.io
+    // connection. socket.conn may already be gone in some disconnect paths;
+    // guard defensively.
+    try {
+      socket.conn?.off('packet', onPing);
+    } catch (_) {
+      // Ignore — listener removal is best-effort.
+    }
     try {
       await redisClient.del(`socket_sessions:${userId}`);
       // Keep last-seen in presence for 24 h so chat lists can show "last seen X"

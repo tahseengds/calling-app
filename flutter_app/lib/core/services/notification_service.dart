@@ -83,7 +83,10 @@ class NotificationService {
     );
   }
 
-  // TODO: prompt 15 — show full-screen incoming call notification
+  // Incoming-call full-screen notifications are owned by the native
+  // FcmService + CallService on Android (see android/.../FcmService.kt).
+  // The Dart side never paints that surface — it would race the native
+  // ringer and produce a double-ring.
 }
 
 final notificationServiceProvider = Provider<NotificationService>(
