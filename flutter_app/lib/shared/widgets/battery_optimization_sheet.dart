@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/services/battery_optimization_service.dart';
 import '../../core/theme/app_colors.dart';
 
-/// Show the "Don't miss family calls" battery optimization bottom sheet.
+/// Show the "Don't miss calls" battery optimization bottom sheet.
 Future<void> showBatteryOptimizationSheet(
   BuildContext context,
   BatteryOptimizationService svc,
@@ -100,7 +100,7 @@ class _BatterySheetState extends State<_BatterySheet> {
 
             // Title
             Text(
-              "Don't miss family calls",
+              "Don't miss calls",
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.w600,
@@ -115,7 +115,7 @@ class _BatterySheetState extends State<_BatterySheet> {
             SizedBox(
               width: 280,
               child: Text(
-                "When your phone sleeps, Lumio might stop receiving calls. Turn off battery optimization to keep family within reach.",
+                "When your phone sleeps, Lumio might stop receiving calls. Turn off battery optimization so your calls and chats come through.",
                 style: TextStyle(fontSize: 15, color: fg2, height: 1.55),
                 textAlign: TextAlign.center,
               ),

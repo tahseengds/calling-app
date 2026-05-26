@@ -14,6 +14,7 @@ import 'features/auth/ui/login_screen.dart';
 import 'features/auth/ui/register_screen.dart';
 import 'features/auth/ui/splash_screen.dart';
 import 'features/contacts/ui/add_contact_screen.dart';
+import 'features/contacts/ui/contacts_screen.dart';
 import 'features/shell/ui/shell_screen.dart';
 // Chat screens — all live under features/chat/ now (the old features/chats/
 // split was removed). ChatRichScreen is the polished UI wired to chat_notifier.
@@ -90,6 +91,11 @@ final _routerProvider = Provider<GoRouter>((ref) {
           builder: (_, _) => const EmailVerifyPendingScreen()),
       // ── Authenticated shell ───────────────────────────────────────────────
       GoRoute(path: '/home', builder: (_, _) => const ShellScreen()),
+      // Contacts is no longer a bottom-nav tab; it's a pushed page reached
+      // via the "new chat" FAB on the chats home screen.
+      GoRoute(
+          path: '/contacts',
+          builder: (_, _) => const ContactsScreen()),
       GoRoute(
           path: '/contacts/add',
           builder: (_, _) => const AddContactScreen()),

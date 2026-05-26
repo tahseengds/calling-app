@@ -307,13 +307,9 @@ class ChatNotifier extends Notifier<ChatState> {
             type: MessageRepository.wireType(type),
             onProgress: (sent, total) {
               onProgress?.call(sent, total);
-              db.pendingMediaUploadsDao.upsert(
-                PendingMediaUploadsTableCompanion(
-                  localId: Value(clientId),
-                  uploadedBytes: Value(sent),
-                  status: const Value('uploading'),
-                ),
-              );
+              // Fire-and-forget; row was already inserted above with all
+              // required columns, so a plain UPDATE is sufficient here.
+              db.pendingMediaUploadsDao.updateProgress(clientId, sent);
             },
           );
 

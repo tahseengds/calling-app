@@ -300,7 +300,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                           child: child,
                         ),
                         child: Text(
-                          'For everyone in the family.',
+                          'Calls and chat, made simple.',
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w400,

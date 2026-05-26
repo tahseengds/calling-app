@@ -1,6 +1,6 @@
 # Lumin
 
-A private family communication app — messaging, voice calls, and video calls.
+A private chat and calling app — messaging, voice calls, and video calls.
 
 ## Services
 

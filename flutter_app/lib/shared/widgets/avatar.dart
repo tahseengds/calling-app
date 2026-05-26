@@ -18,7 +18,7 @@ class UserAvatar extends StatelessWidget {
   });
 
   String get _initials {
-    // Strip family-role prefixes so "Grandma Rose" → "GR" not "GR".
+    // Strip honorific/relation prefixes so "Grandma Rose" → "R" not "GR".
     final cleaned = displayName
         .replaceAll(
           RegExp(r'^(Grandma|Grandpa|Uncle|Aunt)\s+', caseSensitive: false),

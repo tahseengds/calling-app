@@ -8,7 +8,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/battery_optimization_sheet.dart';
 import '../../../shared/widgets/lumio_icons.dart';
 import '../../../shared/widgets/permissions_sheet.dart';
-import '../../contacts/ui/contacts_screen.dart';
 import '../../profile/ui/profile_screen.dart';
 import '../../calling/presentation/call_history_screen.dart';
 // Polished "Messages" home — rich card list backed by live conversation data.
@@ -74,7 +73,6 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         children: const [
           ChatsHomeScreen(),
           CallHistoryScreen(),
-          ContactsScreen(),
           ProfileScreen(),
         ],
       ),
@@ -86,10 +84,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   }
 }
 
+// Indices kept in sync with the IndexedStack above. Contacts used to be
+// tab 2; it's now reached via the chats-home "new chat" FAB which pushes
+// /contacts as a routed screen.
 const _navItems = [
   _NavItem(label: 'Messages', icon: LumioIcons.message),
   _NavItem(label: 'Calls', icon: LumioIcons.phone),
-  _NavItem(label: 'Contacts', icon: LumioIcons.users),
   _NavItem(label: 'Settings', icon: LumioIcons.settings),
 ];
 

@@ -71,8 +71,9 @@ class _ChatsHomeScreenState extends ConsumerState<ChatsHomeScreen> {
                         const SizedBox(width: AppSpacing.space1),
                         GestureDetector(
                           onTap: () {
-                            // Focus profile tab in shell
-                            ref.read(shellTabProvider.notifier).state = 3;
+                            // Focus Profile tab in shell (index 2 since
+                            // Contacts is no longer a tab).
+                            ref.read(shellTabProvider.notifier).state = 2;
                           },
                           child: UserAvatar(
                             displayName: meName,
@@ -200,13 +201,11 @@ class _ChatsHomeScreenState extends ConsumerState<ChatsHomeScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // Focus Contacts tab in Shell
-          ref.read(shellTabProvider.notifier).state = 2;
-        },
+        onPressed: () => context.push('/contacts'),
         backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         elevation: 0,
+        tooltip: 'New chat',
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(22),
         ),

@@ -159,7 +159,7 @@ class _PermissionsSheetState extends State<_PermissionsSheet> {
             SizedBox(
               width: 280,
               child: Text(
-                "Lumio needs these so family calls reach you. We only use them when you're on a call or expecting one.",
+                "Lumio needs these so calls reach you. We only use them when you're on a call or expecting one.",
                 style: TextStyle(fontSize: 15, color: fg2, height: 1.55),
                 textAlign: TextAlign.center,
               ),

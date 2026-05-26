@@ -10,11 +10,13 @@ import '../../../shared/widgets/fl_button.dart';
 import '../../../shared/widgets/lumio_icons.dart';
 import '../domain/contacts_notifier.dart';
 import '../../chat/data/conversation_repository.dart';
-import '../../shell/ui/shell_screen.dart';
 import '../../calling/domain/call_notifier.dart';
 import '../../calling/domain/call_state.dart';
 import '../../calling/presentation/widgets/permission_denied_screen.dart';
 
+/// Family contacts. Pushed from the chats home "new chat" FAB (and from
+/// any other future entry point). Tap a row to start a chat; long-press
+/// to remove; tap the call icon to start a voice call.
 class ContactsScreen extends ConsumerStatefulWidget {
   const ContactsScreen({super.key});
 
@@ -23,7 +25,6 @@ class ContactsScreen extends ConsumerStatefulWidget {
 }
 
 class _ContactsScreenState extends ConsumerState<ContactsScreen> {
-  static const int _contactsTabIndex = 2;
   final _searchCtrl = TextEditingController();
   String _query = '';
 
@@ -31,13 +32,6 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
   void dispose() {
     _searchCtrl.dispose();
     super.dispose();
-  }
-
-  void _retryIfNeeded() {
-    final state = ref.read(contactsNotifierProvider);
-    if (!state.isLoading && (state.error != null || state.contacts.isEmpty)) {
-      ref.read(contactsNotifierProvider.notifier).load();
-    }
   }
 
   /// Permission-gated outgoing call. Mirrors the helpers in chat_rich_screen
@@ -103,17 +97,6 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Auto-retry when the user switches to this tab: the contacts notifier
-    // auto-loads on construction (mounted eagerly by IndexedStack), so a
-    // failure right after login leaves the screen stuck on the retry button
-    // until the user taps it. Re-trigger load whenever the contacts tab
-    // becomes active and the previous attempt failed.
-    ref.listen<int>(shellTabProvider, (prev, next) {
-      if (next == _contactsTabIndex && prev != _contactsTabIndex) {
-        _retryIfNeeded();
-      }
-    });
-
     final state = ref.watch(contactsNotifierProvider);
     final colors = context.lumioColors;
     final theme = Theme.of(context);
@@ -121,37 +104,40 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        leading: IconButton(
+          icon: Icon(LumioIcons.back, color: colors.fg1),
+          tooltip: 'Back',
+          onPressed: () => context.pop(),
+        ),
+        title: Text(
+          'Family',
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w600,
+            color: colors.fg1,
+            letterSpacing: -0.01,
+          ),
+        ),
+        actions: [
+          IconButton(
+            onPressed: () => context.push('/contacts/add'),
+            icon: Icon(LumioIcons.add, color: colors.fg1),
+            tooltip: 'Add family member',
+          ),
+          const SizedBox(width: 4),
+        ],
+      ),
       body: SafeArea(
+        top: false,
         child: Column(
           children: [
-            // ── Header ───────────────────────────────────────────────────
-            Container(
-              height: 64,
-              padding: const EdgeInsets.only(left: 20, right: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Family',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: -0.01,
-                      color: colors.fg1,
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => context.push('/contacts/add'),
-                    icon: Icon(LumioIcons.add, color: colors.fg1),
-                    tooltip: 'Add family member',
-                  ),
-                ],
-              ),
-            ),
-
             // ── Search bar ───────────────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
               child: _PillSearchBar(
                 controller: _searchCtrl,
                 onChanged: (v) => setState(() => _query = v),
@@ -159,11 +145,8 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
             ),
 
             // ── Content ──────────────────────────────────────────────────
-            Flexible(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: _buildContent(state, filtered, colors, theme),
-              ),
+            Expanded(
+              child: _buildContent(state, filtered, colors, theme),
             ),
           ],
         ),
@@ -171,7 +154,12 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
     );
   }
 
-  Widget _buildContent(ContactsState state, List<User> filtered, LumioColors colors, ThemeData theme) {
+  Widget _buildContent(
+    ContactsState state,
+    List<User> filtered,
+    LumioColors colors,
+    ThemeData theme,
+  ) {
     if (state.isLoading && state.contacts.isEmpty) {
       return const Center(
         child: CircularProgressIndicator(color: AppColors.primary),
@@ -195,7 +183,8 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
                   children: [
                     Icon(LumioIcons.wifiOff, size: 48, color: colors.fg3),
                     const SizedBox(height: 16),
-                    Text('Could not load contacts', style: TextStyle(color: colors.fg2)),
+                    Text('Could not load contacts',
+                        style: TextStyle(color: colors.fg2)),
                     const SizedBox(height: 16),
                     TextButton(
                       onPressed: onRefresh,
@@ -230,54 +219,50 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
 
     return RefreshIndicator(
       onRefresh: onRefresh,
-      child: Container(
-      decoration: BoxDecoration(
-        color: theme.cardTheme.color,
-        border: Border.all(color: colors.hairline),
-        borderRadius: BorderRadius.circular(24),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: ListView.separated(
-          // AlwaysScrollableScrollPhysics enables pull-to-refresh even when
-          // the list is short enough not to scroll on its own.
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.zero,
-          itemCount: filtered.length,
-          separatorBuilder: (context, index) => Divider(
+      child: ListView.separated(
+        // AlwaysScrollableScrollPhysics enables pull-to-refresh even when
+        // the list is short enough not to scroll on its own.
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 16),
+        itemCount: filtered.length,
+        // Indented divider so it doesn't run under the avatar — gives the
+        // list a contacts-app look instead of a card grid.
+        separatorBuilder: (context, index) => Padding(
+          padding: const EdgeInsets.only(left: 76),
+          child: Divider(
             height: 1,
             thickness: 1,
             color: colors.hairline,
           ),
-          itemBuilder: (context, i) {
-            final user = filtered[i];
-            return _ContactRow(
-              user: user,
-              onRemove: () => ref
-                  .read(contactsNotifierProvider.notifier)
-                  .removeContact(user.id),
-              onCallAudio: () => _placeCall(user, CallType.audio),
-              onMessage: () async {
-                try {
-                  final convId = await ref
-                      .read(conversationRepositoryProvider)
-                      .getOrCreateConversation(user.id);
-                  if (context.mounted) {
-                    context.push('/chat/$convId?name=${Uri.encodeComponent(user.name)}');
-                  }
-                } catch (_) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Could not open conversation')),
-                    );
-                  }
-                }
-              },
-            );
-          },
         ),
-      ),
+        itemBuilder: (context, i) {
+          final user = filtered[i];
+          return _ContactRow(
+            user: user,
+            onRemove: () => ref
+                .read(contactsNotifierProvider.notifier)
+                .removeContact(user.id),
+            onCallAudio: () => _placeCall(user, CallType.audio),
+            onMessage: () async {
+              try {
+                final convId = await ref
+                    .read(conversationRepositoryProvider)
+                    .getOrCreateConversation(user.id);
+                if (context.mounted) {
+                  context.push(
+                      '/chat/$convId?name=${Uri.encodeComponent(user.name)}');
+                }
+              } catch (_) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('Could not open conversation')),
+                  );
+                }
+              }
+            },
+          );
+        },
       ),
     );
   }
@@ -285,7 +270,7 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
 
 // ── Pill search bar ──────────────────────────────────────────────────────────
 
-class _PillSearchBar extends StatelessWidget {
+class _PillSearchBar extends StatefulWidget {
   final TextEditingController controller;
   final ValueChanged<String> onChanged;
 
@@ -295,22 +280,44 @@ class _PillSearchBar extends StatelessWidget {
   });
 
   @override
+  State<_PillSearchBar> createState() => _PillSearchBarState();
+}
+
+class _PillSearchBarState extends State<_PillSearchBar> {
+  @override
+  void initState() {
+    super.initState();
+    // Rebuild when the clear-suffix should appear/disappear, without
+    // forcing every parent to rebuild on every keystroke.
+    widget.controller.addListener(_onText);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_onText);
+    super.dispose();
+  }
+
+  void _onText() => setState(() {});
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.lumioColors;
     return Container(
-      height: 48,
+      height: 44,
       decoration: BoxDecoration(
         color: colors.surfaceLo,
         border: Border.all(color: colors.hairline),
         borderRadius: BorderRadius.circular(999),
       ),
       child: TextField(
-        controller: controller,
-        onChanged: onChanged,
+        controller: widget.controller,
+        onChanged: widget.onChanged,
         style: TextStyle(
           fontSize: 15,
           color: colors.fg1,
         ),
+        textAlignVertical: TextAlignVertical.center,
         decoration: InputDecoration(
           hintText: 'Search family',
           hintStyle: TextStyle(
@@ -322,22 +329,24 @@ class _PillSearchBar extends StatelessWidget {
             color: colors.fg3,
             size: 20,
           ),
-          suffixIcon: controller.text.isNotEmpty
+          suffixIcon: widget.controller.text.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.close, size: 18),
                   color: colors.fg3,
+                  tooltip: 'Clear',
                   onPressed: () {
-                    controller.clear();
-                    onChanged('');
+                    widget.controller.clear();
+                    widget.onChanged('');
                   },
                 )
               : null,
           filled: false,
+          isDense: true,
           border: InputBorder.none,
           enabledBorder: InputBorder.none,
           focusedBorder: InputBorder.none,
           contentPadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         ),
       ),
     );
@@ -362,6 +371,7 @@ class _ContactRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.lumioColors;
+    final theme = Theme.of(context);
     final isOnline = user.presence == PresenceStatus.online;
 
     return Material(
@@ -370,7 +380,7 @@ class _ContactRow extends StatelessWidget {
         onLongPress: () => _showRemoveDialog(context),
         onTap: onMessage,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           child: Row(
             children: [
               // Avatar with presence dot. clipBehavior: Clip.none keeps
@@ -394,7 +404,7 @@ class _ContactRow extends StatelessWidget {
                           color: AppColors.success,
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: Theme.of(context).cardTheme.color ?? Colors.transparent,
+                            color: theme.scaffoldBackgroundColor,
                             width: 2,
                           ),
                         ),
@@ -403,7 +413,7 @@ class _ContactRow extends StatelessWidget {
                 ],
               ),
               const SizedBox(width: 14),
-              // Name + phone
+              // Name + email
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -418,34 +428,34 @@ class _ContactRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      user.email ?? '',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: colors.fg2,
+                    if ((user.email ?? '').isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        user.email!,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: colors.fg2,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
-              const SizedBox(width: 14),
-              // Action buttons
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _IconButton(
-                    icon: LumioIcons.message,
-                    color: colors.fg1,
-                    onTap: onMessage,
-                  ),
-                  const SizedBox(width: 4),
-                  _IconButton(
-                    icon: LumioIcons.phone,
-                    color: AppColors.primary,
-                    onTap: onCallAudio,
-                  ),
-                ],
+              const SizedBox(width: 8),
+              // Action buttons — message (subtle) + call (primary).
+              _IconButton(
+                icon: LumioIcons.message,
+                color: colors.fg1,
+                tooltip: 'Message',
+                onTap: onMessage,
+              ),
+              _IconButton(
+                icon: LumioIcons.phone,
+                color: AppColors.primary,
+                tooltip: 'Call',
+                onTap: onCallAudio,
               ),
             ],
           ),
@@ -484,11 +494,13 @@ class _ContactRow extends StatelessWidget {
 class _IconButton extends StatelessWidget {
   final IconData icon;
   final Color color;
+  final String tooltip;
   final VoidCallback onTap;
 
   const _IconButton({
     required this.icon,
     required this.color,
+    required this.tooltip,
     required this.onTap,
   });
 
@@ -500,10 +512,13 @@ class _IconButton extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onTap,
-        child: SizedBox(
-          width: 40,
-          height: 40,
-          child: Icon(icon, size: 20, color: color),
+        child: Tooltip(
+          message: tooltip,
+          child: SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(icon, size: 20, color: color),
+          ),
         ),
       ),
     );
@@ -527,18 +542,24 @@ class _EmptyState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              isSearching ? LumioIcons.search : LumioIcons.people,
-              size: 72,
-              color: colors.fg3,
+            Container(
+              width: 96,
+              height: 96,
+              decoration: const BoxDecoration(
+                color: Color(0x145B7CFA),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                isSearching ? LumioIcons.search : LumioIcons.people,
+                size: 44,
+                color: AppColors.primary,
+              ),
             ),
             const SizedBox(height: 20),
             Text(
-              isSearching
-                  ? 'No results for that search'
-                  : 'No family yet',
+              isSearching ? 'No matches' : 'No family yet',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: 20,
                 fontWeight: FontWeight.w600,
                 color: colors.fg1,
               ),
@@ -547,7 +568,7 @@ class _EmptyState extends StatelessWidget {
             const SizedBox(height: 8),
             if (!isSearching) ...[
               Text(
-                'Add your family members to start chatting.',
+                'Add your family members by email to start chatting.',
                 style: TextStyle(
                   fontSize: 15,
                   color: colors.fg2,
@@ -555,7 +576,7 @@ class _EmptyState extends StatelessWidget {
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
               FlButton(
                 label: 'Add family member',
                 width: 220,

@@ -75,7 +75,7 @@ class ContactsNotifier extends StateNotifier<ContactsState> {
       }
       final user = User(
         id: 'mock-${email.hashCode}',
-        name: nickname?.isNotEmpty == true ? nickname! : 'Family member',
+        name: nickname?.isNotEmpty == true ? nickname! : 'Contact',
         email: email,
         lastSeen: DateTime.now(),
       );

@@ -48,7 +48,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
       context.pop();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Family member added!'),
+          content: Text('Contact added!'),
           backgroundColor: AppColors.success,
         ),
       );
@@ -100,7 +100,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                 LumioBackButton(onPressed: () => context.pop()),
                 const SizedBox(height: 20),
                 Text(
-                  'Add a family member',
+                  'Add a contact',
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w600,
@@ -134,7 +134,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                 FlTextField(
                   label: 'Nickname · optional',
                   controller: _nicknameCtrl,
-                  hint: 'e.g. Mom, Dad, Uncle Joe',
+                  hint: 'e.g. Alex, Sam, Mom',
                   textInputAction: TextInputAction.done,
                   onFieldSubmitted: (_) => _submit(),
                 ),
@@ -187,11 +187,11 @@ class _ErrorBanner extends StatelessWidget {
       _NotFound() => (
           Icons.person_search_outlined,
           'Not on Lumio yet',
-          'No one with that email has joined Lumio. Invite them so they can join your family.',
+          'No one with that email has joined Lumio. Invite them so you can chat and call.',
         ),
       _Duplicate() => (
           Icons.people_outline,
-          'Already in your family',
+          'Already in your contacts',
           'This person is already on your contact list.',
         ),
       _OtherError(:final message) => (

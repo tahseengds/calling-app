@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:dio/dio.dart';
 // hide User so it doesn't collide with our own shared/models/user.dart.
 import 'package:firebase_auth/firebase_auth.dart' hide User;
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -94,6 +95,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> _tryRestoreSession() async {
     final savedRefresh = await _secure.readRefreshToken();
     if (savedRefresh == null) {
+      debugPrint(
+          '[auth] restore: no refresh token in secure storage → /login. '
+          'Expected on first launch / after sign-out / if secure storage '
+          'was cleared by the OS (uninstall, factory-reset).');
       state = const AuthUnauthenticated();
       return;
     }
@@ -106,10 +111,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
       try {
         cachedUser = User.fromJson(cachedJson);
         state = AuthAuthenticated(me: cachedUser);
-      } catch (_) {
-        // Corrupt cache — fall through to network restore.
+        debugPrint('[auth] restore: showing cached user ${cachedUser.id} '
+            'while refresh runs in background');
+      } catch (e) {
+        debugPrint('[auth] restore: cached user JSON failed to parse — '
+            'wiping and falling through to network restore. error=$e');
         await _secure.deleteCachedUser();
       }
+    } else {
+      debugPrint(
+          '[auth] restore: have refresh token but no cached user; '
+          'showing splash until network restore completes');
     }
 
     try {
@@ -123,6 +135,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final me = await _repo.getMe(tokens.accessToken);
       await _secure.saveCachedUserJson(jsonEncode(me.toJson()));
       state = AuthAuthenticated(me: me);
+      debugPrint('[auth] restore: refreshed + getMe ok → AuthAuthenticated');
 
       final fcm = _ref.read(fcmTokenServiceProvider);
       unawaited(fcm.registerCurrentToken());
@@ -131,6 +144,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // Distinguish "server says the refresh token is dead" from "we couldn't
       // reach the server". Only the former should sign the user out.
       if (_isAuthRejection(e)) {
+        debugPrint('[auth] restore: refresh REJECTED by server '
+            '(token revoked/expired) → /login. error=$e');
         await _secure.deleteRefreshToken();
         await _secure.deleteCachedUser();
         _ref.read(authTokenProvider.notifier).clear();
@@ -142,9 +157,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // (or the Dio interceptor on the next request) can retry.
       if (cachedUser == null) {
         // No cache to fall back on; this device truly has no usable session.
+        debugPrint('[auth] restore: refresh network error AND no cached '
+            'user → /login. error=$e');
         state = const AuthUnauthenticated();
+      } else {
+        debugPrint('[auth] restore: refresh network error but keeping '
+            'cached AuthAuthenticated — will retry on next API call. '
+            'error=$e');
       }
-      // else: state already set to AuthAuthenticated(cachedUser) above.
     }
   }
 

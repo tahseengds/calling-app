@@ -65,7 +65,7 @@ class ChatRichScreen extends ConsumerStatefulWidget {
   final String conversationId;
   /// Display name passed by the caller (e.g. from the contacts list).
   /// Takes priority over the hardcoded mock-ID switch so real UUID-based
-  /// conversations show the correct name instead of "Family Member".
+  /// conversations show the correct name instead of the generic "Contact".
   final String? contactName;
 
   const ChatRichScreen({

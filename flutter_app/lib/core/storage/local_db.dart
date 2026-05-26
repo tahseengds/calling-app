@@ -181,6 +181,24 @@ class PendingMediaUploadsDao extends DatabaseAccessor<AppDatabase>
   Future<void> upsert(PendingMediaUploadsTableCompanion entry) =>
       into(pendingMediaUploadsTable).insertOnConflictUpdate(entry);
 
+  /// Update progress on an existing row without re-inserting it.
+  /// Safe to call from the upload's progress callback — unlike [upsert],
+  /// this never validates as an INSERT, so a partial companion will not
+  /// throw when required columns (filePath, type, …) are absent.
+  Future<void> updateProgress(
+    String localId,
+    int uploadedBytes, {
+    String status = 'uploading',
+  }) =>
+      (update(pendingMediaUploadsTable)
+            ..where((u) => u.localId.equals(localId)))
+          .write(
+        PendingMediaUploadsTableCompanion(
+          uploadedBytes: Value(uploadedBytes),
+          status: Value(status),
+        ),
+      );
+
   Future<void> markDone(String localId) =>
       (update(pendingMediaUploadsTable)
             ..where((u) => u.localId.equals(localId)))
