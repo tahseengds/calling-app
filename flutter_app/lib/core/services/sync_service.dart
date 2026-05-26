@@ -27,8 +27,9 @@ class SyncService {
 
     for (final row in rows) {
       try {
+        // Trailing slash required — see message_repository for rationale.
         await _dio.post<void>(
-          '/api/messages',
+          '/api/messages/',
           data: {
             'id': row.id,
             'conversation_id': row.conversationId,
@@ -86,8 +87,9 @@ class SyncService {
   /// Refreshes the conversation list and caches other-user profiles.
   Future<void> syncConversations() async {
     try {
+      // Trailing slash required — see contact_repository for rationale.
       final resp =
-          await _dio.get<Map<String, dynamic>>('/api/conversations');
+          await _dio.get<Map<String, dynamic>>('/api/conversations/');
       final items = (resp.data?['items'] as List<dynamic>?) ?? [];
 
       for (final item in items) {

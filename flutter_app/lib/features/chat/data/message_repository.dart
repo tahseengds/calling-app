@@ -19,8 +19,10 @@ class MessageRepository {
     String? mediaId,
     String? replyToId,
   }) async {
+    // Trailing slash required — backend mounts POST at /api/messages/, and a
+    // request to /api/messages would 307-redirect, dropping the Bearer header.
     final resp = await _dio.post<Map<String, dynamic>>(
-      '/api/messages',
+      '/api/messages/',
       data: {
         'id': clientId,
         'conversation_id': conversationId,

@@ -1,8 +1,9 @@
-import 'package:dio/dio.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
+import 'package:intl_phone_field/phone_number.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/config/app_config.dart';
@@ -10,6 +11,13 @@ import '../../../shared/widgets/fl_button.dart';
 import '../../../shared/widgets/fl_text_field.dart';
 import '../domain/auth_notifier.dart';
 
+/// "Set your display name + phone" — the user is signing up for the first
+/// time and wants to pick the name we show their family. After this, the
+/// flow is identical to login: Firebase sends an SMS, the OTP screen
+/// verifies it, the backend upserts the User row using *this* name.
+///
+/// Existing users can also reach this screen — the name is ignored
+/// server-side on returning sign-in.
 class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
@@ -20,72 +28,74 @@ class RegisterScreen extends ConsumerStatefulWidget {
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
-  final _phoneCtrl = TextEditingController();
-  final _passwordCtrl = TextEditingController();
-  final _confirmCtrl = TextEditingController();
+  String? _e164Phone;
   bool _isLoading = false;
   final _touched = <String>{};
 
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _phoneCtrl.dispose();
-    _passwordCtrl.dispose();
-    _confirmCtrl.dispose();
     super.dispose();
   }
 
-  String get _fullPhone => '+1${_phoneCtrl.text.replaceAll(RegExp(r'\D'), '')}';
-
   String? _validateName(String? v) {
-    if ((v?.trim().length ?? 0) < 2) return 'Enter your full name';
-    return null;
-  }
-
-  String? _validatePhone(String? v) {
-    final digits = v?.replaceAll(RegExp(r'\D'), '') ?? '';
-    if (digits.length < 10) return 'Enter a valid 10-digit US number';
-    return null;
-  }
-
-  String? _validatePassword(String? v) {
-    if ((v?.length ?? 0) < 8) return 'At least 8 characters';
-    return null;
-  }
-
-  String? _validateConfirm(String? v) {
-    if (v != _passwordCtrl.text) return 'Passwords do not match';
+    if ((v?.trim().length ?? 0) < 2) return 'Enter your name';
     return null;
   }
 
   Future<void> _submit() async {
-    setState(() => _touched.addAll(['name', 'phone', 'password', 'confirm']));
+    setState(() => _touched.add('name'));
     if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    final phone = _e164Phone;
+    if (phone == null || phone.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Enter a valid phone number for the selected country.'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
     try {
-      await ref.read(authNotifierProvider.notifier).register(
+      await ref.read(authNotifierProvider.notifier).startPhoneVerification(
+            phone: phone,
             name: _nameCtrl.text.trim(),
-            phone: _fullPhone,
-            password: _passwordCtrl.text,
+            isRegistering: true,
           );
-    } on DioException catch (e) {
+    } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      final msg = (e.response?.data as Map?)?['detail'] as String? ??
-          'Registration failed. Please try again.';
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: AppColors.danger),
+        SnackBar(
+          content: Text(_firebaseAuthMessage(e)),
+          backgroundColor: AppColors.danger,
+        ),
       );
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('An unexpected error occurred.'),
+          content: Text('Could not send the code. Please try again.'),
           backgroundColor: AppColors.danger,
         ),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String _firebaseAuthMessage(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'invalid-phone-number':
+        return 'That doesn\'t look like a valid phone number.';
+      case 'too-many-requests':
+        return 'Too many attempts. Try again in a few minutes.';
+      case 'network-request-failed':
+        return 'Network error. Please check your connection.';
+      default:
+        return e.message ?? 'Could not send the code. Please try again.';
     }
   }
 
@@ -107,7 +117,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Create your account',
+                  'Set your profile',
                   style: TextStyle(
                     fontSize: 30,
                     fontWeight: FontWeight.w600,
@@ -118,7 +128,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  'One account keeps you connected to everyone in the family.',
+                  'Pick the name family sees. We\'ll send a code to your phone to verify.',
                   style: TextStyle(fontSize: 16, color: fg2, height: 1.4),
                 ),
                 const SizedBox(height: 32),
@@ -127,69 +137,31 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     if (!f) setState(() => _touched.add('name'));
                   },
                   child: FlTextField(
-                    label: 'Full name',
+                    label: 'Display name',
                     controller: _nameCtrl,
                     textInputAction: TextInputAction.next,
                     validator: _touched.contains('name') ? _validateName : null,
                   ),
                 ),
                 const SizedBox(height: 14),
-                Focus(
-                  onFocusChange: (f) {
-                    if (!f) setState(() => _touched.add('phone'));
-                  },
-                  child: FlTextField(
-                    label: 'Phone number',
-                    controller: _phoneCtrl,
-                    hint: '(555) 000-0000',
-                    keyboardType: TextInputType.phone,
-                    textInputAction: TextInputAction.next,
-                    prefixWidget: const PhonePrefix(),
-                    inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
-                      LengthLimitingTextInputFormatter(10),
-                    ],
-                    validator:
-                        _touched.contains('phone') ? _validatePhone : null,
+                IntlPhoneField(
+                  decoration: InputDecoration(
+                    labelText: 'Phone number',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 14),
-                Focus(
-                  onFocusChange: (f) {
-                    if (!f) setState(() => _touched.add('password'));
+                  initialCountryCode: 'US',
+                  invalidNumberMessage: 'Enter a valid phone number',
+                  onChanged: (PhoneNumber phone) {
+                    _e164Phone = phone.completeNumber;
                   },
-                  child: FlTextField(
-                    label: 'Password',
-                    controller: _passwordCtrl,
-                    obscureText: true,
-                    showToggle: true,
-                    textInputAction: TextInputAction.next,
-                    hint: 'At least 8 characters.',
-                    validator: _touched.contains('password')
-                        ? _validatePassword
-                        : null,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Focus(
-                  onFocusChange: (f) {
-                    if (!f) setState(() => _touched.add('confirm'));
-                  },
-                  child: FlTextField(
-                    label: 'Confirm password',
-                    controller: _confirmCtrl,
-                    obscureText: true,
-                    showToggle: true,
-                    textInputAction: TextInputAction.done,
-                    onFieldSubmitted: (_) => _submit(),
-                    validator: _touched.contains('confirm')
-                        ? _validateConfirm
-                        : null,
-                  ),
+                  onSubmitted: (_) => _submit(),
                 ),
                 const SizedBox(height: 32),
                 FlButton(
-                  label: 'Continue',
+                  label: 'Send code',
+                  loadingLabel: 'Sending…',
                   onPressed: _isLoading ? null : _submit,
                   isLoading: _isLoading,
                 ),

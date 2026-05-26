@@ -43,10 +43,48 @@ class PresenceEvent {
       {required this.userId, required this.status, this.lastSeen});
 }
 
-// Call events — consumed by prompt 14
+// ── Call event payloads ────────────────────────────────────────────────────────
+
 class CallIncomingEvent {
   final Map<String, dynamic> json;
   const CallIncomingEvent(this.json);
+}
+
+class CallAnsweredEvent {
+  final Map<String, dynamic> json;
+  const CallAnsweredEvent(this.json);
+}
+
+class CallIceEvent {
+  final Map<String, dynamic> json;
+  const CallIceEvent(this.json);
+}
+
+class CallIceRestartEvent {
+  final Map<String, dynamic> json;
+  const CallIceRestartEvent(this.json);
+}
+
+class CallHangupEvent {
+  final String callId;
+  final String fromUserId;
+  const CallHangupEvent({required this.callId, required this.fromUserId});
+}
+
+class CallRejectedEvent {
+  final String callId;
+  final String fromUserId;
+  const CallRejectedEvent({required this.callId, required this.fromUserId});
+}
+
+class CallBusyEvent {
+  final String callId;
+  const CallBusyEvent({required this.callId});
+}
+
+class CallMissedEvent {
+  final String callId;
+  const CallMissedEvent({required this.callId});
 }
 
 // ── SignalingService ──────────────────────────────────────────────────────────
@@ -54,16 +92,23 @@ class CallIncomingEvent {
 class SignalingService {
   sio.Socket? _socket;
 
-  final _messageNewCtrl =
-      StreamController<MessageNewEvent>.broadcast();
-  final _messageAckCtrl =
-      StreamController<MessageAckEvent>.broadcast();
+  final _messageNewCtrl = StreamController<MessageNewEvent>.broadcast();
+  final _messageAckCtrl = StreamController<MessageAckEvent>.broadcast();
   final _messageDeletedCtrl =
       StreamController<MessageDeletedEvent>.broadcast();
   final _typingCtrl = StreamController<TypingEvent>.broadcast();
   final _presenceCtrl = StreamController<PresenceEvent>.broadcast();
-  final _callIncomingCtrl =
-      StreamController<CallIncomingEvent>.broadcast();
+
+  // Call events
+  final _callIncomingCtrl = StreamController<CallIncomingEvent>.broadcast();
+  final _callAnsweredCtrl = StreamController<CallAnsweredEvent>.broadcast();
+  final _callIceCtrl = StreamController<CallIceEvent>.broadcast();
+  final _callIceRestartCtrl =
+      StreamController<CallIceRestartEvent>.broadcast();
+  final _callHangupCtrl = StreamController<CallHangupEvent>.broadcast();
+  final _callRejectedCtrl = StreamController<CallRejectedEvent>.broadcast();
+  final _callBusyCtrl = StreamController<CallBusyEvent>.broadcast();
+  final _callMissedCtrl = StreamController<CallMissedEvent>.broadcast();
 
   Stream<MessageNewEvent> get onMessageNew => _messageNewCtrl.stream;
   Stream<MessageAckEvent> get onMessageAck => _messageAckCtrl.stream;
@@ -71,7 +116,16 @@ class SignalingService {
       _messageDeletedCtrl.stream;
   Stream<TypingEvent> get onTyping => _typingCtrl.stream;
   Stream<PresenceEvent> get onPresence => _presenceCtrl.stream;
+
   Stream<CallIncomingEvent> get onCallIncoming => _callIncomingCtrl.stream;
+  Stream<CallAnsweredEvent> get onCallAnswered => _callAnsweredCtrl.stream;
+  Stream<CallIceEvent> get onCallIce => _callIceCtrl.stream;
+  Stream<CallIceRestartEvent> get onCallIceRestart =>
+      _callIceRestartCtrl.stream;
+  Stream<CallHangupEvent> get onCallHangup => _callHangupCtrl.stream;
+  Stream<CallRejectedEvent> get onCallRejected => _callRejectedCtrl.stream;
+  Stream<CallBusyEvent> get onCallBusy => _callBusyCtrl.stream;
+  Stream<CallMissedEvent> get onCallMissed => _callMissedCtrl.stream;
 
   /// Fired on connect / reconnect — SyncService subscribes to this.
   VoidCallback? onReconnect;
@@ -112,7 +166,9 @@ class SignalingService {
 
     s.on('message:new', (data) {
       final map = _asMap(data);
-      if (map != null) _messageNewCtrl.add(MessageNewEvent(map));
+      if (map != null) {
+        _messageNewCtrl.add(MessageNewEvent(map));
+      }
     });
 
     s.on('message:ack', (data) {
@@ -170,9 +226,72 @@ class SignalingService {
       }
     });
 
+    // ── Call events ──────────────────────────────────────────────────────────
+
     s.on('call:incoming', (data) {
       final map = _asMap(data);
-      if (map != null) _callIncomingCtrl.add(CallIncomingEvent(map));
+      if (map != null) {
+        _callIncomingCtrl.add(CallIncomingEvent(map));
+      }
+    });
+
+    s.on('call:answered', (data) {
+      final map = _asMap(data);
+      if (map != null) {
+        _callAnsweredCtrl.add(CallAnsweredEvent(map));
+      }
+    });
+
+    s.on('call:ice', (data) {
+      final map = _asMap(data);
+      if (map != null) {
+        _callIceCtrl.add(CallIceEvent(map));
+      }
+    });
+
+    s.on('call:ice_restart', (data) {
+      final map = _asMap(data);
+      if (map != null) {
+        _callIceRestartCtrl.add(CallIceRestartEvent(map));
+      }
+    });
+
+    s.on('call:hangup', (data) {
+      final map = _asMap(data);
+      if (map != null) {
+        _callHangupCtrl.add(CallHangupEvent(
+          callId: map['call_id'] as String? ?? '',
+          fromUserId: map['from'] as String? ?? '',
+        ));
+      }
+    });
+
+    s.on('call:rejected', (data) {
+      final map = _asMap(data);
+      if (map != null) {
+        _callRejectedCtrl.add(CallRejectedEvent(
+          callId: map['call_id'] as String? ?? '',
+          fromUserId: map['from'] as String? ?? '',
+        ));
+      }
+    });
+
+    s.on('call:busy', (data) {
+      final map = _asMap(data);
+      if (map != null) {
+        _callBusyCtrl.add(CallBusyEvent(
+          callId: map['call_id'] as String? ?? '',
+        ));
+      }
+    });
+
+    s.on('call:missed', (data) {
+      final map = _asMap(data);
+      if (map != null) {
+        _callMissedCtrl.add(CallMissedEvent(
+          callId: map['call_id'] as String? ?? '',
+        ));
+      }
     });
   }
 
@@ -196,6 +315,79 @@ class SignalingService {
     _socket?.emit('presence:request', {'user_ids': userIds});
   }
 
+  // ── Call emit helpers ─────────────────────────────────────────────────────
+
+  void emitCallInitiate({
+    required String callId,
+    required String to,
+    required Map<String, dynamic> offer,
+    required String callType,
+  }) {
+    _socket?.emit('call:initiate', {
+      'call_id': callId,
+      'to': to,
+      'offer': offer,
+      'call_type': callType,
+    });
+  }
+
+  void emitCallAnswer({
+    required String callId,
+    required String to,
+    required Map<String, dynamic> answer,
+  }) {
+    _socket?.emit('call:answer', {
+      'call_id': callId,
+      'to': to,
+      'answer': answer,
+    });
+  }
+
+  void emitCallIce({
+    required String callId,
+    required String to,
+    required Map<String, dynamic> candidate,
+  }) {
+    _socket?.emit('call:ice', {
+      'call_id': callId,
+      'to': to,
+      'candidate': candidate,
+    });
+  }
+
+  void emitCallIceRestart({
+    required String callId,
+    required String to,
+    required Map<String, dynamic> offer,
+  }) {
+    _socket?.emit('call:ice_restart', {
+      'call_id': callId,
+      'to': to,
+      'offer': offer,
+    });
+  }
+
+  void emitCallHangup({
+    required String callId,
+    required String to,
+  }) {
+    _socket?.emit('call:hangup', {'call_id': callId, 'to': to});
+  }
+
+  void emitCallReject({
+    required String callId,
+    required String to,
+  }) {
+    _socket?.emit('call:reject', {'call_id': callId, 'to': to});
+  }
+
+  void emitCallBusy({
+    required String callId,
+    required String to,
+  }) {
+    _socket?.emit('call:busy', {'call_id': callId, 'to': to});
+  }
+
   void disconnect() => _socket?.disconnect();
 
   void dispose() {
@@ -206,13 +398,19 @@ class SignalingService {
     _typingCtrl.close();
     _presenceCtrl.close();
     _callIncomingCtrl.close();
+    _callAnsweredCtrl.close();
+    _callIceCtrl.close();
+    _callIceRestartCtrl.close();
+    _callHangupCtrl.close();
+    _callRejectedCtrl.close();
+    _callBusyCtrl.close();
+    _callMissedCtrl.close();
   }
 }
 
 final signalingServiceProvider = Provider<SignalingService>((ref) {
   final service = SignalingService();
 
-  // Connect / disconnect in sync with the auth token.
   ref.listen(authTokenProvider, (_, next) {
     if (next != null && !AppConfig.uiOnly) {
       service.connect(next);

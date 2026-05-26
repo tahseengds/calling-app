@@ -1,5 +1,6 @@
 {
-  "API_BASE_URL": "https://lumin.example.com",
-  "SIGNALING_URL": "wss://lumin.example.com",
-  "APP_ENV": "prod"
+  "API_BASE_URL": "https://lumin.tahseen.tech",
+  "SIGNALING_URL": "wss://lumin.tahseen.tech",
+  "APP_ENV": "prod",
+  "UI_ONLY": "false"
 }

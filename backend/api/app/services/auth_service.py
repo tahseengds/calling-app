@@ -17,6 +17,7 @@ from app.config import settings
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
 from app.schemas.auth import (
+    FirebaseSignInRequest,
     LoginRequest,
     LogoutRequest,
     RefreshRequest,
@@ -25,6 +26,7 @@ from app.schemas.auth import (
     TokenResponse,
     VerifyOtpRequest,
 )
+from app.services.firebase_auth_service import verify_firebase_id_token
 from app.utils.exceptions import ConflictError, UnauthorizedError, ValidationFailedError
 from app.utils.security import (
     create_access_token,
@@ -147,6 +149,70 @@ async def login(
         user.fcm_token_updated_at = datetime.now(timezone.utc)
 
     user.last_seen = datetime.now(timezone.utc)
+    await db.commit()
+
+    return await issue_tokens(db, user, device_id=req.device_id)
+
+
+# ---------------------------------------------------------------------------
+# Firebase sign-in (phone via Firebase Auth)
+# ---------------------------------------------------------------------------
+
+async def firebase_signin(
+    db: AsyncSession,
+    redis: aioredis.Redis,
+    req: FirebaseSignInRequest,
+) -> TokenResponse:
+    """
+    Trade a Firebase Auth ID token (obtained client-side from a verified
+    SMS) for our own access + refresh JWTs.
+
+    Strategy:
+      - Verify the ID token (signature, audience, replay window, has
+        phone_number claim).
+      - Upsert a User row keyed on the phone number — first sign-in on a
+        new phone creates the row; returning sign-in just updates
+        last_seen / fcm_token.
+      - Mint our own tokens via issue_tokens() — Firebase identity is
+        only the SMS gate.
+    """
+    claims = await verify_firebase_id_token(req.firebase_id_token)
+    phone: str = claims["phone_number"]
+
+    # Look up the user by phone; create if missing.
+    result = await db.execute(select(User).where(User.phone == phone))
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        # First-time sign-in on this phone — create the account.
+        # Display name preference: client-supplied → Firebase 'name' claim →
+        # last 4 digits of the phone as a placeholder.
+        default_name = (
+            (req.name or "").strip()
+            or (claims.get("name") or "").strip()
+            or f"User {phone[-4:]}"
+        )
+        user = User(
+            name=default_name[:100],
+            phone=phone,
+            is_active=True,
+            password_hash=None,  # Firebase-authed users have no local password.
+        )
+        db.add(user)
+        await db.flush()  # populate user.id
+        logger.info("Created user via Firebase phone auth: id=%s", user.id)
+
+    # Update session bookkeeping (FCM token, last_seen) on every sign-in.
+    if req.fcm_token:
+        user.fcm_token = req.fcm_token
+        user.fcm_token_updated_at = datetime.now(timezone.utc)
+    user.last_seen = datetime.now(timezone.utc)
+
+    # Re-activate any previously deactivated account that comes back via
+    # the same phone — they passed Firebase's SMS challenge, that's enough.
+    if not user.is_active:
+        user.is_active = True
+
     await db.commit()
 
     return await issue_tokens(db, user, device_id=req.device_id)

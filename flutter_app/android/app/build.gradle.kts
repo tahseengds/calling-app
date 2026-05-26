@@ -44,4 +44,11 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     implementation(platform("com.google.firebase:firebase-bom:34.13.0"))
     implementation("com.google.firebase:firebase-analytics")
+    // Required by FcmService.kt (prompt 15) — Android-native FirebaseMessagingService.
+    // firebase_messaging Flutter plugin already pulls this transitively, but we
+    // depend on it explicitly so the symbol resolves during Kotlin compilation
+    // even if the plugin's transitive deps change.
+    implementation("com.google.firebase:firebase-messaging")
+    // AndroidX core / notifications used by CallService.
+    implementation("androidx.core:core-ktx:1.13.1")
 }

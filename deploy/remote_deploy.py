@@ -146,6 +146,18 @@ def main() -> None:
     )
     run(ssh, compose, timeout=1800)
 
+    # Nginx caches DNS resolution for its upstream containers. When `up -d`
+    # recreates fastapi / signaling, their internal IPs change and nginx
+    # keeps proxying to the dead addresses → 502 on every request until
+    # restarted. Force a restart here so deploys are atomic.
+    run(
+        ssh,
+        f"cd {REMOTE_DIR} && "
+        "docker compose -f docker-compose.yml -f docker-compose.prod.yml "
+        "restart nginx",
+        timeout=60,
+    )
+
     run(ssh, "apt-get install -y -qq dos2unix && find " + REMOTE_DIR + ' -name "*.sh" -exec dos2unix {} +', timeout=120)
     run(
         ssh,

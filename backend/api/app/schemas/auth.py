@@ -55,3 +55,22 @@ class RefreshRequest(BaseModel):
 
 class LogoutRequest(BaseModel):
     refresh_token: str
+
+
+class FirebaseSignInRequest(BaseModel):
+    """
+    Payload for /api/auth/firebase-signin.
+
+    The client has already completed Firebase Phone Auth (verifyPhoneNumber
+    → smsCode → signInWithCredential) and obtained an ID token via
+    FirebaseUser.getIdToken(). We verify that token server-side and mint
+    *our own* access + refresh JWTs — Firebase identity is the SMS gate,
+    not the long-lived session.
+    """
+
+    firebase_id_token: str
+    device_id: str
+    fcm_token: str | None = None
+    # Optional display name supplied by the client on first-time sign-in.
+    # Ignored for returning users (their existing name wins).
+    name: str | None = None

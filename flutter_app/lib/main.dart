@@ -7,18 +7,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
 import 'core/config/app_config.dart';
+import 'core/services/native_call_bridge.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/signaling_service.dart';
 import 'core/services/sync_service.dart';
+import 'features/calling/domain/call_notifier.dart';
 
 // Must be a top-level function — background isolates cannot capture closures.
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  debugPrint(
-    '[FCM background] id=${message.messageId} type=${message.data['type']}',
-  );
-  // TODO: prompt 15 — wake CallService for incoming call data messages
+  final type = message.data['type'];
+  debugPrint('[FCM background] id=${message.messageId} type=$type');
+  // For incoming_call data messages the native FcmService.kt has already
+  // started CallService — do NOT do anything here that would double-ring.
+  // Missed-call notifications are also handled natively. The Dart background
+  // handler is therefore a no-op for prompt-15 types.
 }
 
 Future<void> main() async {
@@ -62,7 +66,15 @@ Future<void> main() async {
               conversationId: msg.data['conversation_id'] as String? ?? '',
             );
       }
+      // incoming_call & missed_call are handled by the native FcmService
+      // (which is invoked in parallel by the system). We don't replicate
+      // here to avoid a double-ring.
     });
+
+    // Prompt 15 — pull any pending native call payload that landed before
+    // the Dart engine was alive (CallService full-screen intent or
+    // CallActionReceiver cold-launch). Seed the CallNotifier with it.
+    await _consumeInitialNativeCallData(container);
   }
 
   runApp(
@@ -93,6 +105,33 @@ void _handleFcmMessage(RemoteMessage msg, ProviderContainer container) {
   container
       .read(pendingDeepLinkProvider.notifier)
       .set('/chat/$conversationId');
+}
+
+/// Prompt 15 — at cold start, ask the native side whether MainActivity was
+/// launched from a call notification (full-screen intent or accept/decline
+/// action). If so, seed CallNotifier with the payload, and honor any
+/// pre-accept / pre-decline the user already tapped on the lock screen.
+Future<void> _consumeInitialNativeCallData(
+  ProviderContainer container,
+) async {
+  try {
+    final bridge = container.read(nativeCallBridgeProvider);
+    final initial = await bridge.getInitialCallData();
+    if (initial == null) return;
+    final notifier = container.read(callSessionProvider.notifier);
+    switch (initial.kind) {
+      case NativeCallEventKind.incoming:
+        await notifier.handleIncomingCallFromKilledState(initial.payload);
+      case NativeCallEventKind.accept:
+        await notifier.handleIncomingCallFromKilledState(initial.payload);
+        await notifier.acceptCall();
+      case NativeCallEventKind.decline:
+        await notifier.handleIncomingCallFromKilledState(initial.payload);
+        notifier.declineCall();
+    }
+  } catch (e) {
+    debugPrint('[prompt-15 cold-start] failed: $e');
+  }
 }
 
 // ── Pending deep-link ─────────────────────────────────────────────────────────

@@ -1,0 +1,168 @@
+package com.lumin.app
+
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
+import android.os.Build
+import android.util.Log
+import androidx.core.app.NotificationCompat
+import com.google.firebase.messaging.FirebaseMessagingService
+import com.google.firebase.messaging.RemoteMessage
+
+/**
+ * Prompt 15 — entry point for high-priority FCM data messages.
+ *
+ * The system invokes onMessageReceived even when our app process is fully
+ * dead, so this is the only reliable place to wake the device for an
+ * incoming call. We immediately start CallService as a foreground service;
+ * CallService does the ringing and shows the full-screen notification.
+ *
+ * Message types:
+ *   incoming_call → start CallService with the call payload
+ *   missed_call   → post a missed-call notification
+ *   new_message   → ignored (Flutter side handles message notifications)
+ */
+class FcmService : FirebaseMessagingService() {
+
+    override fun onMessageReceived(message: RemoteMessage) {
+        val type = message.data["type"]
+        when (type) {
+            "incoming_call" -> handleIncomingCall(message)
+            "missed_call" -> handleMissedCall(message)
+            "new_message" -> handleNewMessage(message)
+            else -> Log.d(TAG, "unhandled FCM type=$type")
+        }
+    }
+
+    override fun onNewToken(token: String) {
+        super.onNewToken(token)
+        // Persist for Flutter to pick up on next launch. We don't ship it
+        // synchronously to the server here because the engine may be dead;
+        // Flutter reads the latest token from FirebaseMessaging.instance
+        // anyway on startup. Storing it for diagnostics / debug only.
+        try {
+            val prefs: SharedPreferences =
+                getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            prefs.edit().putString(KEY_FCM_TOKEN, token).apply()
+        } catch (t: Throwable) {
+            Log.w(TAG, "failed to persist token: ${t.message}")
+        }
+    }
+
+    // ── Handlers ────────────────────────────────────────────────────────────────
+
+    private fun handleIncomingCall(message: RemoteMessage) {
+        val data = message.data
+        val callId = data["call_id"]
+        if (callId.isNullOrBlank()) {
+            Log.w(TAG, "incoming_call missing call_id; dropping")
+            return
+        }
+
+        // Hand the payload to CallService — it'll ring + show the full-screen UI.
+        val payload = mapOf(
+            CallService.EXTRA_CALL_ID to callId,
+            CallService.EXTRA_CALLER_ID to data["caller_id"],
+            CallService.EXTRA_CALLER_NAME to (data["caller_name"] ?: "Unknown"),
+            CallService.EXTRA_CALLER_AVATAR to data["caller_avatar"],
+            CallService.EXTRA_CALL_TYPE to (data["call_type"] ?: "audio"),
+            CallService.EXTRA_SDP_OFFER to data["sdp_offer"],
+            CallService.EXTRA_SIGNAL_TOKEN to data["signal_token"],
+        )
+        CallService.startIncoming(this, payload)
+    }
+
+    private fun handleNewMessage(message: RemoteMessage) {
+        // We register *the* FirebaseMessagingService for the app, which means
+        // Flutter's firebase_messaging plugin never sees these messages on
+        // its own — so we have to show the notification ourselves when the
+        // app is backgrounded or killed. (When the app is foregrounded, the
+        // socket delivers the message before this fires, and the Dart side
+        // shows its own in-app feedback.)
+        ensureMessagesNotificationChannel()
+        val data = message.data
+        val notification = message.notification
+
+        val title = notification?.title ?: data["sender_name"] ?: "New message"
+        val body = notification?.body ?: data["preview"] ?: ""
+        val conversationId = data["conversation_id"] ?: ""
+        val messageId = data["message_id"] ?: ""
+
+        // Tap the notification → open the app on the right conversation.
+        val tapIntent = Intent(this, MainActivity::class.java).apply {
+            action = Intent.ACTION_MAIN
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("conversation_id", conversationId)
+            putExtra("message_id", messageId)
+        }
+        val tapPending = PendingIntent.getActivity(
+            this,
+            messageId.hashCode(),
+            tapIntent,
+            pendingFlags(),
+        )
+
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notif = NotificationCompat.Builder(this, MESSAGES_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_email)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .setContentIntent(tapPending)
+            .build()
+        nm.notify(messageId.hashCode().takeIf { it != 0 } ?: 1, notif)
+    }
+
+    private fun ensureMessagesNotificationChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (nm.getNotificationChannel(MESSAGES_CHANNEL_ID) != null) return
+        val channel = android.app.NotificationChannel(
+            MESSAGES_CHANNEL_ID,
+            "Messages",
+            NotificationManager.IMPORTANCE_DEFAULT,
+        ).apply {
+            description = "New message notifications"
+        }
+        nm.createNotificationChannel(channel)
+    }
+
+    private fun pendingFlags(): Int {
+        var f = PendingIntent.FLAG_UPDATE_CURRENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            f = f or PendingIntent.FLAG_IMMUTABLE
+        }
+        return f
+    }
+
+    private fun handleMissedCall(message: RemoteMessage) {
+        val data = message.data
+        val callerName = data["caller_name"] ?: "Unknown"
+        val callId = data["call_id"] ?: return
+
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notif = NotificationCompat.Builder(this, CallService.CALL_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.sym_call_missed)
+            .setContentTitle("Missed call")
+            .setContentText("From $callerName")
+            .setCategory(NotificationCompat.CATEGORY_MISSED_CALL)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .build()
+        nm.notify(
+            CallService.MISSED_CALL_NOTIFICATION_ID_BASE + callId.hashCode(),
+            notif,
+        )
+    }
+
+    companion object {
+        private const val TAG = "FcmService"
+        private const val PREFS = "fcm_prefs"
+        private const val KEY_FCM_TOKEN = "fcm_token"
+        private const val MESSAGES_CHANNEL_ID = "messages"
+    }
+}

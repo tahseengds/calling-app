@@ -86,6 +86,18 @@ def create_app() -> FastAPI:
 
     @app.exception_handler(AppError)
     async def _app_error(request: Request, exc: AppError) -> JSONResponse:
+        # Log 401/403 with the specific code+detail so we can diagnose
+        # token-rejection issues from docker logs. Other AppErrors stay
+        # quiet (they're routine business-logic responses).
+        if exc.status_code in (401, 403):
+            logger.warning(
+                "%s %s → %d %s: %s",
+                request.method,
+                request.url.path,
+                exc.status_code,
+                exc.code,
+                exc.detail,
+            )
         return JSONResponse(
             status_code=exc.status_code,
             content={"detail": exc.detail, "code": exc.code},

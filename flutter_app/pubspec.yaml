@@ -25,9 +25,10 @@ dependencies:
   # WebRTC — added in prompt 15 (calling feature) with a Flutter-3.x-compatible version.
   # flutter_webrtc: ^0.10.0  ← 0.10.x references removed PluginRegistry.Registrar
 
-  # Firebase / FCM
+  # Firebase / FCM / Phone Auth
   firebase_core: ^4.9.0
   firebase_messaging: ^16.2.2
+  firebase_auth: ^6.1.1
 
   # Local database (Drift + SQLite)
   drift: ^2.31.0
@@ -55,6 +56,15 @@ dependencies:
   intl: ^0.20.2
   uuid: ^4.5.3
   permission_handler: ^12.0.1
+
+  # WebRTC — flutter_webrtc 0.11+ uses Flutter plugin v2 API (no PluginRegistry.Registrar)
+  flutter_webrtc: ^0.13.0
+
+  # Wakelock — keeps the screen on during active calls
+  wakelock_plus: ^1.2.0
+
+  # International phone-number input (country picker + flag + per-country validation)
+  intl_phone_field: ^3.2.0
 
   # Routing
   go_router: ^17.2.3

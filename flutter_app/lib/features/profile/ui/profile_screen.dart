@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/services/battery_optimization_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/user.dart';
@@ -343,10 +344,77 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
 
 // ── Reliable calls card ───────────────────────────────────────────────────────
 
-class _ReliableCallsCard extends StatelessWidget {
+class _ReliableCallsCard extends ConsumerStatefulWidget {
+  @override
+  ConsumerState<_ReliableCallsCard> createState() =>
+      _ReliableCallsCardState();
+}
+
+class _ReliableCallsCardState extends ConsumerState<_ReliableCallsCard> {
+  bool _exempt = true; // optimistic — hide the card while we're checking
+  OemHints _oem = OemHints.empty();
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final svc = ref.read(batteryOptimizationServiceProvider);
+    final exempt = await svc.isIgnoringBatteryOptimizations();
+    final oem = await svc.getOemHints();
+    if (!mounted) return;
+    setState(() {
+      _exempt = exempt;
+      _oem = oem;
+    });
+  }
+
+  Future<void> _onTap() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final svc = ref.read(batteryOptimizationServiceProvider);
+    try {
+      if (!_exempt) {
+        await svc.requestIgnoreBatteryOptimizations();
+      } else if (_oem.isAggressive) {
+        final opened = await svc.openOemAutoStartSettings();
+        if (!opened) {
+          await svc.openAppSettings();
+        }
+      } else {
+        await svc.openAppSettings();
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+      // Refresh exempt status when the user returns from settings.
+      // We can't observe app-resume here directly, so just re-check now —
+      // the user typically returns immediately after toggling the setting.
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      if (mounted) await _refresh();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Hide the card on devices that are already exempt and not on an
+    // aggressive OEM — there's nothing useful for the user to do here.
+    if (_exempt && !_oem.isAggressive) return const SizedBox.shrink();
+
     final colors = context.lumioColors;
+    final body = !_exempt
+        ? 'Allow background activity so Lumio can ring you for family calls.'
+        : _oem.autoStartLabel != null
+            ? 'On your ${_oem.manufacturer}, also turn on auto-start: ${_oem.autoStartLabel}.'
+            : 'Make sure Lumio is allowed to run in the background.';
+    final buttonLabel = !_exempt
+        ? 'Allow background'
+        : _oem.isAggressive
+            ? 'Open auto-start'
+            : 'Open settings';
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -391,7 +459,7 @@ class _ReliableCallsCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  'Allow background activity so Lumio can ring you for family calls.',
+                  body,
                   style: TextStyle(
                     fontSize: 12,
                     color: colors.fg2,
@@ -403,16 +471,15 @@ class _ReliableCallsCard extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           TextButton(
-            onPressed: () {
-              // TODO prompt 15 — open battery optimization settings intent
-            },
+            onPressed: _busy ? null : _onTap,
             style: TextButton.styleFrom(
               foregroundColor: AppColors.primary,
               padding: const EdgeInsets.symmetric(horizontal: 12),
             ),
-            child: const Text(
-              'Allow background activity',
-              style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            child: Text(
+              buttonLabel,
+              style:
+                  const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
             ),
           ),
         ],

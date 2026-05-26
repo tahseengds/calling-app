@@ -6,6 +6,12 @@ import '../../../shared/models/user.dart';
 /// All auth API calls use a plain Dio instance with no interceptors.
 /// Auth endpoints (/api/auth/*) don't need a Bearer token (except logout),
 /// so we never import dio_client.dart here — that prevents a circular dep.
+///
+/// Since the Firebase Phone Auth migration the only outbound endpoints are:
+///   - POST /api/auth/firebase-signin  (trade Firebase ID token → our tokens)
+///   - POST /api/auth/refresh
+///   - POST /api/auth/logout           (Bearer required)
+///   - GET  /api/users/me
 class AuthRepository {
   final Dio _dio;
 
@@ -19,59 +25,36 @@ class AuthRepository {
           ),
         );
 
-  // ── Login ─────────────────────────────────────────────────────────────────
+  // ── Firebase sign-in ───────────────────────────────────────────────────────
 
-  /// Validates credentials and triggers an OTP SMS.
-  /// Returns the phone back plus an optional debug OTP (only in DEBUG builds).
-  Future<({String phone, String? debugOtp})> requestLoginOtp({
-    required String phone,
-    required String password,
-  }) async {
-    final resp = await _dio.post<Map<String, dynamic>>(
-      '/api/auth/request-otp',
-      data: {'phone': phone, 'password': password},
-    );
-    return (
-      phone: phone,
-      debugOtp: resp.data?['debug_otp'] as String?,
-    );
-  }
-
-  // ── Register ──────────────────────────────────────────────────────────────
-
-  /// Creates the account and triggers an OTP SMS for verification.
-  Future<({String phone, String? debugOtp})> register({
-    required String name,
-    required String phone,
-    required String password,
-  }) async {
-    final resp = await _dio.post<Map<String, dynamic>>(
-      '/api/auth/register',
-      data: {'name': name, 'phone': phone, 'password': password},
-    );
-    return (
-      phone: phone,
-      debugOtp: resp.data?['debug_otp'] as String?,
-    );
-  }
-
-  // ── OTP verification ──────────────────────────────────────────────────────
-
-  /// Submits the 6-digit OTP and returns fresh tokens + the user object.
-  Future<({String accessToken, String refreshToken, User me})> verifyOtp({
-    required String phone,
-    required String code,
+  /// Trade a Firebase Phone Auth ID token for our access + refresh JWTs.
+  ///
+  /// The client must have already completed the SMS verification flow
+  /// (verifyPhoneNumber → signInWithCredential → getIdToken).
+  ///
+  /// [name] is only used on a first-time sign-in for the welcome step; the
+  /// backend ignores it for returning users.
+  Future<({String accessToken, String refreshToken})> firebaseSignIn({
+    required String firebaseIdToken,
     required String deviceId,
+    String? fcmToken,
+    String? name,
   }) async {
     final resp = await _dio.post<Map<String, dynamic>>(
-      '/api/auth/verify-otp',
-      data: {'phone': phone, 'code': code, 'device_id': deviceId},
+      '/api/auth/firebase-signin',
+      data: {
+        'firebase_id_token': firebaseIdToken,
+        'device_id': deviceId,
+        'fcm_token': ?fcmToken,
+        // name is only sent when truly non-empty (avoid sending '' to the
+        // backend, which would skip its default-name fallback).
+        if (name != null && name.isNotEmpty) 'name': name,
+      },
     );
     final data = resp.data!;
     return (
       accessToken: data['access_token'] as String,
       refreshToken: data['refresh_token'] as String,
-      me: User.fromJson(data['user'] as Map<String, dynamic>),
     );
   }
 
@@ -95,8 +78,8 @@ class AuthRepository {
 
   // ── Current user ──────────────────────────────────────────────────────────
 
-  /// Fetches the authenticated user's profile. Called after session restore
-  /// when the refresh response doesn't embed the user object.
+  /// Fetches the authenticated user's profile. Called after firebase-signin
+  /// (which returns tokens only) and after session restore.
   Future<User> getMe(String accessToken) async {
     final resp = await Dio(
       BaseOptions(
@@ -112,10 +95,13 @@ class AuthRepository {
 
   // ── Logout ────────────────────────────────────────────────────────────────
 
-  /// Invalidates the current device session on the server.
+  /// Invalidates the current refresh-token row on the server.
+  ///
+  /// Backend wants: POST /api/auth/logout, Bearer header,
+  ///                JSON body {refresh_token: "..."}.
   Future<void> logout({
     required String accessToken,
-    required String deviceId,
+    required String refreshToken,
   }) async {
     await Dio(
       BaseOptions(
@@ -125,7 +111,10 @@ class AuthRepository {
           'Authorization': 'Bearer $accessToken',
         },
       ),
-    ).delete('/api/auth/logout', data: {'device_id': deviceId});
+    ).post<void>(
+      '/api/auth/logout',
+      data: {'refresh_token': refreshToken},
+    );
   }
 }
 

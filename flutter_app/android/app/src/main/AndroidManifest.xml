@@ -2,19 +2,29 @@
 
     <!-- Network -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Required by flutter_webrtc to react to network changes (ICE restart, etc.). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
 
     <!-- Audio / Video calling -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- Route in-call audio to Bluetooth headsets (Android 12+). -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <!-- Call screen & wakeup -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Battery optimization exemption request (prompt 15). -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Notifications (Android 13+) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -29,6 +39,12 @@
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon">
 
+        <!--
+             showWhenLocked / turnScreenOn are set at runtime in MainActivity.kt so
+             we can toggle them only when we're launching from a call notification
+             (calling them unconditionally would let any tap on the launcher bypass
+             the keyguard).
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -47,14 +63,14 @@
             </intent-filter>
         </activity>
 
-        <!-- TODO: prompt 15 — implement CallService.kt -->
+        <!-- Foreground call service (prompt 15). -->
         <service
             android:name=".CallService"
             android:exported="false"
             android:foregroundServiceType="phoneCall|microphone|camera"
             android:permission="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
 
-        <!-- TODO: prompt 15 — implement FcmService.kt (extends FirebaseMessagingService) -->
+        <!-- FCM listener (prompt 15). -->
         <service
             android:name=".FcmService"
             android:exported="false">
@@ -62,6 +78,15 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <!--
+             Receives Accept / Decline taps from the call notification (prompt 15).
+             exported=false because the PendingIntents are explicit and originate
+             from our own process.
+        -->
+        <receiver
+            android:name=".CallActionReceiver"
+            android:exported="false" />
 
         <meta-data
             android:name="flutterEmbedding"
@@ -72,6 +97,10 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT" />
             <data android:mimeType="text/plain" />
+        </intent>
+        <!-- For battery-optimization deep-links to OEM-specific settings. -->
+        <intent>
+            <action android:name="android.settings.IGNORE_BATTERY_OPTIMIZATION_SETTINGS" />
         </intent>
     </queries>
 </manifest>

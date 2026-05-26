@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -84,10 +84,24 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
       await ref.read(authNotifierProvider.notifier).verifyOtp(
             code: _hiddenCtrl.text,
           );
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      setState(() => _hasError = true);
+      _hiddenCtrl.clear();
+      final msg = switch (e.code) {
+        'invalid-verification-code' => 'That code doesn\'t match. Try again.',
+        'session-expired' => 'The code expired. Tap Resend to get a new one.',
+        _ => e.message ?? 'Invalid code. Please try again.',
+      };
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(msg), backgroundColor: AppColors.danger),
+      );
     } on DioException catch (e) {
+      // Backend rejected the Firebase ID token (very rare — replay window,
+      // misconfigured project, etc.).
       if (!mounted) return;
       final msg = (e.response?.data as Map?)?['detail'] as String? ??
-          'Invalid code. Please try again.';
+          'Could not finish sign-in. Please try again.';
       setState(() => _hasError = true);
       _hiddenCtrl.clear();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -105,10 +119,22 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
   Future<void> _resend() async {
     if (_countdown > 0) return;
     _hiddenCtrl.clear();
-    _startCountdown();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('A new code has been requested.')),
-    );
+    try {
+      await ref.read(authNotifierProvider.notifier).resendOtp();
+      if (!mounted) return;
+      _startCountdown();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('A new code has been sent.')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not resend the code. Try again in a moment.'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+    }
   }
 
   String _formatPhone(String phone) {
@@ -257,31 +283,6 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
                   ),
                 ),
               ),
-              if (kDebugMode && pending?.debugOtp != null) ...[
-                const SizedBox(height: 24),
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.primary.withAlpha(25),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.primary.withAlpha(80)),
-                    ),
-                    child: Text(
-                      'DEBUG: ${pending!.debugOtp}',
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 4,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
             ],
           ),
         ),
