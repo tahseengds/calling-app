@@ -109,6 +109,33 @@ class CallMissedEvent {
   const CallMissedEvent({required this.callId});
 }
 
+/// Backend acks a successful `call:initiate` — the offer reached the callee
+/// (either via socket or FCM). Caller-side optional positive signal.
+class CallRingingEvent {
+  final String callId;
+  const CallRingingEvent({required this.callId});
+}
+
+/// Backend rejected the call attempt for a reason that isn't busy/missed/
+/// hangup — e.g. "not your contact", "invalid target", rate-limited, etc.
+/// Surfaces a human message that the UI should show.
+class CallErrorEvent {
+  final String message;
+  const CallErrorEvent({required this.message});
+}
+
+/// FIX 8: one user blocked the other. Delivered to BOTH parties so each
+/// app can end any in-progress call between them. [blockerId] is the user
+/// who initiated the block; [blockedId] is the user being blocked. Either
+/// id may be the current user (we ended it locally) or the other party
+/// (they blocked us). The CallNotifier ends the call if the active call's
+/// peer is involved on either side.
+class UserBlockedEvent {
+  final String blockerId;
+  final String blockedId;
+  const UserBlockedEvent({required this.blockerId, required this.blockedId});
+}
+
 // ── SignalingService ──────────────────────────────────────────────────────────
 
 class SignalingService {
@@ -133,6 +160,9 @@ class SignalingService {
   final _callRejectedCtrl = StreamController<CallRejectedEvent>.broadcast();
   final _callBusyCtrl = StreamController<CallBusyEvent>.broadcast();
   final _callMissedCtrl = StreamController<CallMissedEvent>.broadcast();
+  final _callRingingCtrl = StreamController<CallRingingEvent>.broadcast();
+  final _callErrorCtrl = StreamController<CallErrorEvent>.broadcast();
+  final _userBlockedCtrl = StreamController<UserBlockedEvent>.broadcast();
 
   Stream<MessageNewEvent> get onMessageNew => _messageNewCtrl.stream;
   Stream<MessageAckEvent> get onMessageAck => _messageAckCtrl.stream;
@@ -152,6 +182,9 @@ class SignalingService {
   Stream<CallRejectedEvent> get onCallRejected => _callRejectedCtrl.stream;
   Stream<CallBusyEvent> get onCallBusy => _callBusyCtrl.stream;
   Stream<CallMissedEvent> get onCallMissed => _callMissedCtrl.stream;
+  Stream<CallRingingEvent> get onCallRinging => _callRingingCtrl.stream;
+  Stream<CallErrorEvent> get onCallError => _callErrorCtrl.stream;
+  Stream<UserBlockedEvent> get onUserBlocked => _userBlockedCtrl.stream;
 
   /// Fired on connect / reconnect — SyncService subscribes to this.
   VoidCallback? onReconnect;
@@ -202,8 +235,23 @@ class SignalingService {
   void _attachListeners() {
     final s = _socket!;
 
-    s.on('connect', (_) => onReconnect?.call());
-    s.on('reconnect', (_) => onReconnect?.call());
+    s.on('connect', (_) {
+      debugPrint('[signal] socket connected (id=${s.id})');
+      onReconnect?.call();
+    });
+    s.on('reconnect', (_) {
+      debugPrint('[signal] socket reconnected (id=${s.id})');
+      onReconnect?.call();
+    });
+    s.on('disconnect', (reason) {
+      debugPrint('[signal] socket disconnected: $reason');
+    });
+    s.on('connect_error', (err) {
+      debugPrint('[signal] socket connect_error: $err');
+    });
+    s.on('error', (err) {
+      debugPrint('[signal] socket error: $err');
+    });
 
     s.on('message:new', (data) {
       final map = _asMap(data);
@@ -214,34 +262,53 @@ class SignalingService {
 
     s.on('message:ack', (data) {
       final map = _asMap(data);
-      if (map != null) {
-        _messageAckCtrl.add(MessageAckEvent(
-          messageId: map['message_id'] as String,
-          status: map['status'] as String,
-        ));
-      }
+      if (map == null) return;
+      // Defensive: backend occasionally emits acks missing fields during
+      // race conditions (e.g. ack for a message_id we already replaced).
+      // Previously the unconditional `as String` cast threw an unhandled
+      // Dart exception, polluting logs without crashing the app.
+      final messageId = map['message_id'] as String?;
+      final status = map['status'] as String?;
+      if (messageId == null || status == null) return;
+      _messageAckCtrl.add(MessageAckEvent(
+        messageId: messageId,
+        status: status,
+      ));
     });
 
     s.on('message:deleted', (data) {
       final map = _asMap(data);
-      if (map != null) {
-        _messageDeletedCtrl.add(MessageDeletedEvent(
-          messageId: map['message_id'] as String,
-          conversationId: map['conversation_id'] as String,
-        ));
-      }
+      if (map == null) return;
+      final messageId = map['message_id'] as String?;
+      final conversationId = map['conversation_id'] as String?;
+      if (messageId == null || conversationId == null) return;
+      _messageDeletedCtrl.add(MessageDeletedEvent(
+        messageId: messageId,
+        conversationId: conversationId,
+      ));
     });
 
     void emitReaction(Map<String, dynamic> map, {required bool added}) {
+      final messageId = map['message_id'] as String?;
+      final conversationId = map['conversation_id'] as String?;
+      final actorUserId = map['user_id'] as String?;
+      final emoji = map['emoji'] as String?;
+      if (messageId == null ||
+          conversationId == null ||
+          actorUserId == null ||
+          emoji == null) {
+        return;
+      }
       final reactions = (map['reactions'] as List<dynamic>?)
-              ?.map((e) => Map<String, dynamic>.from(e as Map))
+              ?.whereType<Map>()
+              .map((e) => Map<String, dynamic>.from(e))
               .toList() ??
           const <Map<String, dynamic>>[];
       _messageReactionCtrl.add(MessageReactionEvent(
-        messageId: map['message_id'] as String,
-        conversationId: map['conversation_id'] as String,
-        actorUserId: map['user_id'] as String,
-        emoji: map['emoji'] as String,
+        messageId: messageId,
+        conversationId: conversationId,
+        actorUserId: actorUserId,
+        emoji: emoji,
         added: added,
         reactionsJson: reactions,
       ));
@@ -258,37 +325,46 @@ class SignalingService {
 
     s.on('typing:start', (data) {
       final map = _asMap(data);
-      if (map != null) {
-        _typingCtrl.add(TypingEvent(
-          fromUserId: map['from'] as String,
-          conversationId: map['conversation_id'] as String,
-          isTyping: true,
-        ));
-      }
+      if (map == null) return;
+      final fromUserId = map['from'] as String?;
+      final conversationId = map['conversation_id'] as String?;
+      if (fromUserId == null || conversationId == null) return;
+      _typingCtrl.add(TypingEvent(
+        fromUserId: fromUserId,
+        conversationId: conversationId,
+        isTyping: true,
+      ));
     });
 
     s.on('typing:stop', (data) {
       final map = _asMap(data);
-      if (map != null) {
-        _typingCtrl.add(TypingEvent(
-          fromUserId: map['from'] as String,
-          conversationId: map['conversation_id'] as String,
-          isTyping: false,
-        ));
-      }
+      if (map == null) return;
+      final fromUserId = map['from'] as String?;
+      final conversationId = map['conversation_id'] as String?;
+      if (fromUserId == null || conversationId == null) return;
+      _typingCtrl.add(TypingEvent(
+        fromUserId: fromUserId,
+        conversationId: conversationId,
+        isTyping: false,
+      ));
     });
 
     s.on('presence:update', (data) {
       final map = _asMap(data);
-      if (map != null) {
-        _presenceCtrl.add(PresenceEvent(
-          userId: map['user_id'] as String,
-          status: map['status'] as String,
-          lastSeen: map['last_seen'] != null
-              ? DateTime.parse(map['last_seen'] as String)
-              : null,
-        ));
-      }
+      if (map == null) return;
+      // Backend occasionally emits presence updates with null user_id
+      // (e.g. for a user that was just deleted, or during socket
+      // handshake). Don't propagate them — they crashed the cast.
+      final userId = map['user_id'] as String?;
+      final status = map['status'] as String?;
+      if (userId == null || status == null) return;
+      _presenceCtrl.add(PresenceEvent(
+        userId: userId,
+        status: status,
+        lastSeen: map['last_seen'] is String
+            ? DateTime.tryParse(map['last_seen'] as String)
+            : null,
+      ));
     });
 
     // ── Call events ──────────────────────────────────────────────────────────
@@ -358,6 +434,48 @@ class SignalingService {
         ));
       }
     });
+
+    // call:ringing — backend acks that the offer reached the callee.
+    // Useful as a positive signal that the outgoing call is "live" beyond
+    // just "we emitted the offer".
+    s.on('call:ringing', (data) {
+      final map = _asMap(data);
+      if (map != null) {
+        _callRingingCtrl.add(CallRingingEvent(
+          callId: map['call_id'] as String? ?? '',
+        ));
+      }
+    });
+
+    // call:error — backend rejected the attempt outright (validation
+    // failure, not-a-contact, rate limit, internal error, etc.). Carries a
+    // human message that the UI should surface to the user.
+    s.on('call:error', (data) {
+      final map = _asMap(data);
+      if (map != null) {
+        _callErrorCtrl.add(CallErrorEvent(
+          message: map['message'] as String? ?? 'Call failed.',
+        ));
+      } else if (data is String) {
+        // Server might emit a bare string in some paths; tolerate it.
+        _callErrorCtrl.add(CallErrorEvent(message: data));
+      }
+    });
+
+    // FIX 8: user:blocked — one of the two parties in an A↔B relationship
+    // has blocked the other. Delivered to both A and B so each end can
+    // tear down any in-progress call between them. Payload shape matches
+    // the FastAPI block-publish + Node forward chain (see
+    // backend/api/app/services/contact_service.py set_blocked).
+    s.on('user:blocked', (data) {
+      final map = _asMap(data);
+      if (map != null) {
+        _userBlockedCtrl.add(UserBlockedEvent(
+          blockerId: map['blocker_id'] as String? ?? '',
+          blockedId: map['blocked_id'] as String? ?? '',
+        ));
+      }
+    });
   }
 
   Map<String, dynamic>? _asMap(dynamic data) {
@@ -387,6 +505,28 @@ class SignalingService {
   }
 
   // ── Call emit helpers ─────────────────────────────────────────────────────
+  //
+  // Every emit prints whether the socket exists and is connected. When a
+  // call mysteriously "doesn't go through", the first thing to check is
+  // whether [_socket?.connected] was true at the moment we emitted — if it
+  // was false, socket.io-client buffers locally and the server never sees
+  // the event until reconnect (which may be never, e.g. on auth failure).
+
+  void _emitCall(String event, Map<String, dynamic> payload) {
+    final s = _socket;
+    final connected = s?.connected ?? false;
+    if (s == null) {
+      debugPrint('[signal] $event DROPPED — socket is null');
+      return;
+    }
+    if (!connected) {
+      debugPrint(
+          '[signal] $event queued — socket exists but not connected (will buffer until reconnect)');
+    } else {
+      debugPrint('[signal] $event emitting (socket.connected=true)');
+    }
+    s.emit(event, payload);
+  }
 
   void emitCallInitiate({
     required String callId,
@@ -394,7 +534,7 @@ class SignalingService {
     required Map<String, dynamic> offer,
     required String callType,
   }) {
-    _socket?.emit('call:initiate', {
+    _emitCall('call:initiate', {
       'call_id': callId,
       'to': to,
       'offer': offer,
@@ -407,7 +547,7 @@ class SignalingService {
     required String to,
     required Map<String, dynamic> answer,
   }) {
-    _socket?.emit('call:answer', {
+    _emitCall('call:answer', {
       'call_id': callId,
       'to': to,
       'answer': answer,
@@ -419,7 +559,7 @@ class SignalingService {
     required String to,
     required Map<String, dynamic> candidate,
   }) {
-    _socket?.emit('call:ice', {
+    _emitCall('call:ice', {
       'call_id': callId,
       'to': to,
       'candidate': candidate,
@@ -431,7 +571,7 @@ class SignalingService {
     required String to,
     required Map<String, dynamic> offer,
   }) {
-    _socket?.emit('call:ice_restart', {
+    _emitCall('call:ice_restart', {
       'call_id': callId,
       'to': to,
       'offer': offer,
@@ -442,21 +582,21 @@ class SignalingService {
     required String callId,
     required String to,
   }) {
-    _socket?.emit('call:hangup', {'call_id': callId, 'to': to});
+    _emitCall('call:hangup', {'call_id': callId, 'to': to});
   }
 
   void emitCallReject({
     required String callId,
     required String to,
   }) {
-    _socket?.emit('call:reject', {'call_id': callId, 'to': to});
+    _emitCall('call:reject', {'call_id': callId, 'to': to});
   }
 
   void emitCallBusy({
     required String callId,
     required String to,
   }) {
-    _socket?.emit('call:busy', {'call_id': callId, 'to': to});
+    _emitCall('call:busy', {'call_id': callId, 'to': to});
   }
 
   void disconnect() {
@@ -480,6 +620,9 @@ class SignalingService {
     _callRejectedCtrl.close();
     _callBusyCtrl.close();
     _callMissedCtrl.close();
+    _callRingingCtrl.close();
+    _callErrorCtrl.close();
+    _userBlockedCtrl.close();
   }
 }
 

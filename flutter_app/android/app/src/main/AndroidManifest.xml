@@ -10,6 +10,14 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!--
+         Android 14 (API 34) requires this OR android.app.role.DIALER to
+         start a foreground service of type `phoneCall`. Without it,
+         CallService.startForeground throws SecurityException and the
+         process is killed the moment an incoming-call FCM arrives.
+         Normal permission, granted at install — no runtime prompt.
+    -->
+    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
     <!-- Route in-call audio to Bluetooth headsets (Android 12+). -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
@@ -101,9 +109,22 @@
             </intent-filter>
         </activity>
 
-        <!-- Foreground call service (prompt 15). -->
+        <!-- Foreground call service (prompt 15) — handles INCOMING ringing. -->
         <service
             android:name=".CallService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall|microphone|camera"
+            android:permission="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+
+        <!--
+            FIX 7 — keeps a CONNECTED VoIP call alive when the app is in the
+            background or the screen is locked. Persistent low-importance
+            notification with a hang-up action; declared with the same
+            foreground service types as CallService since both run mic/video
+            during a call.
+        -->
+        <service
+            android:name=".ActiveCallService"
             android:exported="false"
             android:foregroundServiceType="phoneCall|microphone|camera"
             android:permission="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />

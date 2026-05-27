@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../utils/call_utils.dart';
 
@@ -170,6 +171,23 @@ class WebRTCServiceImpl implements WebRTCService {
         _remoteRenderer.srcObject = _remoteStream;
       }
     };
+
+    // VoIP default: route to the earpiece, not the loudspeaker. Without this
+    // explicit call, flutter_webrtc on Android can leave the previous audio
+    // routing state (e.g. speakerphone left on by another app or by the
+    // ringback we just played) which produces a "speakerphone-by-default"
+    // experience that no other phone app has. Users toggle speakerphone
+    // explicitly via the in-call control.
+    //
+    // Video callers override this to true via setSpeakerphone(true) — the
+    // call screen passes session.isSpeakerOn straight through.
+    try {
+      await Helper.setSpeakerphoneOn(false);
+    } catch (e) {
+      // Older flutter_webrtc on some OEMs throws when called before a media
+      // stream exists. Non-fatal — the next setSpeakerphone() will set it.
+      debugPrint('[webrtc] initial setSpeakerphoneOn(false) failed: $e');
+    }
   }
 
   @override
@@ -178,9 +196,14 @@ class WebRTCServiceImpl implements WebRTCService {
     assert(_pc != null, 'Call initialize() before createOffer()');
     await _acquireLocalMedia(videoEnabled: videoEnabled);
 
+    // Match the constraints to the actual call type. Previously this always
+    // asked for both audio AND video, which made audio-only offers carry an
+    // unused video m-section. That wastes SDP/ICE work and, worse, the
+    // bitrate shaper in [_shapeSdp] would cap a non-existent video stream
+    // — harmless but noisy on the wire.
     final constraints = <String, dynamic>{
       'offerToReceiveAudio': true,
-      'offerToReceiveVideo': true,
+      'offerToReceiveVideo': videoEnabled,
     };
     final raw = await _pc!.createOffer(constraints);
     final shapedSdp = _shapeSdp(raw.sdp ?? '', videoEnabled);
@@ -191,10 +214,17 @@ class WebRTCServiceImpl implements WebRTCService {
 
   @override
   Future<void> setRemoteDescription(Map<String, dynamic> sdpMap) async {
-    final desc = RTCSessionDescription(
-      sdpMap['sdp'] as String,
-      sdpMap['type'] as String,
-    );
+    // Defensive: caller may hand us a partial map (e.g. FCM-normalized
+    // payload missing 'type'). Previously `as String` would throw on null
+    // and bubble up as an unhandled-async error from the call:answered /
+    // call:ice_restart handlers, dropping the call without explanation.
+    final sdp = sdpMap['sdp'] as String?;
+    final type = sdpMap['type'] as String?;
+    if (sdp == null || sdp.isEmpty || type == null || type.isEmpty) {
+      throw StateError(
+          'setRemoteDescription: malformed SDP map (sdp=${sdp?.length ?? 0} chars, type=$type)');
+    }
+    final desc = RTCSessionDescription(sdp, type);
     await _pc!.setRemoteDescription(desc);
   }
 
@@ -211,7 +241,7 @@ class WebRTCServiceImpl implements WebRTCService {
 
     final answerConstraints = <String, dynamic>{
       'offerToReceiveAudio': true,
-      'offerToReceiveVideo': true,
+      'offerToReceiveVideo': videoEnabled,
     };
     final raw = await _pc!.createAnswer(answerConstraints);
     final shapedSdp = _shapeSdp(raw.sdp ?? '', videoEnabled);
@@ -232,9 +262,25 @@ class WebRTCServiceImpl implements WebRTCService {
 
   @override
   Future<Map<String, dynamic>> createIceRestartOffer() async {
-    final raw =
-        await _pc!.createOffer(<String, dynamic>{'iceRestart': true});
-    await _pc!.setLocalDescription(raw);
+    final pc = _pc;
+    if (pc == null) {
+      throw StateError('createIceRestartOffer: peer connection is null');
+    }
+    // Guard: only create a restart offer when the signaling state is
+    // `stable`. If we're already in `have-local-offer` (or somewhere else
+    // mid-handshake), creating another offer produces the WEBRTC
+    // "Called in wrong state: have-local-offer" error that we observed
+    // crashing live ICE-restart flows. The callee will skip restart
+    // entirely (see CallNotifier._performIceRestart) so glare can't happen
+    // — but this still protects against the caller racing itself across
+    // multiple `failed` events.
+    final sigState = await pc.getSignalingState();
+    if (sigState != RTCSignalingState.RTCSignalingStateStable) {
+      throw StateError(
+          'createIceRestartOffer: signaling state is $sigState (need stable)');
+    }
+    final raw = await pc.createOffer(<String, dynamic>{'iceRestart': true});
+    await pc.setLocalDescription(raw);
     return {'sdp': raw.sdp, 'type': raw.type};
   }
 

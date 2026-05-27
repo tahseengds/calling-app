@@ -1,5 +1,6 @@
 package com.lumin.app
 
+import android.app.ActivityManager
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
@@ -61,6 +62,23 @@ class FcmService : FirebaseMessagingService() {
             return
         }
 
+        // ── Foreground guard ────────────────────────────────────────────────
+        // FCM `incoming_call` arrives in parallel with the socket
+        // `call:incoming` event. When the app is foregrounded, the Flutter
+        // IncomingCallScreen already mounted via the socket path and the
+        // CallNotifier set up its own dedup. Starting CallService too would:
+        //   • double-ring (system ringtone + in-app sounds)
+        //   • on Android 14+, fight the in-app UI for audio focus
+        //   • risk a 5-second FGS-start-from-background grace violation on
+        //     OEMs that enforce it strictly (MIUI/EMUI etc).
+        // The socket path is responsible for foreground rings; we only need
+        // the native CallService when the app process is killed or fully
+        // backgrounded. Skip silently otherwise.
+        if (isAppForeground()) {
+            Log.i(TAG, "incoming_call: app foregrounded, skipping CallService (Flutter UI handles ring)")
+            return
+        }
+
         // Hand the payload to CallService — it'll ring + show the full-screen UI.
         val payload = mapOf(
             CallService.EXTRA_CALL_ID to callId,
@@ -72,6 +90,29 @@ class FcmService : FirebaseMessagingService() {
             CallService.EXTRA_SIGNAL_TOKEN to data["signal_token"],
         )
         CallService.startIncoming(this, payload)
+    }
+
+    /**
+     * True when *this* process has at least one foreground importance
+     * component. Uses ActivityManager.RunningAppProcessInfo which is the
+     * only API still accessible to non-system apps post-API 26 for this
+     * question. Anything other than IMPORTANCE_FOREGROUND we treat as
+     * "not visible to the user", which is conservative but correct for
+     * this use case (we'd rather over-ring on a backgrounded app than
+     * double-ring on a foregrounded one).
+     */
+    private fun isAppForeground(): Boolean {
+        return try {
+            val am = getSystemService(Context.ACTIVITY_SERVICE) as? ActivityManager
+                ?: return false
+            val pid = android.os.Process.myPid()
+            val processes = am.runningAppProcesses ?: return false
+            processes.any { it.pid == pid &&
+                it.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND }
+        } catch (t: Throwable) {
+            Log.w(TAG, "isAppForeground check failed: ${t.message}")
+            false
+        }
     }
 
     private fun handleNewMessage(message: RemoteMessage) {
