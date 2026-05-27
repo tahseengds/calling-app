@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../network/dio_client.dart';
 import '../storage/local_db.dart';
+import '../../features/chat/data/message_local_dao.dart' show encodeReactions;
 import '../../shared/models/message.dart';
 
 class SyncService {
@@ -170,6 +171,7 @@ class SyncService {
         createdAt: Value(msg.createdAt),
         isSynced: const Value(true),
         isDeleted: Value(msg.isDeleted),
+        reactionsJson: Value(encodeReactions(msg.reactions)),
       );
 }
 

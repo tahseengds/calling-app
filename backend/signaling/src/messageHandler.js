@@ -32,7 +32,14 @@ function registerMessageBridge(io) {
 
       if (channel.startsWith('msg_delivery:')) {
         const userId = channel.slice('msg_delivery:'.length);
-        const event = payload.event === 'message_deleted' ? 'message:deleted' : 'message:new';
+        // Map FastAPI's payload.event → the Socket.IO event name. Default to
+        // message:new for any unknown/legacy value so old clients keep working.
+        const eventMap = {
+          message_deleted: 'message:deleted',
+          reaction_added: 'message:reaction_added',
+          reaction_removed: 'message:reaction_removed',
+        };
+        const event = eventMap[payload.event] || 'message:new';
         io.to(userId).emit(event, payload);
         logger.debug({ event, userId });
 

@@ -27,6 +27,13 @@ class MessagesTable extends Table {
       boolean().withDefault(const Constant(false))();
   BoolColumn get isDeleted =>
       boolean().withDefault(const Constant(false))();
+  /// JSON-encoded `List<ReactionSummary>` round-tripped from the server.
+  /// Stored as JSON (not a separate join table) because the client only ever
+  /// renders pre-aggregated chips — per-reaction queries aren't useful here.
+  /// Empty string means "no reactions" (we avoid NULL so callers can decode
+  /// without a null check on the hot read path).
+  TextColumn get reactionsJson =>
+      text().withDefault(const Constant(''))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -241,7 +248,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -252,6 +259,12 @@ class AppDatabase extends _$AppDatabase {
           // newly-sent media will have a value populated.
           if (from < 2) {
             await m.addColumn(messagesTable, messagesTable.durationSeconds);
+          }
+          // v2 → v3: messages gained a reactionsJson column holding the
+          // server's aggregated ReactionSummary list. Existing rows default
+          // to '' which the DAO decodes as "no reactions".
+          if (from < 3) {
+            await m.addColumn(messagesTable, messagesTable.reactionsJson);
           }
         },
         beforeOpen: (_) async {

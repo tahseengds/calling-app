@@ -37,6 +37,7 @@ from app.services.conversation_service import (
     get_or_create_conversation,
 )
 from app.services.media_service import media_file_to_response
+from app.services.reaction_service import load_reactions_for_messages
 from app.services.realtime import (
     enqueue_fcm,
     msg_delivery_channel,
@@ -264,9 +265,18 @@ async def fetch_messages(
         for mf in mf_result.scalars().all():
             media_map[mf.id] = media_file_to_response(mf)
 
+    # Batch-load reactions for non-deleted messages in this page.
+    react_map = await load_reactions_for_messages(
+        db, [m.id for m in page_rows if m.deleted_at is None]
+    )
+
     return MessagePage(
         messages=[
-            _msg_to_response(m, media_map.get(m.media_id) if m.media_id else None)
+            _msg_to_response(
+                m,
+                media_map.get(m.media_id) if m.media_id else None,
+                react_map.get(m.id, []),
+            )
             for m in page_rows
         ],
         next_cursor=next_cursor,

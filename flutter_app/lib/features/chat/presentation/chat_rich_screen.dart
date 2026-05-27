@@ -389,6 +389,47 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
     );
   }
 
+  /// Icon shown next to the body line for non-text messages. Returns null
+  /// for text so we don't waste pixels on a chat-bubble icon when the
+  /// caption itself already tells the user what they're replying to.
+  IconData? _replyTypeIcon(MessageType type) => switch (type) {
+        MessageType.image => Icons.image_outlined,
+        MessageType.video => Icons.play_circle_outline_rounded,
+        MessageType.audio => Icons.mic_none_rounded,
+        MessageType.file => Icons.insert_drive_file_outlined,
+        MessageType.text => null,
+      };
+
+  /// Source URL for the small square thumbnail on the right side of the
+  /// preview bar. Videos prefer their poster (thumbnailUrl); images use the
+  /// media itself. Returns null when there's nothing visual to show, so the
+  /// bar collapses to the icon+text variant.
+  String? _replyThumbnailUrl(Message msg) {
+    final media = msg.media;
+    if (media == null) return null;
+    if (msg.type == MessageType.video) {
+      return media.thumbnailUrl?.isNotEmpty == true ? media.thumbnailUrl : null;
+    }
+    if (msg.type == MessageType.image) return media.url;
+    return null;
+  }
+
+  /// Human label for the body line of the reply preview bar. Caption wins
+  /// when present (e.g. "Sunset!" on a photo); otherwise we fall back to the
+  /// media type so the user at least sees *what kind* of message they're
+  /// replying to rather than the previous "Attachment" placeholder.
+  String _replyBodyLabel(Message msg) {
+    final caption = msg.content?.trim();
+    if (caption != null && caption.isNotEmpty) return caption;
+    return switch (msg.type) {
+      MessageType.image => 'Photo',
+      MessageType.video => 'Video',
+      MessageType.audio => 'Voice note',
+      MessageType.file => 'File',
+      MessageType.text => '',
+    };
+  }
+
   Widget _buildReplyPreviewBar(
       LumioColors c, ThemeData t, user_model.User? other) {
     final isDark = t.brightness == Brightness.dark;
@@ -397,7 +438,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
 
     final replySender =
         _replyingTo!.senderId == _currentUserId ? 'You' : _otherName(other);
-    final replyText = _replyingTo!.content ?? 'Attachment';
+    final replyText = _replyBodyLabel(_replyingTo!);
 
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
@@ -428,15 +469,35 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
                   replySender,
                   style: AppTextStyles.bodySemibold(color: AppColors.primary).copyWith(fontSize: 13),
                 ),
-                Text(
-                  replyText,
-                  style: AppTextStyles.body(color: c.fg2).copyWith(fontSize: 13),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (_replyTypeIcon(_replyingTo!.type) != null) ...[
+                      Icon(
+                        _replyTypeIcon(_replyingTo!.type),
+                        size: 13,
+                        color: c.fg2,
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                    Flexible(
+                      child: Text(
+                        replyText,
+                        style: AppTextStyles.body(color: c.fg2)
+                            .copyWith(fontSize: 13),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
+          if (_replyThumbnailUrl(_replyingTo!) != null) ...[
+            const SizedBox(width: 8),
+            _ReplyThumbnail(url: _replyThumbnailUrl(_replyingTo!)!),
+          ],
           IconButton(
             icon: Icon(Icons.close_rounded, size: 20, color: c.fg2),
             tooltip: 'Back',
@@ -599,6 +660,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
           _ItemKind.message => _MessageRow(
               msg:            item.msg!,
               mine:           item.msg!.senderId == myId,
+              myUserId:       myId,
               colors:         colors,
               conversationId: widget.conversationId,
               onRetry: (id) => ref
@@ -610,6 +672,9 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
               onShowContext: (msg, mine, topOffset) =>
                   _showContextMenu(context, msg, mine, topOffset),
               onSwipeReply: () => _enterReplyMode(item.msg!),
+              onToggleReaction: (id, emoji) => ref
+                  .read(chatProvider(widget.conversationId).notifier)
+                  .toggleReaction(id, emoji),
             ),
         };
       },
@@ -635,6 +700,11 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
             ref
                 .read(chatProvider(widget.conversationId).notifier)
                 .deleteMessage(msg.id);
+          },
+          onReact: (emoji) {
+            ref
+                .read(chatProvider(widget.conversationId).notifier)
+                .toggleReaction(msg.id, emoji);
           },
         );
       },
@@ -966,22 +1036,26 @@ class _MessageRow extends StatelessWidget {
   const _MessageRow({
     required this.msg,
     required this.mine,
+    required this.myUserId,
     required this.colors,
     required this.conversationId,
     required this.onRetry,
     required this.onDelete,
     required this.onShowContext,
     required this.onSwipeReply,
+    required this.onToggleReaction,
   });
 
   final Message     msg;
   final bool        mine;
+  final String      myUserId;
   final LumioColors colors;
   final String      conversationId;
   final void Function(String id)              onRetry;
   final void Function(String id)              onDelete;
   final void Function(Message msg, bool mine, double topOffset) onShowContext;
   final VoidCallback                          onSwipeReply;
+  final void Function(String messageId, String emoji) onToggleReaction;
 
   bool get _isDeleted => msg.isDeleted;
   ReplyPreview? get _replyTo => msg.replyTo;
@@ -1029,6 +1103,17 @@ class _MessageRow extends StatelessWidget {
                   );
                 }
               ),
+              // ── Reaction chips ─────────────────────────────────────────────
+              if (!_isDeleted && msg.reactions.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: _ReactionChipRow(
+                    reactions: msg.reactions,
+                    myUserId: myUserId,
+                    colors: colors,
+                    onTap: (emoji) => onToggleReaction(msg.id, emoji),
+                  ),
+                ),
               const SizedBox(height: 4),
 
               // ── Timestamp + status ────────────────────────────────────────
@@ -1101,6 +1186,133 @@ class _MessageRow extends StatelessWidget {
               _CancelButton(colors: colors, onTap: () => Navigator.of(context).pop()),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Reply-bar thumbnail ─────────────────────────────────────────────────────
+// 40×40 square shown on the right of the swipe-to-reply preview bar so the
+// composer can see *which* photo/video they're replying to, not just "Photo".
+
+class _ReplyThumbnail extends StatelessWidget {
+  const _ReplyThumbnail({required this.url});
+  final String url;
+
+  bool get _isLocal => !url.startsWith('http://') && !url.startsWith('https://');
+
+  @override
+  Widget build(BuildContext context) {
+    Widget child;
+    if (_isLocal) {
+      child = Image.file(
+        File(url.startsWith('file://') ? Uri.parse(url).toFilePath() : url),
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => const ColoredBox(color: Color(0x33000000)),
+      );
+    } else {
+      child = CachedNetworkImage(
+        imageUrl: url,
+        fit: BoxFit.cover,
+        placeholder: (_, _) => const ColoredBox(color: Color(0x22000000)),
+        errorWidget: (_, _, _) => const ColoredBox(color: Color(0x33000000)),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: SizedBox(width: 40, height: 40, child: child),
+    );
+  }
+}
+
+// ─── Reaction chips ──────────────────────────────────────────────────────────
+// Rendered under each bubble. One chip per distinct emoji, count omitted when
+// it's a single reaction. Tapping a chip toggles the current user's own
+// reaction for that emoji (matches WhatsApp/iMessage interaction).
+
+class _ReactionChipRow extends StatelessWidget {
+  const _ReactionChipRow({
+    required this.reactions,
+    required this.myUserId,
+    required this.colors,
+    required this.onTap,
+  });
+
+  final List<ReactionSummary> reactions;
+  final String myUserId;
+  final LumioColors colors;
+  final void Function(String emoji) onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: reactions.map((r) {
+        final mine = r.reactedByUser(myUserId);
+        return _ReactionChip(
+          emoji: r.emoji,
+          count: r.count,
+          mine: mine,
+          colors: colors,
+          onTap: () => onTap(r.emoji),
+        );
+      }).toList(growable: false),
+    );
+  }
+}
+
+class _ReactionChip extends StatelessWidget {
+  const _ReactionChip({
+    required this.emoji,
+    required this.count,
+    required this.mine,
+    required this.colors,
+    required this.onTap,
+  });
+
+  final String emoji;
+  final int count;
+  final bool mine;
+  final LumioColors colors;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = mine
+        ? AppColors.primary.withValues(alpha: 0.18)
+        : (isDark ? const Color(0xFF222B42) : Colors.white);
+    final border = mine
+        ? AppColors.primary.withValues(alpha: 0.55)
+        : colors.hairline;
+    final countColor = mine ? AppColors.primary : colors.fg2;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(
+          color: bg,
+          border: Border.all(color: border),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 14)),
+            if (count > 1) ...[
+              const SizedBox(width: 4),
+              Text(
+                '$count',
+                style: AppTextStyles.caption(color: countColor).copyWith(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -2623,6 +2835,7 @@ class _ContextMenuOverlay extends StatelessWidget {
   final LumioColors colors;
   final ThemeData theme;
   final VoidCallback onDelete;
+  final void Function(String emoji) onReact;
   final double topOffset;
 
   const _ContextMenuOverlay({
@@ -2631,6 +2844,7 @@ class _ContextMenuOverlay extends StatelessWidget {
     required this.colors,
     required this.theme,
     required this.onDelete,
+    required this.onReact,
     required this.topOffset,
   });
 
@@ -2687,18 +2901,33 @@ class _ContextMenuOverlay extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     for (final emoji in ['❤️', '👍', '😂', '😮', '😢'])
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Text(emoji, style: const TextStyle(fontSize: 18)),
+                      _ReactionPillButton(
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          onReact(emoji);
+                        },
+                        child: Text(
+                          emoji,
+                          style: const TextStyle(fontSize: 22),
+                        ),
                       ),
-                    Container(
-                      width: 34, height: 34,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: isDark ? const Color(0xFF1F273C) : const Color(0xFFF8FAFE),
-                        border: Border.all(color: border),
+                    _ReactionPillButton(
+                      onTap: () async {
+                        final picked = await _showEmojiPickerSheet(context);
+                        if (picked != null) {
+                          if (context.mounted) Navigator.of(context).pop();
+                          onReact(picked);
+                        }
+                      },
+                      child: Container(
+                        width: 34, height: 34,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isDark ? const Color(0xFF1F273C) : const Color(0xFFF8FAFE),
+                          border: Border.all(color: border),
+                        ),
+                        child: Icon(Icons.add, color: isDark ? const Color(0xFF9AA3B8) : const Color(0xFF6B7488), size: 20),
                       ),
-                      child: Icon(Icons.add, color: isDark ? const Color(0xFF9AA3B8) : const Color(0xFF6B7488), size: 20),
                     ),
                   ],
                 ),
@@ -2763,6 +2992,95 @@ class _ContextMenuOverlay extends StatelessWidget {
         ),
       ],));
   }
+}
+
+/// Wraps a reaction-pill child in a fixed-size tappable hit area. Visual size
+/// stays the same as before; this only ensures fingers actually land on a
+/// gesture handler instead of inert Text.
+class _ReactionPillButton extends StatelessWidget {
+  const _ReactionPillButton({required this.child, required this.onTap});
+
+  final Widget child;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2),
+      child: InkWell(
+        onTap: onTap,
+        customBorder: const CircleBorder(),
+        child: SizedBox(
+          width: 38,
+          height: 38,
+          child: Center(child: child),
+        ),
+      ),
+    );
+  }
+}
+
+/// Curated extra-emoji picker shown when the user taps the "+" on the
+/// reaction pill. Keeps things small — a real emoji-picker package would
+/// add MBs to the bundle for a marginal UX improvement on a tap-to-react.
+Future<String?> _showEmojiPickerSheet(BuildContext context) {
+  const grid = <String>[
+    '❤️', '👍', '👎', '😂', '😮', '😢', '🔥', '🎉',
+    '🙏', '👏', '💯', '🤔', '😍', '😎', '😡', '🤝',
+    '✅', '❌', '🥳', '👀', '🫡', '💪', '🙌', '😴',
+  ];
+  return showModalBottomSheet<String>(
+    context: context,
+    backgroundColor: Theme.of(context).cardTheme.color,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xxl)),
+    ),
+    builder: (sheetContext) {
+      final c = sheetContext.lumioColors;
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _SheetHandle(colors: c),
+              const SizedBox(height: 4),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Text(
+                  'Pick a reaction',
+                  style: AppTextStyles.bodySemibold(color: c.fg1).copyWith(
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                crossAxisCount: 8,
+                mainAxisSpacing: 6,
+                crossAxisSpacing: 6,
+                children: [
+                  for (final emoji in grid)
+                    InkWell(
+                      onTap: () => Navigator.of(sheetContext).pop(emoji),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Center(
+                        child: Text(
+                          emoji,
+                          style: const TextStyle(fontSize: 26),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _ContextMenuAction extends StatelessWidget {

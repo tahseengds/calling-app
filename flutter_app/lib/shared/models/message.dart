@@ -2,6 +2,43 @@ enum MessageType { text, image, video, audio, file }
 
 enum MessageStatus { sending, sent, delivered, read, failed }
 
+/// Per-emoji aggregate of who reacted to a message. The server keeps the
+/// authoritative state in `message_reactions`; this is the rolled-up shape
+/// the client renders as chips. [userIds] lets the UI flag "you reacted"
+/// and show a 'You and N others' tooltip on tap.
+class ReactionSummary {
+  final String emoji;
+  final int count;
+  final List<String> userIds;
+  final DateTime firstReactedAt;
+
+  const ReactionSummary({
+    required this.emoji,
+    required this.count,
+    required this.userIds,
+    required this.firstReactedAt,
+  });
+
+  bool reactedByUser(String userId) => userIds.contains(userId);
+
+  factory ReactionSummary.fromJson(Map<String, dynamic> json) =>
+      ReactionSummary(
+        emoji: json['emoji'] as String,
+        count: (json['count'] as num).toInt(),
+        userIds: (json['user_ids'] as List<dynamic>)
+            .map((e) => e as String)
+            .toList(),
+        firstReactedAt: DateTime.parse(json['first_reacted_at'] as String),
+      );
+
+  Map<String, dynamic> toJson() => {
+        'emoji': emoji,
+        'count': count,
+        'user_ids': userIds,
+        'first_reacted_at': firstReactedAt.toUtc().toIso8601String(),
+      };
+}
+
 class ReplyPreview {
   final String senderName;
   final String text;
@@ -72,6 +109,10 @@ class Message {
   final String? replyToId;
   final ReplyPreview? replyTo;
   final bool isDeleted;
+  /// Per-emoji aggregate of reactions on this message. Always empty for
+  /// tombstones (the server scrubs reactions on soft-delete). Order is
+  /// "first-reacted first" so chips don't shuffle as new emojis appear.
+  final List<ReactionSummary> reactions;
 
   const Message({
     required this.id,
@@ -85,6 +126,7 @@ class Message {
     this.replyToId,
     this.replyTo,
     this.isDeleted = false,
+    this.reactions = const [],
   });
 
   factory Message.fromJson(Map<String, dynamic> json) => Message(
@@ -111,6 +153,11 @@ class Message {
             ? ReplyPreview.fromJson(json['reply_to'] as Map<String, dynamic>)
             : null,
         isDeleted: json['is_deleted'] as bool? ?? false,
+        reactions: (json['reactions'] as List<dynamic>?)
+                ?.map((e) =>
+                    ReactionSummary.fromJson(e as Map<String, dynamic>))
+                .toList() ??
+            const [],
       );
 
   Map<String, dynamic> toJson() => {
@@ -125,9 +172,15 @@ class Message {
         if (replyToId != null) 'reply_to_id': replyToId,
         if (replyTo != null) 'reply_to': replyTo!.toJson(),
         'is_deleted': isDeleted,
+        'reactions': reactions.map((r) => r.toJson()).toList(),
       };
 
-  Message copyWith({MessageStatus? status, ReplyPreview? replyTo}) => Message(
+  Message copyWith({
+    MessageStatus? status,
+    ReplyPreview? replyTo,
+    List<ReactionSummary>? reactions,
+  }) =>
+      Message(
         id: id,
         conversationId: conversationId,
         senderId: senderId,
@@ -139,5 +192,6 @@ class Message {
         replyToId: replyToId,
         replyTo: replyTo ?? this.replyTo,
         isDeleted: isDeleted,
+        reactions: reactions ?? this.reactions,
       );
 }

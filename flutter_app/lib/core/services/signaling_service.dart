@@ -25,6 +25,28 @@ class MessageDeletedEvent {
       {required this.messageId, required this.conversationId});
 }
 
+/// Pushed when another user adds or removes a reaction on a message we can
+/// see. The full post-mutation summary list is included so the receiver can
+/// overwrite local state without recomputing — the actor's HTTP response
+/// covers their own clients.
+class MessageReactionEvent {
+  final String messageId;
+  final String conversationId;
+  final String actorUserId;
+  final String emoji;
+  final bool added; // false ⇒ removed
+  final List<Map<String, dynamic>> reactionsJson;
+
+  const MessageReactionEvent({
+    required this.messageId,
+    required this.conversationId,
+    required this.actorUserId,
+    required this.emoji,
+    required this.added,
+    required this.reactionsJson,
+  });
+}
+
 class TypingEvent {
   final String fromUserId;
   final String conversationId;
@@ -96,6 +118,8 @@ class SignalingService {
   final _messageAckCtrl = StreamController<MessageAckEvent>.broadcast();
   final _messageDeletedCtrl =
       StreamController<MessageDeletedEvent>.broadcast();
+  final _messageReactionCtrl =
+      StreamController<MessageReactionEvent>.broadcast();
   final _typingCtrl = StreamController<TypingEvent>.broadcast();
   final _presenceCtrl = StreamController<PresenceEvent>.broadcast();
 
@@ -114,6 +138,8 @@ class SignalingService {
   Stream<MessageAckEvent> get onMessageAck => _messageAckCtrl.stream;
   Stream<MessageDeletedEvent> get onMessageDeleted =>
       _messageDeletedCtrl.stream;
+  Stream<MessageReactionEvent> get onMessageReaction =>
+      _messageReactionCtrl.stream;
   Stream<TypingEvent> get onTyping => _typingCtrl.stream;
   Stream<PresenceEvent> get onPresence => _presenceCtrl.stream;
 
@@ -204,6 +230,30 @@ class SignalingService {
           conversationId: map['conversation_id'] as String,
         ));
       }
+    });
+
+    void emitReaction(Map<String, dynamic> map, {required bool added}) {
+      final reactions = (map['reactions'] as List<dynamic>?)
+              ?.map((e) => Map<String, dynamic>.from(e as Map))
+              .toList() ??
+          const <Map<String, dynamic>>[];
+      _messageReactionCtrl.add(MessageReactionEvent(
+        messageId: map['message_id'] as String,
+        conversationId: map['conversation_id'] as String,
+        actorUserId: map['user_id'] as String,
+        emoji: map['emoji'] as String,
+        added: added,
+        reactionsJson: reactions,
+      ));
+    }
+
+    s.on('message:reaction_added', (data) {
+      final map = _asMap(data);
+      if (map != null) emitReaction(map, added: true);
+    });
+    s.on('message:reaction_removed', (data) {
+      final map = _asMap(data);
+      if (map != null) emitReaction(map, added: false);
     });
 
     s.on('typing:start', (data) {

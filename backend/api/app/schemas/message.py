@@ -57,11 +57,24 @@ class ReceiptRequest(BaseModel):
 
 # ── Responses ─────────────────────────────────────────────────────────────────
 
+class ReactionSummary(BaseModel):
+    """
+    Aggregate of a single emoji on a message: how many users reacted, which
+    users (so the client can render a 'You and 2 others' tooltip), and the
+    timestamp of the earliest reaction (for stable sort order in chip rows).
+    """
+    emoji: str
+    count: int
+    user_ids: list[UUID]
+    first_reacted_at: datetime
+
+
 class MessageResponse(BaseModel):
     """
     is_deleted=True means the message was soft-deleted; content, media_id, and
     media are always None in that case. The client should render "message deleted".
     media is populated when the message has an associated MediaFile; None for text.
+    reactions aggregates reactions per-emoji; empty list when no one has reacted.
     """
     model_config = ConfigDict(from_attributes=False)
 
@@ -77,6 +90,26 @@ class MessageResponse(BaseModel):
     is_deleted: bool
     created_at: datetime
     updated_at: datetime | None
+    reactions: list[ReactionSummary] = []
+
+
+class AddReactionRequest(BaseModel):
+    """
+    Body for POST /messages/{message_id}/reactions. Caps emoji at 32 chars so
+    a single grapheme cluster (incl. ZWJ sequences like 👨‍👩‍👧) fits but
+    arbitrary text doesn't.
+    """
+    emoji: str
+
+    @field_validator("emoji")
+    @classmethod
+    def validate_emoji(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("emoji must not be empty")
+        if len(v) > 32:
+            raise ValueError("emoji must be at most 32 characters")
+        return v
 
 
 class ConversationResponse(BaseModel):

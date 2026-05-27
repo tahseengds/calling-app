@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/storage/local_db.dart';
@@ -93,6 +95,7 @@ class MessageLocalDao {
         createdAt: row.createdAt,
         replyToId: row.replyToId,
         isDeleted: row.isDeleted,
+        reactions: decodeReactions(row.reactionsJson),
       );
 
   MessagesTableCompanion _toCompanion(Message msg) =>
@@ -112,7 +115,46 @@ class MessageLocalDao {
             msg.status == MessageStatus.delivered ||
             msg.status == MessageStatus.read),
         isDeleted: Value(msg.isDeleted),
+        reactionsJson: Value(encodeReactions(msg.reactions)),
       );
+
+  // ── Reactions ─────────────────────────────────────────────────────────────
+
+  /// Replace a single message's stored reactions list. Used by the realtime
+  /// event handler — the server gives us the post-mutation aggregate, so we
+  /// can blindly overwrite instead of mutating individual rows.
+  Future<void> updateReactions(
+    String messageId,
+    List<ReactionSummary> reactions,
+  ) =>
+      (_db.update(_db.messagesTable)..where((m) => m.id.equals(messageId)))
+          .write(
+        MessagesTableCompanion(
+          reactionsJson: Value(encodeReactions(reactions)),
+        ),
+      );
+}
+
+/// Encode a reaction list as the compact JSON we store in `reactionsJson`.
+/// Empty list → empty string so the column default works without a null path.
+String encodeReactions(List<ReactionSummary> reactions) {
+  if (reactions.isEmpty) return '';
+  return jsonEncode(reactions.map((r) => r.toJson()).toList());
+}
+
+/// Decode the inverse. Tolerates the empty-string sentinel + any parse error
+/// (e.g. row written by a future schema) by returning an empty list.
+List<ReactionSummary> decodeReactions(String? raw) {
+  if (raw == null || raw.isEmpty) return const [];
+  try {
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) return const [];
+    return decoded
+        .map((e) => ReactionSummary.fromJson(e as Map<String, dynamic>))
+        .toList();
+  } catch (_) {
+    return const [];
+  }
 }
 
 final messageLocalDaoProvider = Provider<MessageLocalDao>((ref) {

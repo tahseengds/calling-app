@@ -241,6 +241,18 @@ class $MessagesTableTable extends MessagesTable
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _reactionsJsonMeta = const VerificationMeta(
+    'reactionsJson',
+  );
+  @override
+  late final GeneratedColumn<String> reactionsJson = GeneratedColumn<String>(
+    'reactions_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -257,6 +269,7 @@ class $MessagesTableTable extends MessagesTable
     createdAt,
     isSynced,
     isDeleted,
+    reactionsJson,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -379,6 +392,15 @@ class $MessagesTableTable extends MessagesTable
         isDeleted.isAcceptableOrUnknown(data['is_deleted']!, _isDeletedMeta),
       );
     }
+    if (data.containsKey('reactions_json')) {
+      context.handle(
+        _reactionsJsonMeta,
+        reactionsJson.isAcceptableOrUnknown(
+          data['reactions_json']!,
+          _reactionsJsonMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -444,6 +466,10 @@ class $MessagesTableTable extends MessagesTable
         DriftSqlType.bool,
         data['${effectivePrefix}is_deleted'],
       )!,
+      reactionsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}reactions_json'],
+      )!,
     );
   }
 
@@ -468,6 +494,13 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
   final DateTime createdAt;
   final bool isSynced;
   final bool isDeleted;
+
+  /// JSON-encoded `List<ReactionSummary>` round-tripped from the server.
+  /// Stored as JSON (not a separate join table) because the client only ever
+  /// renders pre-aggregated chips — per-reaction queries aren't useful here.
+  /// Empty string means "no reactions" (we avoid NULL so callers can decode
+  /// without a null check on the hot read path).
+  final String reactionsJson;
   const MessageRow({
     required this.id,
     required this.conversationId,
@@ -483,6 +516,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     required this.createdAt,
     required this.isSynced,
     required this.isDeleted,
+    required this.reactionsJson,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -513,6 +547,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     map['created_at'] = Variable<DateTime>(createdAt);
     map['is_synced'] = Variable<bool>(isSynced);
     map['is_deleted'] = Variable<bool>(isDeleted);
+    map['reactions_json'] = Variable<String>(reactionsJson);
     return map;
   }
 
@@ -544,6 +579,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       createdAt: Value(createdAt),
       isSynced: Value(isSynced),
       isDeleted: Value(isDeleted),
+      reactionsJson: Value(reactionsJson),
     );
   }
 
@@ -567,6 +603,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       isSynced: serializer.fromJson<bool>(json['isSynced']),
       isDeleted: serializer.fromJson<bool>(json['isDeleted']),
+      reactionsJson: serializer.fromJson<String>(json['reactionsJson']),
     );
   }
   @override
@@ -587,6 +624,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'isSynced': serializer.toJson<bool>(isSynced),
       'isDeleted': serializer.toJson<bool>(isDeleted),
+      'reactionsJson': serializer.toJson<String>(reactionsJson),
     };
   }
 
@@ -605,6 +643,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     DateTime? createdAt,
     bool? isSynced,
     bool? isDeleted,
+    String? reactionsJson,
   }) => MessageRow(
     id: id ?? this.id,
     conversationId: conversationId ?? this.conversationId,
@@ -626,6 +665,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     createdAt: createdAt ?? this.createdAt,
     isSynced: isSynced ?? this.isSynced,
     isDeleted: isDeleted ?? this.isDeleted,
+    reactionsJson: reactionsJson ?? this.reactionsJson,
   );
   MessageRow copyWithCompanion(MessagesTableCompanion data) {
     return MessageRow(
@@ -655,6 +695,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       isSynced: data.isSynced.present ? data.isSynced.value : this.isSynced,
       isDeleted: data.isDeleted.present ? data.isDeleted.value : this.isDeleted,
+      reactionsJson: data.reactionsJson.present
+          ? data.reactionsJson.value
+          : this.reactionsJson,
     );
   }
 
@@ -674,7 +717,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
           ..write('replyToId: $replyToId, ')
           ..write('createdAt: $createdAt, ')
           ..write('isSynced: $isSynced, ')
-          ..write('isDeleted: $isDeleted')
+          ..write('isDeleted: $isDeleted, ')
+          ..write('reactionsJson: $reactionsJson')
           ..write(')'))
         .toString();
   }
@@ -695,6 +739,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     createdAt,
     isSynced,
     isDeleted,
+    reactionsJson,
   );
   @override
   bool operator ==(Object other) =>
@@ -713,7 +758,8 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
           other.replyToId == this.replyToId &&
           other.createdAt == this.createdAt &&
           other.isSynced == this.isSynced &&
-          other.isDeleted == this.isDeleted);
+          other.isDeleted == this.isDeleted &&
+          other.reactionsJson == this.reactionsJson);
 }
 
 class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
@@ -731,6 +777,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
   final Value<DateTime> createdAt;
   final Value<bool> isSynced;
   final Value<bool> isDeleted;
+  final Value<String> reactionsJson;
   final Value<int> rowid;
   const MessagesTableCompanion({
     this.id = const Value.absent(),
@@ -747,6 +794,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
     this.createdAt = const Value.absent(),
     this.isSynced = const Value.absent(),
     this.isDeleted = const Value.absent(),
+    this.reactionsJson = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   MessagesTableCompanion.insert({
@@ -764,6 +812,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
     required DateTime createdAt,
     this.isSynced = const Value.absent(),
     this.isDeleted = const Value.absent(),
+    this.reactionsJson = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        conversationId = Value(conversationId),
@@ -785,6 +834,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
     Expression<DateTime>? createdAt,
     Expression<bool>? isSynced,
     Expression<bool>? isDeleted,
+    Expression<String>? reactionsJson,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -802,6 +852,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
       if (createdAt != null) 'created_at': createdAt,
       if (isSynced != null) 'is_synced': isSynced,
       if (isDeleted != null) 'is_deleted': isDeleted,
+      if (reactionsJson != null) 'reactions_json': reactionsJson,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -821,6 +872,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
     Value<DateTime>? createdAt,
     Value<bool>? isSynced,
     Value<bool>? isDeleted,
+    Value<String>? reactionsJson,
     Value<int>? rowid,
   }) {
     return MessagesTableCompanion(
@@ -838,6 +890,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
       createdAt: createdAt ?? this.createdAt,
       isSynced: isSynced ?? this.isSynced,
       isDeleted: isDeleted ?? this.isDeleted,
+      reactionsJson: reactionsJson ?? this.reactionsJson,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -887,6 +940,9 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
     if (isDeleted.present) {
       map['is_deleted'] = Variable<bool>(isDeleted.value);
     }
+    if (reactionsJson.present) {
+      map['reactions_json'] = Variable<String>(reactionsJson.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -910,6 +966,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
           ..write('createdAt: $createdAt, ')
           ..write('isSynced: $isSynced, ')
           ..write('isDeleted: $isDeleted, ')
+          ..write('reactionsJson: $reactionsJson, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2660,6 +2717,7 @@ typedef $$MessagesTableTableCreateCompanionBuilder =
       required DateTime createdAt,
       Value<bool> isSynced,
       Value<bool> isDeleted,
+      Value<String> reactionsJson,
       Value<int> rowid,
     });
 typedef $$MessagesTableTableUpdateCompanionBuilder =
@@ -2678,6 +2736,7 @@ typedef $$MessagesTableTableUpdateCompanionBuilder =
       Value<DateTime> createdAt,
       Value<bool> isSynced,
       Value<bool> isDeleted,
+      Value<String> reactionsJson,
       Value<int> rowid,
     });
 
@@ -2757,6 +2816,11 @@ class $$MessagesTableTableFilterComposer
 
   ColumnFilters<bool> get isDeleted => $composableBuilder(
     column: $table.isDeleted,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get reactionsJson => $composableBuilder(
+    column: $table.reactionsJson,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -2839,6 +2903,11 @@ class $$MessagesTableTableOrderingComposer
     column: $table.isDeleted,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get reactionsJson => $composableBuilder(
+    column: $table.reactionsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$MessagesTableTableAnnotationComposer
@@ -2903,6 +2972,11 @@ class $$MessagesTableTableAnnotationComposer
 
   GeneratedColumn<bool> get isDeleted =>
       $composableBuilder(column: $table.isDeleted, builder: (column) => column);
+
+  GeneratedColumn<String> get reactionsJson => $composableBuilder(
+    column: $table.reactionsJson,
+    builder: (column) => column,
+  );
 }
 
 class $$MessagesTableTableTableManager
@@ -2950,6 +3024,7 @@ class $$MessagesTableTableTableManager
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<bool> isSynced = const Value.absent(),
                 Value<bool> isDeleted = const Value.absent(),
+                Value<String> reactionsJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MessagesTableCompanion(
                 id: id,
@@ -2966,6 +3041,7 @@ class $$MessagesTableTableTableManager
                 createdAt: createdAt,
                 isSynced: isSynced,
                 isDeleted: isDeleted,
+                reactionsJson: reactionsJson,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -2984,6 +3060,7 @@ class $$MessagesTableTableTableManager
                 required DateTime createdAt,
                 Value<bool> isSynced = const Value.absent(),
                 Value<bool> isDeleted = const Value.absent(),
+                Value<String> reactionsJson = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MessagesTableCompanion.insert(
                 id: id,
@@ -3000,6 +3077,7 @@ class $$MessagesTableTableTableManager
                 createdAt: createdAt,
                 isSynced: isSynced,
                 isDeleted: isDeleted,
+                reactionsJson: reactionsJson,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

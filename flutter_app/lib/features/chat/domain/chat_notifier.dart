@@ -65,6 +65,7 @@ class ChatNotifier extends Notifier<ChatState> {
   StreamSubscription<MessageNewEvent>? _msgNewSub;
   StreamSubscription<MessageAckEvent>? _msgAckSub;
   StreamSubscription<MessageDeletedEvent>? _msgDelSub;
+  StreamSubscription<MessageReactionEvent>? _msgReactSub;
   StreamSubscription<TypingEvent>? _typingSub;
   Timer? _typingStopTimer;
   bool _isTyping = false;
@@ -76,6 +77,7 @@ class ChatNotifier extends Notifier<ChatState> {
       _msgNewSub?.cancel();
       _msgAckSub?.cancel();
       _msgDelSub?.cancel();
+      _msgReactSub?.cancel();
       _typingSub?.cancel();
       _typingStopTimer?.cancel();
     });
@@ -180,10 +182,116 @@ class ChatNotifier extends Notifier<ChatState> {
       ref.read(messageLocalDaoProvider).markDeleted(event.messageId);
     });
 
+    _msgReactSub = signaling.onMessageReaction.listen((event) {
+      if (event.conversationId != _conversationId) return;
+      final summaries = event.reactionsJson
+          .map((j) => ReactionSummary.fromJson(j))
+          .toList();
+      ref
+          .read(messageLocalDaoProvider)
+          .updateReactions(event.messageId, summaries);
+    });
+
     _typingSub = signaling.onTyping.listen((event) {
       if (event.conversationId != _conversationId) return;
       state = state.copyWith(otherUserTyping: event.isTyping);
     });
+  }
+
+  // ── Reactions ─────────────────────────────────────────────────────────────
+
+  /// Toggle a reaction by the current user on a message. If the user already
+  /// has [emoji] on the message, this removes it; otherwise it adds it.
+  /// Updates Drift optimistically and rolls back on a request failure.
+  Future<void> toggleReaction(String messageId, String emoji) async {
+    final dao = ref.read(messageLocalDaoProvider);
+    final me = _currentUserId;
+    if (me.isEmpty) return;
+
+    final msg = state.messages.where((m) => m.id == messageId).firstOrNull;
+    if (msg == null || msg.isDeleted) return;
+
+    final existing = msg.reactions
+        .where((r) => r.emoji == emoji)
+        .firstOrNull;
+    final iAlreadyReacted = existing?.reactedByUser(me) ?? false;
+
+    // Build optimistic next state.
+    final optimistic = _withToggledReaction(
+      msg.reactions,
+      emoji: emoji,
+      userId: me,
+      add: !iAlreadyReacted,
+    );
+    await dao.updateReactions(messageId, optimistic);
+
+    try {
+      final updated = iAlreadyReacted
+          ? await ref
+              .read(messageRepositoryProvider)
+              .removeReaction(messageId, emoji)
+          : await ref
+              .read(messageRepositoryProvider)
+              .addReaction(messageId, emoji);
+      // Server is the source of truth — overwrite local state with its answer.
+      await dao.updateReactions(messageId, updated);
+    } catch (e, st) {
+      debugPrint('[chat] toggleReaction failed for $messageId / $emoji: $e\n$st');
+      // Roll back to the pre-optimistic snapshot.
+      await dao.updateReactions(messageId, msg.reactions);
+    }
+  }
+
+  /// Pure helper — computes the post-toggle reaction list locally so we can
+  /// render an immediate change before the server roundtrip.
+  List<ReactionSummary> _withToggledReaction(
+    List<ReactionSummary> current, {
+    required String emoji,
+    required String userId,
+    required bool add,
+  }) {
+    final out = <ReactionSummary>[];
+    var matched = false;
+    for (final r in current) {
+      if (r.emoji != emoji) {
+        out.add(r);
+        continue;
+      }
+      matched = true;
+      if (add) {
+        if (r.reactedByUser(userId)) {
+          out.add(r); // no-op (server is idempotent)
+        } else {
+          out.add(ReactionSummary(
+            emoji: emoji,
+            count: r.count + 1,
+            userIds: [...r.userIds, userId],
+            firstReactedAt: r.firstReactedAt,
+          ));
+        }
+      } else {
+        final remaining =
+            r.userIds.where((u) => u != userId).toList(growable: false);
+        if (remaining.isNotEmpty) {
+          out.add(ReactionSummary(
+            emoji: emoji,
+            count: remaining.length,
+            userIds: remaining,
+            firstReactedAt: r.firstReactedAt,
+          ));
+        }
+        // else: drop the chip entirely
+      }
+    }
+    if (!matched && add) {
+      out.add(ReactionSummary(
+        emoji: emoji,
+        count: 1,
+        userIds: [userId],
+        firstReactedAt: DateTime.now(),
+      ));
+    }
+    return out;
   }
 
   // ── Send text ─────────────────────────────────────────────────────────────

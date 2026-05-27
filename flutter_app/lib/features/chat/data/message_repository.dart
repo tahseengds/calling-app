@@ -93,6 +93,37 @@ class MessageRepository {
     await _dio.delete<void>('/api/messages/$messageId');
   }
 
+  // ── Reactions ─────────────────────────────────────────────────────────────
+
+  /// Add a reaction. Server is idempotent — calling twice with the same emoji
+  /// just returns the unchanged summary.
+  Future<List<ReactionSummary>> addReaction(
+    String messageId,
+    String emoji,
+  ) async {
+    final resp = await _dio.post<List<dynamic>>(
+      '/api/messages/$messageId/reactions',
+      data: {'emoji': emoji},
+    );
+    return (resp.data ?? const [])
+        .map((e) => ReactionSummary.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
+  /// Remove the current user's reaction for a given emoji. No-op server-side
+  /// when it wasn't there to begin with — also returns the post-state summary.
+  Future<List<ReactionSummary>> removeReaction(
+    String messageId,
+    String emoji,
+  ) async {
+    final resp = await _dio.delete<List<dynamic>>(
+      '/api/messages/$messageId/reactions/${Uri.encodeComponent(emoji)}',
+    );
+    return (resp.data ?? const [])
+        .map((e) => ReactionSummary.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   // ── Media upload ──────────────────────────────────────────────────────────
 
   /// Uploads a file and returns the `media_id` + signed URLs.

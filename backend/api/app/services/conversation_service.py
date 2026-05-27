@@ -32,9 +32,16 @@ from app.utils.exceptions import (
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 def _msg_to_response(
-    msg: Message, media: MediaResponse | None = None
+    msg: Message,
+    media: MediaResponse | None = None,
+    reactions: list | None = None,
 ) -> MessageResponse:
-    """Build a MessageResponse, masking content/media for soft-deleted messages."""
+    """
+    Build a MessageResponse, masking content/media for soft-deleted messages.
+    Soft-deleted messages also drop their reactions client-side — the tombstone
+    is supposed to look inert, so we don't return them even if rows linger.
+    Caller is responsible for batching reaction loads; pass [] for none.
+    """
     deleted = msg.deleted_at is not None
     return MessageResponse(
         id=msg.id,
@@ -49,6 +56,7 @@ def _msg_to_response(
         is_deleted=deleted,
         created_at=msg.created_at,
         updated_at=msg.updated_at,
+        reactions=[] if deleted else (reactions or []),
     )
 
 
