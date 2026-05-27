@@ -83,6 +83,7 @@ class MessageLocalDao {
             ? MediaAttachment(
                 url: row.mediaRemoteUrl!,
                 thumbnailUrl: row.thumbnailUrl,
+                durationSeconds: row.durationSeconds,
               )
             : null,
         status: MessageStatus.values.firstWhere(
@@ -103,6 +104,7 @@ class MessageLocalDao {
         content: Value(msg.content),
         mediaRemoteUrl: Value(msg.media?.url),
         thumbnailUrl: Value(msg.media?.thumbnailUrl),
+        durationSeconds: Value(msg.media?.durationSeconds),
         status: Value(msg.status.name),
         replyToId: Value(msg.replyToId),
         createdAt: Value(msg.createdAt),

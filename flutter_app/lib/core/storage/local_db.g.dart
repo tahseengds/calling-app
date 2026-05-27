@@ -168,6 +168,17 @@ class $MessagesTableTable extends MessagesTable
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _durationSecondsMeta = const VerificationMeta(
+    'durationSeconds',
+  );
+  @override
+  late final GeneratedColumn<int> durationSeconds = GeneratedColumn<int>(
+    'duration_seconds',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _statusMeta = const VerificationMeta('status');
   @override
   late final GeneratedColumn<String> status = GeneratedColumn<String>(
@@ -240,6 +251,7 @@ class $MessagesTableTable extends MessagesTable
     mediaLocalPath,
     mediaRemoteUrl,
     thumbnailUrl,
+    durationSeconds,
     status,
     replyToId,
     createdAt,
@@ -326,6 +338,15 @@ class $MessagesTableTable extends MessagesTable
         ),
       );
     }
+    if (data.containsKey('duration_seconds')) {
+      context.handle(
+        _durationSecondsMeta,
+        durationSeconds.isAcceptableOrUnknown(
+          data['duration_seconds']!,
+          _durationSecondsMeta,
+        ),
+      );
+    }
     if (data.containsKey('status')) {
       context.handle(
         _statusMeta,
@@ -399,6 +420,10 @@ class $MessagesTableTable extends MessagesTable
         DriftSqlType.string,
         data['${effectivePrefix}thumbnail_url'],
       ),
+      durationSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_seconds'],
+      ),
       status: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}status'],
@@ -437,6 +462,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
   final String? mediaLocalPath;
   final String? mediaRemoteUrl;
   final String? thumbnailUrl;
+  final int? durationSeconds;
   final String status;
   final String? replyToId;
   final DateTime createdAt;
@@ -451,6 +477,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     this.mediaLocalPath,
     this.mediaRemoteUrl,
     this.thumbnailUrl,
+    this.durationSeconds,
     required this.status,
     this.replyToId,
     required this.createdAt,
@@ -475,6 +502,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     }
     if (!nullToAbsent || thumbnailUrl != null) {
       map['thumbnail_url'] = Variable<String>(thumbnailUrl);
+    }
+    if (!nullToAbsent || durationSeconds != null) {
+      map['duration_seconds'] = Variable<int>(durationSeconds);
     }
     map['status'] = Variable<String>(status);
     if (!nullToAbsent || replyToId != null) {
@@ -504,6 +534,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       thumbnailUrl: thumbnailUrl == null && nullToAbsent
           ? const Value.absent()
           : Value(thumbnailUrl),
+      durationSeconds: durationSeconds == null && nullToAbsent
+          ? const Value.absent()
+          : Value(durationSeconds),
       status: Value(status),
       replyToId: replyToId == null && nullToAbsent
           ? const Value.absent()
@@ -528,6 +561,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       mediaLocalPath: serializer.fromJson<String?>(json['mediaLocalPath']),
       mediaRemoteUrl: serializer.fromJson<String?>(json['mediaRemoteUrl']),
       thumbnailUrl: serializer.fromJson<String?>(json['thumbnailUrl']),
+      durationSeconds: serializer.fromJson<int?>(json['durationSeconds']),
       status: serializer.fromJson<String>(json['status']),
       replyToId: serializer.fromJson<String?>(json['replyToId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -547,6 +581,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       'mediaLocalPath': serializer.toJson<String?>(mediaLocalPath),
       'mediaRemoteUrl': serializer.toJson<String?>(mediaRemoteUrl),
       'thumbnailUrl': serializer.toJson<String?>(thumbnailUrl),
+      'durationSeconds': serializer.toJson<int?>(durationSeconds),
       'status': serializer.toJson<String>(status),
       'replyToId': serializer.toJson<String?>(replyToId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -564,6 +599,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     Value<String?> mediaLocalPath = const Value.absent(),
     Value<String?> mediaRemoteUrl = const Value.absent(),
     Value<String?> thumbnailUrl = const Value.absent(),
+    Value<int?> durationSeconds = const Value.absent(),
     String? status,
     Value<String?> replyToId = const Value.absent(),
     DateTime? createdAt,
@@ -582,6 +618,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
         ? mediaRemoteUrl.value
         : this.mediaRemoteUrl,
     thumbnailUrl: thumbnailUrl.present ? thumbnailUrl.value : this.thumbnailUrl,
+    durationSeconds: durationSeconds.present
+        ? durationSeconds.value
+        : this.durationSeconds,
     status: status ?? this.status,
     replyToId: replyToId.present ? replyToId.value : this.replyToId,
     createdAt: createdAt ?? this.createdAt,
@@ -608,6 +647,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       thumbnailUrl: data.thumbnailUrl.present
           ? data.thumbnailUrl.value
           : this.thumbnailUrl,
+      durationSeconds: data.durationSeconds.present
+          ? data.durationSeconds.value
+          : this.durationSeconds,
       status: data.status.present ? data.status.value : this.status,
       replyToId: data.replyToId.present ? data.replyToId.value : this.replyToId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
@@ -627,6 +669,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
           ..write('mediaLocalPath: $mediaLocalPath, ')
           ..write('mediaRemoteUrl: $mediaRemoteUrl, ')
           ..write('thumbnailUrl: $thumbnailUrl, ')
+          ..write('durationSeconds: $durationSeconds, ')
           ..write('status: $status, ')
           ..write('replyToId: $replyToId, ')
           ..write('createdAt: $createdAt, ')
@@ -646,6 +689,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     mediaLocalPath,
     mediaRemoteUrl,
     thumbnailUrl,
+    durationSeconds,
     status,
     replyToId,
     createdAt,
@@ -664,6 +708,7 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
           other.mediaLocalPath == this.mediaLocalPath &&
           other.mediaRemoteUrl == this.mediaRemoteUrl &&
           other.thumbnailUrl == this.thumbnailUrl &&
+          other.durationSeconds == this.durationSeconds &&
           other.status == this.status &&
           other.replyToId == this.replyToId &&
           other.createdAt == this.createdAt &&
@@ -680,6 +725,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
   final Value<String?> mediaLocalPath;
   final Value<String?> mediaRemoteUrl;
   final Value<String?> thumbnailUrl;
+  final Value<int?> durationSeconds;
   final Value<String> status;
   final Value<String?> replyToId;
   final Value<DateTime> createdAt;
@@ -695,6 +741,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
     this.mediaLocalPath = const Value.absent(),
     this.mediaRemoteUrl = const Value.absent(),
     this.thumbnailUrl = const Value.absent(),
+    this.durationSeconds = const Value.absent(),
     this.status = const Value.absent(),
     this.replyToId = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -711,6 +758,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
     this.mediaLocalPath = const Value.absent(),
     this.mediaRemoteUrl = const Value.absent(),
     this.thumbnailUrl = const Value.absent(),
+    this.durationSeconds = const Value.absent(),
     this.status = const Value.absent(),
     this.replyToId = const Value.absent(),
     required DateTime createdAt,
@@ -731,6 +779,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
     Expression<String>? mediaLocalPath,
     Expression<String>? mediaRemoteUrl,
     Expression<String>? thumbnailUrl,
+    Expression<int>? durationSeconds,
     Expression<String>? status,
     Expression<String>? replyToId,
     Expression<DateTime>? createdAt,
@@ -747,6 +796,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
       if (mediaLocalPath != null) 'media_local_path': mediaLocalPath,
       if (mediaRemoteUrl != null) 'media_remote_url': mediaRemoteUrl,
       if (thumbnailUrl != null) 'thumbnail_url': thumbnailUrl,
+      if (durationSeconds != null) 'duration_seconds': durationSeconds,
       if (status != null) 'status': status,
       if (replyToId != null) 'reply_to_id': replyToId,
       if (createdAt != null) 'created_at': createdAt,
@@ -765,6 +815,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
     Value<String?>? mediaLocalPath,
     Value<String?>? mediaRemoteUrl,
     Value<String?>? thumbnailUrl,
+    Value<int?>? durationSeconds,
     Value<String>? status,
     Value<String?>? replyToId,
     Value<DateTime>? createdAt,
@@ -781,6 +832,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
       mediaLocalPath: mediaLocalPath ?? this.mediaLocalPath,
       mediaRemoteUrl: mediaRemoteUrl ?? this.mediaRemoteUrl,
       thumbnailUrl: thumbnailUrl ?? this.thumbnailUrl,
+      durationSeconds: durationSeconds ?? this.durationSeconds,
       status: status ?? this.status,
       replyToId: replyToId ?? this.replyToId,
       createdAt: createdAt ?? this.createdAt,
@@ -817,6 +869,9 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
     if (thumbnailUrl.present) {
       map['thumbnail_url'] = Variable<String>(thumbnailUrl.value);
     }
+    if (durationSeconds.present) {
+      map['duration_seconds'] = Variable<int>(durationSeconds.value);
+    }
     if (status.present) {
       map['status'] = Variable<String>(status.value);
     }
@@ -849,6 +904,7 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
           ..write('mediaLocalPath: $mediaLocalPath, ')
           ..write('mediaRemoteUrl: $mediaRemoteUrl, ')
           ..write('thumbnailUrl: $thumbnailUrl, ')
+          ..write('durationSeconds: $durationSeconds, ')
           ..write('status: $status, ')
           ..write('replyToId: $replyToId, ')
           ..write('createdAt: $createdAt, ')
@@ -2598,6 +2654,7 @@ typedef $$MessagesTableTableCreateCompanionBuilder =
       Value<String?> mediaLocalPath,
       Value<String?> mediaRemoteUrl,
       Value<String?> thumbnailUrl,
+      Value<int?> durationSeconds,
       Value<String> status,
       Value<String?> replyToId,
       required DateTime createdAt,
@@ -2615,6 +2672,7 @@ typedef $$MessagesTableTableUpdateCompanionBuilder =
       Value<String?> mediaLocalPath,
       Value<String?> mediaRemoteUrl,
       Value<String?> thumbnailUrl,
+      Value<int?> durationSeconds,
       Value<String> status,
       Value<String?> replyToId,
       Value<DateTime> createdAt,
@@ -2669,6 +2727,11 @@ class $$MessagesTableTableFilterComposer
 
   ColumnFilters<String> get thumbnailUrl => $composableBuilder(
     column: $table.thumbnailUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -2747,6 +2810,11 @@ class $$MessagesTableTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get status => $composableBuilder(
     column: $table.status,
     builder: (column) => ColumnOrderings(column),
@@ -2816,6 +2884,11 @@ class $$MessagesTableTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<int> get durationSeconds => $composableBuilder(
+    column: $table.durationSeconds,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<String> get status =>
       $composableBuilder(column: $table.status, builder: (column) => column);
 
@@ -2871,6 +2944,7 @@ class $$MessagesTableTableTableManager
                 Value<String?> mediaLocalPath = const Value.absent(),
                 Value<String?> mediaRemoteUrl = const Value.absent(),
                 Value<String?> thumbnailUrl = const Value.absent(),
+                Value<int?> durationSeconds = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<String?> replyToId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -2886,6 +2960,7 @@ class $$MessagesTableTableTableManager
                 mediaLocalPath: mediaLocalPath,
                 mediaRemoteUrl: mediaRemoteUrl,
                 thumbnailUrl: thumbnailUrl,
+                durationSeconds: durationSeconds,
                 status: status,
                 replyToId: replyToId,
                 createdAt: createdAt,
@@ -2903,6 +2978,7 @@ class $$MessagesTableTableTableManager
                 Value<String?> mediaLocalPath = const Value.absent(),
                 Value<String?> mediaRemoteUrl = const Value.absent(),
                 Value<String?> thumbnailUrl = const Value.absent(),
+                Value<int?> durationSeconds = const Value.absent(),
                 Value<String> status = const Value.absent(),
                 Value<String?> replyToId = const Value.absent(),
                 required DateTime createdAt,
@@ -2918,6 +2994,7 @@ class $$MessagesTableTableTableManager
                 mediaLocalPath: mediaLocalPath,
                 mediaRemoteUrl: mediaRemoteUrl,
                 thumbnailUrl: thumbnailUrl,
+                durationSeconds: durationSeconds,
                 status: status,
                 replyToId: replyToId,
                 createdAt: createdAt,

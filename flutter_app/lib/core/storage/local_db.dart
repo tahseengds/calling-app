@@ -16,6 +16,10 @@ class MessagesTable extends Table {
   TextColumn get mediaLocalPath => text().nullable()();
   TextColumn get mediaRemoteUrl => text().nullable()();
   TextColumn get thumbnailUrl => text().nullable()();
+  // Length in seconds for audio + video. Round-tripped from the server's
+  // ffprobe value; for unsent (optimistic) messages it holds the value the
+  // recorder reported so the bubble can show the real length immediately.
+  IntColumn get durationSeconds => integer().nullable()();
   TextColumn get status => text().withDefault(const Constant('sent'))();
   TextColumn get replyToId => text().nullable()();
   DateTimeColumn get createdAt => dateTime()();
@@ -237,11 +241,19 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          // v1 → v2: messages gained a durationSeconds column for
+          // audio/video bubbles. Existing rows backfill as NULL — only
+          // newly-sent media will have a value populated.
+          if (from < 2) {
+            await m.addColumn(messagesTable, messagesTable.durationSeconds);
+          }
+        },
         beforeOpen: (_) async {
           // WAL mode improves concurrent read performance.
           await customStatement('PRAGMA journal_mode=WAL');
