@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -95,19 +96,46 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
 
     final isVideo = session.callType == CallType.video;
 
+    // Self-view while ringing: if the incoming video preview has acquired the
+    // camera, show it full-bleed (mirrored) behind a scrim so the user can
+    // check their framing before answering.
+    final webrtc = ref.read(callSessionProvider.notifier).webrtcService;
+    final showSelfView =
+        isVideo && webrtc != null && webrtc.localRenderer.srcObject != null;
+
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: RadialGradient(
-            colors: isDark
-                ? [const Color(0x525B7CFA), const Color(0xFF161D2D)]
-                : [const Color(0x2E5B7CFA), const Color(0xFFFFFFFF)],
-            center: const Alignment(0, -1.0),
-            radius: 1.2,
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  colors: isDark
+                      ? [const Color(0x525B7CFA), const Color(0xFF161D2D)]
+                      : [const Color(0x2E5B7CFA), const Color(0xFFFFFFFF)],
+                  center: const Alignment(0, -1.0),
+                  radius: 1.2,
+                ),
+              ),
+            ),
           ),
-        ),
-        child: Column(
-          children: [
+          if (showSelfView) ...[
+            Positioned.fill(
+              child: RTCVideoView(
+                webrtc!.localRenderer,
+                mirror: true,
+                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+              ),
+            ),
+            Positioned.fill(
+              child: ColoredBox(
+                color: Colors.black.withValues(alpha: 0.42),
+              ),
+            ),
+          ],
+          Positioned.fill(
+            child: Column(
+              children: [
             // ── Header ───────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.only(top: 64, left: 24, right: 24),
@@ -204,22 +232,30 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
                 alignment: WrapAlignment.center,
                 children: ["I'll call back", "On my way", "Can't talk now"]
                     .map((s) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.06)
-                          : Colors.black.withValues(alpha: 0.04),
-                      border: Border.all(color: lumioColors.hairline),
-                      borderRadius:
-                          BorderRadius.circular(AppRadius.pill),
-                    ),
-                    child: Text(
-                      s,
-                      style: AppTextStyles.secondaryMedium(
-                              color: lumioColors.fg1)
-                          .copyWith(fontSize: 13),
+                  return GestureDetector(
+                    onTap: () {
+                      // Decline the call and send the chip text as a message.
+                      ref
+                          .read(callSessionProvider.notifier)
+                          .declineWithMessage(s);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.06)
+                            : Colors.black.withValues(alpha: 0.04),
+                        border: Border.all(color: lumioColors.hairline),
+                        borderRadius:
+                            BorderRadius.circular(AppRadius.pill),
+                      ),
+                      child: Text(
+                        s,
+                        style: AppTextStyles.secondaryMedium(
+                                color: lumioColors.fg1)
+                            .copyWith(fontSize: 13),
+                      ),
                     ),
                   );
                 }).toList(),
@@ -328,6 +364,8 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
             ),
           ],
         ),
+          ),
+        ],
       ),
     );
   }

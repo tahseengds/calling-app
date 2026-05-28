@@ -131,6 +131,9 @@ class FakeWebRTCService implements WebRTCService {
       {'sdp': 'fake_answer_sdp', 'type': 'answer'};
 
   @override
+  Future<void> startLocalPreview({required bool video}) async {}
+
+  @override
   Future<void> setRemoteDescription(Map<String, dynamic> sdpMap) async {}
 
   @override

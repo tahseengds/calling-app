@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
@@ -99,6 +100,13 @@ class _OutgoingCallScreenState extends ConsumerState<OutgoingCallScreen>
 
     final isVideo = session.callType == CallType.video;
 
+    // Self-view: the caller's camera is already live (acquired when the offer
+    // was created), so show it full-bleed behind a scrim during a video call
+    // — lets the caller check their framing while it rings.
+    final webrtc = ref.read(callSessionProvider.notifier).webrtcService;
+    final showSelfView =
+        isVideo && webrtc != null && webrtc.localRenderer.srcObject != null;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -124,6 +132,22 @@ class _OutgoingCallScreenState extends ConsumerState<OutgoingCallScreen>
               ),
             ),
           ),
+
+          // ── Self-view (video calls) ───────────────────────────────────
+          if (showSelfView) ...[
+            Positioned.fill(
+              child: RTCVideoView(
+                webrtc!.localRenderer,
+                mirror: true,
+                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+              ),
+            ),
+            Positioned.fill(
+              child: ColoredBox(
+                color: Colors.black.withValues(alpha: 0.42),
+              ),
+            ),
+          ],
 
           // ── Status pill ───────────────────────────────────────────────
           SafeArea(

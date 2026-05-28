@@ -32,7 +32,18 @@ class CallQualityStats {
   final double? packetLossPercent;
   final int? rttMs;
 
-  const CallQualityStats({this.videoFps, this.packetLossPercent, this.rttMs});
+  /// Normalised audio levels (0.0–1.0) for the speaking indicator.
+  /// [localAudioLevel] is our own mic, [remoteAudioLevel] is the peer.
+  final double localAudioLevel;
+  final double remoteAudioLevel;
+
+  const CallQualityStats({
+    this.videoFps,
+    this.packetLossPercent,
+    this.rttMs,
+    this.localAudioLevel = 0.0,
+    this.remoteAudioLevel = 0.0,
+  });
 
   /// Coarse level used by the quality badge: 'good' | 'medium' | 'poor'.
   String get level {
@@ -59,6 +70,13 @@ abstract class WebRTCService {
 
   /// Initialise the peer connection with the supplied ICE server configs.
   Future<void> initialize({required List<Map<String, dynamic>> iceServers});
+
+  /// Start a local camera self-view *before* a call is connected, without
+  /// requiring a peer connection. Used to show the user their own video while
+  /// an incoming call is ringing (so they can check framing before answering).
+  /// Safe to call before [initialize]; the captured stream is reused when the
+  /// call is later set up.
+  Future<void> startLocalPreview({required bool video});
 
   /// Create an offer SDP (caller side). Returns `{'sdp': ..., 'type': ...}`.
   Future<Map<String, dynamic>> createOffer({required bool videoEnabled});
@@ -117,6 +135,8 @@ class WebRTCServiceImpl implements WebRTCService {
 
   bool _isMicOn = true;
   bool _isCameraOn = true;
+  bool _renderersInitialized = false;
+  bool _tracksAdded = false;
 
   void Function(Map<String, dynamic>)? _onIceCandidate;
   void Function(WebRTCConnectionState)? _onConnectionStateChange;
@@ -134,8 +154,7 @@ class WebRTCServiceImpl implements WebRTCService {
   @override
   Future<void> initialize(
       {required List<Map<String, dynamic>> iceServers}) async {
-    await _localRenderer.initialize();
-    await _remoteRenderer.initialize();
+    await _ensureRenderers();
 
     final configuration = <String, dynamic>{
       'iceServers': iceServers,
@@ -191,10 +210,19 @@ class WebRTCServiceImpl implements WebRTCService {
   }
 
   @override
+  Future<void> startLocalPreview({required bool video}) async {
+    await _ensureRenderers();
+    // Video-only for the preview so we don't pop a mic permission prompt
+    // while the call is still ringing — the mic is acquired at accept time.
+    await _ensureLocalStream(audio: false, video: video);
+  }
+
+  @override
   Future<Map<String, dynamic>> createOffer(
       {required bool videoEnabled}) async {
     assert(_pc != null, 'Call initialize() before createOffer()');
-    await _acquireLocalMedia(videoEnabled: videoEnabled);
+    await _ensureLocalStream(audio: true, video: videoEnabled);
+    await _addLocalTracksToPc();
 
     // Match the constraints to the actual call type. Previously this always
     // asked for both audio AND video, which made audio-only offers carry an
@@ -237,7 +265,8 @@ class WebRTCServiceImpl implements WebRTCService {
 
     // Set the remote offer first
     await setRemoteDescription(remoteOfferMap);
-    await _acquireLocalMedia(videoEnabled: videoEnabled);
+    await _ensureLocalStream(audio: true, video: videoEnabled);
+    await _addLocalTracksToPc();
 
     final answerConstraints = <String, dynamic>{
       'offerToReceiveAudio': true,
@@ -341,6 +370,8 @@ class WebRTCServiceImpl implements WebRTCService {
       double? fps;
       double? lossPercent;
       int? rttMs;
+      double localAudio = 0.0;
+      double remoteAudio = 0.0;
 
       for (final report in stats) {
         if (report.type == 'inbound-rtp' &&
@@ -353,6 +384,18 @@ class WebRTCServiceImpl implements WebRTCService {
           final total = packetsLost + packetsReceived;
           lossPercent = total > 0 ? packetsLost / total * 100 : 0.0;
         }
+        // Remote party's voice level (what we hear).
+        if (report.type == 'inbound-rtp' &&
+            report.values['kind'] == 'audio') {
+          final lvl = (report.values['audioLevel'] as num?)?.toDouble();
+          if (lvl != null) remoteAudio = lvl.clamp(0.0, 1.0);
+        }
+        // Our own mic level (what we send).
+        if (report.type == 'media-source' &&
+            report.values['kind'] == 'audio') {
+          final lvl = (report.values['audioLevel'] as num?)?.toDouble();
+          if (lvl != null) localAudio = lvl.clamp(0.0, 1.0);
+        }
         if (report.type == 'remote-inbound-rtp') {
           final rttSec =
               (report.values['roundTripTime'] as num?)?.toDouble() ?? 0.0;
@@ -364,6 +407,8 @@ class WebRTCServiceImpl implements WebRTCService {
         videoFps: fps,
         packetLossPercent: lossPercent,
         rttMs: rttMs,
+        localAudioLevel: localAudio,
+        remoteAudioLevel: remoteAudio,
       );
     } catch (_) {
       return const CallQualityStats();
@@ -380,34 +425,72 @@ class WebRTCServiceImpl implements WebRTCService {
     _pc = null;
     await _localRenderer.dispose();
     await _remoteRenderer.dispose();
+    _renderersInitialized = false;
+    _tracksAdded = false;
     _localStream = null;
     _remoteStream = null;
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────
 
-  Future<void> _acquireLocalMedia({required bool videoEnabled}) async {
-    if (_localStream != null) {
-      return; // already acquired
+  Future<void> _ensureRenderers() async {
+    if (_renderersInitialized) return;
+    await _localRenderer.initialize();
+    await _remoteRenderer.initialize();
+    _renderersInitialized = true;
+  }
+
+  static const Map<String, dynamic> _audioConstraints = {
+    'echoCancellation': true,
+    'noiseSuppression': true,
+    'autoGainControl': true,
+  };
+  static const Map<String, dynamic> _videoConstraints = {
+    'facingMode': 'user',
+    'width': 640,
+    'height': 480,
+  };
+
+  /// Ensure the local stream exists and carries the requested track kinds.
+  /// Handles the incremental case where a video-only preview stream already
+  /// exists and we now need to add the mic at accept time.
+  Future<void> _ensureLocalStream(
+      {required bool audio, required bool video}) async {
+    if (_localStream == null) {
+      _localStream = await navigator.mediaDevices.getUserMedia({
+        'audio': audio ? _audioConstraints : false,
+        'video': video ? _videoConstraints : false,
+      });
+      _localRenderer.srcObject = _localStream;
+      return;
     }
 
-    final constraints = <String, dynamic>{
-      'audio': {
-        'echoCancellation': true,
-        'noiseSuppression': true,
-        'autoGainControl': true,
-      },
-      'video': videoEnabled
-          ? {'facingMode': 'user', 'width': 640, 'height': 480}
-          : false,
-    };
+    // Stream already exists (e.g. from a pre-accept preview) — add any track
+    // kinds that are now required but missing.
+    if (audio && _localStream!.getAudioTracks().isEmpty) {
+      final extra = await navigator.mediaDevices
+          .getUserMedia({'audio': _audioConstraints, 'video': false});
+      for (final t in extra.getAudioTracks()) {
+        await _localStream!.addTrack(t);
+      }
+    }
+    if (video && _localStream!.getVideoTracks().isEmpty) {
+      final extra = await navigator.mediaDevices
+          .getUserMedia({'audio': false, 'video': _videoConstraints});
+      for (final t in extra.getVideoTracks()) {
+        await _localStream!.addTrack(t);
+      }
+      _localRenderer.srcObject = _localStream;
+    }
+  }
 
-    _localStream = await navigator.mediaDevices.getUserMedia(constraints);
-    _localRenderer.srcObject = _localStream;
-
+  /// Add the current local tracks to the peer connection exactly once.
+  Future<void> _addLocalTracksToPc() async {
+    if (_pc == null || _tracksAdded || _localStream == null) return;
     for (final track in _localStream!.getTracks()) {
       await _pc!.addTrack(track, _localStream!);
     }
+    _tracksAdded = true;
   }
 
   /// Apply SDP bitrate caps and codec preferences.

@@ -125,6 +125,11 @@ class CallSession {
   /// your contacts").
   final String? errorMessage;
 
+  /// Normalised voice levels (0.0–1.0) sampled from WebRTC stats, used to
+  /// drive the speaking indicator. [remoteAudioLevel] is the peer's voice.
+  final double localAudioLevel;
+  final double remoteAudioLevel;
+
   const CallSession({
     required this.callId,
     required this.peerUser,
@@ -142,6 +147,8 @@ class CallSession {
     this.pendingOffer,
     this.peerRinging = false,
     this.errorMessage,
+    this.localAudioLevel = 0.0,
+    this.remoteAudioLevel = 0.0,
   });
 
   /// Wall-clock seconds since ICE connected.
@@ -168,6 +175,8 @@ class CallSession {
     Map<String, dynamic>? pendingOffer,
     bool? peerRinging,
     String? errorMessage,
+    double? localAudioLevel,
+    double? remoteAudioLevel,
   }) =>
       CallSession(
         callId: callId,
@@ -187,5 +196,7 @@ class CallSession {
         pendingOffer: pendingOffer ?? this.pendingOffer,
         peerRinging: peerRinging ?? this.peerRinging,
         errorMessage: errorMessage ?? this.errorMessage,
+        localAudioLevel: localAudioLevel ?? this.localAudioLevel,
+        remoteAudioLevel: remoteAudioLevel ?? this.remoteAudioLevel,
       );
 }

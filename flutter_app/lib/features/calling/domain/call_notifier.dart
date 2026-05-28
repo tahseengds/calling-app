@@ -11,6 +11,8 @@ import '../../../core/services/signaling_service.dart';
 import '../../../core/services/webrtc_service.dart';
 import '../../auth/domain/auth_notifier.dart';
 import '../../auth/domain/auth_state.dart';
+import '../../chat/data/message_repository.dart';
+import '../../../shared/models/message.dart' show MessageType;
 import '../data/call_repository.dart';
 import '../data/ringback_player.dart';
 import 'call_state.dart';
@@ -297,12 +299,40 @@ class CallNotifier extends Notifier<CallSession?> {
       });
     }
 
+    // Foreground video call: warm up the camera self-view while ringing so
+    // the user can check their framing before answering. Backgrounded calls
+    // are handled by the native CallService and have no Flutter UI to show it.
+    if (callType == CallType.video && !isBackgrounded) {
+      unawaited(_startIncomingVideoPreview());
+    }
+
     // Missed-call timeout
     _ringTimeoutTimer = Timer(const Duration(seconds: 45), () {
       if (state?.phase == CallPhase.incomingRinging) {
         _endWithReason(EndReason.missed);
       }
     });
+  }
+
+  /// Camera self-view shown while an incoming *video* call is ringing.
+  /// Camera-only (the mic is requested at accept), best-effort — if the
+  /// permission is denied we simply fall back to the avatar.
+  Future<void> _startIncomingVideoPreview() async {
+    try {
+      final cam = await Permission.camera.request();
+      if (!cam.isGranted) return;
+      // Bail if the ring ended / was answered while the prompt was up.
+      if (state?.phase != CallPhase.incomingRinging) return;
+      _webrtc ??= createWebRTCService();
+      await _webrtc!.startLocalPreview(video: true);
+      // Nudge the UI so the incoming screen picks up the now-live renderer.
+      final s = state;
+      if (s != null && s.phase == CallPhase.incomingRinging) {
+        state = s.copyWith();
+      }
+    } catch (e) {
+      debugPrint('[call] incoming video preview failed: $e');
+    }
   }
 
   /// Called when the native FCM/CallService layer (prompt 15) wakes the
@@ -379,7 +409,9 @@ class CallNotifier extends Notifier<CallSession?> {
       final iceServers =
           await ref.read(callRepositoryProvider).getTurnCredentials();
 
-      _webrtc = createWebRTCService();
+      // Reuse the service created for the pre-accept video preview (if any) so
+      // we keep the already-running camera/self-view instead of reacquiring it.
+      _webrtc ??= createWebRTCService();
       await _webrtc!.initialize(iceServers: iceServers);
       _wireCallbacks(session.peerUser.id);
 
@@ -418,6 +450,31 @@ class CallNotifier extends Notifier<CallSession?> {
           to: session.peerUser.id,
         );
     _endWithReason(EndReason.rejected);
+  }
+
+  /// Decline an incoming call and send a quick text reply to the caller
+  /// (the "Can't talk now" style chips on the incoming-call screen).
+  Future<void> declineWithMessage(String text) async {
+    final session = state;
+    if (session == null || session.phase != CallPhase.incomingRinging) {
+      return;
+    }
+    final peerId = session.peerUser.id;
+    // Reject the call first so the caller stops ringing immediately.
+    declineCall();
+
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+    try {
+      await ref.read(messageRepositoryProvider).sendMessage(
+            clientId: const Uuid().v4(),
+            recipientId: peerId,
+            type: MessageType.text,
+            content: trimmed,
+          );
+    } catch (e) {
+      debugPrint('[call] declineWithMessage send failed: $e');
+    }
   }
 
   /// Hang up the current call from any phase.
@@ -959,12 +1016,12 @@ class CallNotifier extends Notifier<CallSession?> {
 
   void _startQualityMonitor() {
     _qualityTimer?.cancel();
-    // Sample once immediately so the badge reflects the real connection within
-    // a couple of seconds of connecting instead of sitting on the default
-    // "good" for a full poll interval; then keep it live on a 2s cadence.
+    // Sample once immediately so the badge reflects the real connection right
+    // after connecting instead of sitting on the default "good"; then keep it
+    // live on a 500ms cadence — fast enough to drive the speaking indicator.
     _sampleQuality();
     _qualityTimer = Timer.periodic(
-      const Duration(seconds: 2),
+      const Duration(milliseconds: 500),
       (_) => _sampleQuality(),
     );
   }
@@ -975,7 +1032,11 @@ class CallNotifier extends Notifier<CallSession?> {
       return;
     }
     final stats = await _webrtc!.getStats();
-    state = session.copyWith(quality: stats.level);
+    state = session.copyWith(
+      quality: stats.level,
+      localAudioLevel: stats.localAudioLevel,
+      remoteAudioLevel: stats.remoteAudioLevel,
+    );
 
     // Suggest audio-only if video FPS collapses
     if (session.callType == CallType.video &&

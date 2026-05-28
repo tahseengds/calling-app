@@ -10,6 +10,7 @@ import '../domain/call_notifier.dart';
 import '../domain/call_state.dart';
 import 'widgets/call_controls.dart';
 import 'widgets/call_quality_badge.dart';
+import 'widgets/speaking_indicator.dart';
 import 'video_call_screen.dart' show WeakConnectionBanner;
 
 /// Audio call UI — wired to the live [callSessionProvider].
@@ -133,10 +134,16 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen>
                                   ),
                                 ),
                               ),
-                              UserAvatar(
-                                displayName: session.peerUser.name,
-                                imageUrl: session.peerUser.avatarUrl,
-                                radius: 92,
+                              // Glow ring that reacts to the peer's voice —
+                              // a live "they're speaking" cue.
+                              SpeakingPulse(
+                                level: session.remoteAudioLevel,
+                                size: 184,
+                                child: UserAvatar(
+                                  displayName: session.peerUser.name,
+                                  imageUrl: session.peerUser.avatarUrl,
+                                  radius: 92,
+                                ),
                               ),
                             ],
                           ),
