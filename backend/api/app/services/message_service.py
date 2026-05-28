@@ -34,6 +34,7 @@ from app.schemas.message import (
 )
 from app.services.conversation_service import (
     _msg_to_response,
+    build_reply_preview,
     get_or_create_conversation,
 )
 from app.services.media_service import media_file_to_response
@@ -92,6 +93,21 @@ async def _assert_can_message(
     rev_contact = rev.scalar_one_or_none()
     if rev_contact and rev_contact.is_blocked:
         raise ForbiddenError("You cannot message this user")
+
+
+async def _load_reply_preview(db: AsyncSession, msg: Message):
+    """Fetch the quoted-message preview for a single message, or None."""
+    if not msg.reply_to_id:
+        return None
+    rt = (
+        await db.execute(select(Message).where(Message.id == msg.reply_to_id))
+    ).scalar_one_or_none()
+    if rt is None:
+        return None
+    name = (
+        await db.execute(select(User.name).where(User.id == rt.sender_id))
+    ).scalar_one_or_none() or "Unknown"
+    return build_reply_preview(rt, name)
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -153,7 +169,8 @@ async def send_message(
             mf = mf_r.scalar_one_or_none()
             if mf:
                 media_resp = media_file_to_response(mf)
-        return _msg_to_response(msg, media_resp)
+        reply_preview = await _load_reply_preview(db, msg)
+        return _msg_to_response(msg, media_resp, reply_to=reply_preview)
 
     # ── Update conversation ──────────────────────────────────────────────────
     await db.execute(
@@ -183,7 +200,8 @@ async def send_message(
         if mf:
             media_resp = media_file_to_response(mf)
 
-    response = _msg_to_response(msg, media_resp)
+    reply_preview = await _load_reply_preview(db, msg)
+    response = _msg_to_response(msg, media_resp, reply_to=reply_preview)
 
     # ── Publish to Redis (for Node.js signaling server — prompt 08) ──────────
     payload = response.model_dump(mode="json")
@@ -270,12 +288,38 @@ async def fetch_messages(
         db, [m.id for m in page_rows if m.deleted_at is None]
     )
 
+    # Batch-load quoted-message previews for messages that are replies.
+    reply_ids = {
+        m.reply_to_id
+        for m in page_rows
+        if m.reply_to_id is not None and m.deleted_at is None
+    }
+    reply_map: dict = {}
+    if reply_ids:
+        rt_rows = (
+            await db.execute(select(Message).where(Message.id.in_(reply_ids)))
+        ).scalars().all()
+        sender_ids = {r.sender_id for r in rt_rows}
+        names: dict = {}
+        if sender_ids:
+            name_rows = (
+                await db.execute(
+                    select(User.id, User.name).where(User.id.in_(sender_ids))
+                )
+            ).all()
+            names = {uid: nm for uid, nm in name_rows}
+        for r in rt_rows:
+            reply_map[r.id] = build_reply_preview(
+                r, names.get(r.sender_id, "Unknown")
+            )
+
     return MessagePage(
         messages=[
             _msg_to_response(
                 m,
                 media_map.get(m.media_id) if m.media_id else None,
                 react_map.get(m.id, []),
+                reply_to=reply_map.get(m.reply_to_id) if m.reply_to_id else None,
             )
             for m in page_rows
         ],

@@ -20,7 +20,11 @@ from app.models.media import MediaFile
 from app.models.message import Message, MessageReceipt
 from app.models.user import User
 from app.schemas.media import MediaResponse
-from app.schemas.message import ConversationResponse, MessageResponse
+from app.schemas.message import (
+    ConversationResponse,
+    MessageResponse,
+    ReplyPreview,
+)
 from app.schemas.user import UserPublic
 from app.utils.exceptions import (
     ForbiddenError,
@@ -31,10 +35,31 @@ from app.utils.exceptions import (
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
+# Short labels used in a reply preview when the quoted message has no text.
+_MEDIA_PREVIEW_LABEL = {
+    "image": "Photo",
+    "video": "Video",
+    "audio": "Voice message",
+    "document": "Document",
+}
+
+
+def build_reply_preview(msg: Message, sender_name: str) -> ReplyPreview:
+    """Build a quoted-message preview from the replied-to message + its sender."""
+    if msg.deleted_at is not None:
+        text = "Message deleted"
+    elif msg.content:
+        text = msg.content
+    else:
+        text = _MEDIA_PREVIEW_LABEL.get(msg.message_type, "Attachment")
+    return ReplyPreview(sender_name=sender_name, text=text)
+
+
 def _msg_to_response(
     msg: Message,
     media: MediaResponse | None = None,
     reactions: list | None = None,
+    reply_to: ReplyPreview | None = None,
 ) -> MessageResponse:
     """
     Build a MessageResponse, masking content/media for soft-deleted messages.
@@ -52,6 +77,7 @@ def _msg_to_response(
         media_id=None if deleted else msg.media_id,
         media=None if deleted else media,
         reply_to_id=msg.reply_to_id,
+        reply_to=reply_to,
         status=msg.status,
         is_deleted=deleted,
         created_at=msg.created_at,

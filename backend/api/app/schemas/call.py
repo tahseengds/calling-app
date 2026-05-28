@@ -44,6 +44,22 @@ class CallHistoryPage(BaseModel):
     next_cursor: str | None
 
 
+class CallLogRequest(BaseModel):
+    """Client-reported record of a call that ended outside the normal hangup
+    path (force-kill, audio interruption, ICE failure). `call_id` is the call's
+    UUID and becomes the row PK so re-posting is idempotent. `direction` is from
+    the reporting user's perspective; `connected_at` maps to `answered_at`."""
+    call_id: UUID
+    peer_user_id: UUID
+    call_type: CallTypeLiteral
+    direction: CallDirectionLiteral
+    started_at: datetime | None = None
+    connected_at: datetime | None = None
+    ended_at: datetime | None = None
+    duration_seconds: int | None = None
+    reason: str
+
+
 # ── Cursor helpers — created_at|id encoded base64 ────────────────────────────
 
 def encode_cursor(ts: datetime, call_id: UUID) -> str:

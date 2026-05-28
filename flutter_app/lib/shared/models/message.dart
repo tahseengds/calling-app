@@ -1,5 +1,26 @@
 enum MessageType { text, image, video, audio, file }
 
+/// Parse the backend's wire `message_type`. The server spells documents
+/// `"document"` while the Dart enum calls it `file`, so map it explicitly —
+/// otherwise document messages would fall through to text. Mirror of
+/// [MessageRepository.wireType] on the receive side.
+MessageType messageTypeFromWire(String? wire) {
+  switch (wire) {
+    case 'document':
+      return MessageType.file;
+    case 'image':
+      return MessageType.image;
+    case 'video':
+      return MessageType.video;
+    case 'audio':
+      return MessageType.audio;
+    case 'file':
+      return MessageType.file;
+    default:
+      return MessageType.text;
+  }
+}
+
 enum MessageStatus { sending, sent, delivered, read, failed }
 
 /// Per-emoji aggregate of who reacted to a message. The server keeps the
@@ -133,9 +154,8 @@ class Message {
         id: json['id'] as String,
         conversationId: json['conversation_id'] as String,
         senderId: json['sender_id'] as String,
-        type: MessageType.values.firstWhere(
-          (e) => e.name == (json['message_type'] as String? ?? json['type'] as String),
-          orElse: () => MessageType.text,
+        type: messageTypeFromWire(
+          json['message_type'] as String? ?? json['type'] as String?,
         ),
         content: json['content'] as String?,
         media: json['media'] != null

@@ -69,6 +69,14 @@ class ReactionSummary(BaseModel):
     first_reacted_at: datetime
 
 
+class ReplyPreview(BaseModel):
+    """Snapshot of the message being replied to so the client can render the
+    quoted preview without a second fetch. `text` is the quoted content, or a
+    type label ("Photo", "Voice message", …) for media / deleted messages."""
+    sender_name: str
+    text: str
+
+
 class MessageResponse(BaseModel):
     """
     is_deleted=True means the message was soft-deleted; content, media_id, and
@@ -86,6 +94,7 @@ class MessageResponse(BaseModel):
     media_id: UUID | None
     media: MediaResponse | None = None   # populated if media_id is set
     reply_to_id: UUID | None
+    reply_to: ReplyPreview | None = None  # quoted-message preview, if any
     status: str
     is_deleted: bool
     created_at: datetime

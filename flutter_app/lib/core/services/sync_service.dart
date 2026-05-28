@@ -29,6 +29,13 @@ class SyncService {
 
     for (final row in rows) {
       try {
+        // Media messages can't be replayed through this text-oriented path:
+        // the server media_id isn't stored locally, and POSTing without it
+        // fails backend validation (media_id required for non-text). Media has
+        // its own re-upload flow (retryMessage → pending_media_uploads), so
+        // skip non-text rows here instead of looping on a guaranteed 422.
+        if (row.messageType != 'text') continue;
+
         // Resolve recipient from the cached conversation.
         final convRows = await (_db.select(_db.conversationsTable)
               ..where((c) => c.id.equals(row.conversationId)))

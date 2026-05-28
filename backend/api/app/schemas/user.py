@@ -14,6 +14,10 @@ class UserPublic(BaseModel):
     email: str | None = None
     avatar_url: str | None
     last_seen: datetime
+    # Live presence ('online' | 'offline' | 'away' | 'busy'). Populated by the
+    # router from the signaling server's Redis presence keys; defaults to
+    # 'offline' when the user has no live socket session.
+    presence: str = "offline"
 
 
 class UserMe(UserPublic):

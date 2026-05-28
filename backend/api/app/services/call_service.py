@@ -11,18 +11,69 @@ deterministically. The current user's perspective decides whether each row is
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.call_record import CallRecord
 from app.models.user import User
 from app.schemas.call import (
     CallHistoryPage,
+    CallLogRequest,
     CallRecordResponse,
     decode_cursor,
     encode_cursor,
 )
 from app.schemas.user import UserPublic
 from app.utils.exceptions import ValidationFailedError
+
+
+# Map the client's EndReason name to a canonical call status. Anything not
+# listed (e.g. "hungUp") resolves by whether the call actually connected.
+_REASON_TO_STATUS = {
+    "rejected": "rejected",
+    "declined": "rejected",
+    "busy": "busy",
+    "missed": "missed",
+    "timeout": "missed",
+    "failed": "failed",
+}
+
+
+async def log_call(db: AsyncSession, user: User, req: CallLogRequest) -> None:
+    """Idempotently persist a client-reported call.
+
+    Mirrors the columns the Node.js signaling server writes and dedups on the
+    call_id PK (ON CONFLICT DO NOTHING), so whichever side records the call
+    first wins and the other is a harmless no-op.
+    """
+    # caller/callee from the reporter's perspective.
+    if req.direction == "outgoing":
+        caller_id, callee_id = user.id, req.peer_user_id
+    else:
+        caller_id, callee_id = req.peer_user_id, user.id
+
+    status = _REASON_TO_STATUS.get(req.reason)
+    if status is None:
+        # hungUp / unknown: a connected call is "completed", otherwise "missed".
+        status = "completed" if req.connected_at is not None else "missed"
+
+    stmt = (
+        pg_insert(CallRecord)
+        .values(
+            id=req.call_id,
+            caller_id=caller_id,
+            callee_id=callee_id,
+            call_type=req.call_type,
+            status=status,
+            started_at=req.started_at,
+            answered_at=req.connected_at,
+            ended_at=req.ended_at,
+            duration_seconds=req.duration_seconds,
+        )
+        .on_conflict_do_nothing(index_elements=["id"])
+    )
+    await db.execute(stmt)
+    await db.commit()
 
 
 async def list_call_history(

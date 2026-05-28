@@ -1,13 +1,15 @@
 from uuid import UUID
 
+import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_current_user, get_db, get_redis
 from app.models.user import User
 from app.schemas.conversation import GetOrCreateConversationRequest
 from app.schemas.message import ConversationResponse, MessagePage
 from app.services import conversation_service, message_service
+from app.services.realtime import stamp_presence
 
 router = APIRouter()
 
@@ -16,8 +18,11 @@ router = APIRouter()
 async def list_conversations(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    redis: aioredis.Redis = Depends(get_redis),
 ) -> list[ConversationResponse]:
-    return await conversation_service.list_conversations(db, current_user)
+    conversations = await conversation_service.list_conversations(db, current_user)
+    await stamp_presence(redis, [c.other_user for c in conversations])
+    return conversations
 
 
 @router.post("/", response_model=ConversationResponse)
@@ -25,15 +30,18 @@ async def open_conversation(
     req: GetOrCreateConversationRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    redis: aioredis.Redis = Depends(get_redis),
 ) -> ConversationResponse:
     """Get-or-create a 1-on-1 conversation with another user.
 
     Idempotent: re-posting the same `user_id` returns the same conversation.
     The other user must be in the caller's contacts (mirrors message-send rules).
     """
-    return await conversation_service.open_conversation_with(
+    conv = await conversation_service.open_conversation_with(
         db, current_user, req.user_id
     )
+    await stamp_presence(redis, [conv.other_user])
+    return conv
 
 
 @router.get("/{conversation_id}/messages", response_model=MessagePage)
