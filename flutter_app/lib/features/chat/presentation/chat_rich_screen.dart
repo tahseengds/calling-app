@@ -30,6 +30,7 @@ import '../../../features/calling/domain/call_state.dart'
     show CallType, PeerUser;
 import '../../../features/calling/presentation/widgets/permission_denied_screen.dart';
 import '../../../features/chat/domain/chat_notifier.dart';
+import 'media_gallery_screen.dart';
 import '../../../shared/models/message.dart';
 import '../../../shared/models/user.dart' as user_model;
 import '../../../shared/widgets/avatar.dart';
@@ -248,15 +249,19 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
   /// Pick an image from the gallery, compress, send.
   Future<void> _attachImageFromGallery() async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
+    // Multi-select so several photos can be sent at once — they're grouped
+    // into a single album bubble in the conversation.
+    final picked = await picker.pickMultiImage(
       // Pre-resize on-device — saves bandwidth + the backend's WebP step
       // is faster on a smaller bitmap.
       maxWidth: 2560,
       imageQuality: 85,
     );
-    if (picked == null) return;
-    await _sendImageFile(File(picked.path));
+    if (picked.isEmpty) return;
+    for (final x in picked) {
+      if (!mounted) return;
+      await _sendImageFile(File(x.path));
+    }
   }
 
   /// Capture from the camera, compress, send.
@@ -616,17 +621,48 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
     LumioColors colors,
     user_model.User? other,
   ) {
-    // Build items: inject date separators between day boundaries.
+    // Build items: inject date separators between day boundaries, and group
+    // runs of consecutive photos/videos from the same sender into one album
+    // bubble (rendered as a grid).
     final items = <_ListItem>[];
     DateTime? lastDate;
 
-    for (final msg in messages) {
+    var i = 0;
+    while (i < messages.length) {
+      final msg = messages[i];
       final msgDate = DateUtils.dateOnly(msg.createdAt);
       if (lastDate == null || msgDate != lastDate) {
         items.add(_ListItem.separator(msgDate));
         lastDate = msgDate;
       }
+
+      // Try to collect an album: ≥2 consecutive media messages from the same
+      // sender, same day, sent close together (≤90s apart), no captions.
+      if (_isAlbumEligible(msg)) {
+        final run = <Message>[msg];
+        var j = i + 1;
+        while (j < messages.length &&
+            _isAlbumEligible(messages[j]) &&
+            messages[j].senderId == msg.senderId &&
+            DateUtils.dateOnly(messages[j].createdAt) == msgDate &&
+            messages[j]
+                    .createdAt
+                    .difference(run.last.createdAt)
+                    .inSeconds
+                    .abs() <=
+                90) {
+          run.add(messages[j]);
+          j++;
+        }
+        if (run.length >= 2) {
+          items.add(_ListItem.album(run));
+          i = j;
+          continue;
+        }
+      }
+
       items.add(_ListItem.message(msg));
+      i++;
     }
 
     // Live typing indicator — only when the remote peer is composing.
@@ -657,6 +693,11 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
           _ItemKind.typing => Padding(
               padding: const EdgeInsets.only(top: 4),
               child: _TypingIndicator(colors: colors),
+            ),
+          _ItemKind.album => _AlbumRow(
+              messages:       item.album!,
+              mine:           item.album!.first.senderId == myId,
+              colors:         colors,
             ),
           _ItemKind.message => _MessageRow(
               msg:            item.msg!,
@@ -822,18 +863,303 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
 
 // ─── List item model ──────────────────────────────────────────────────────────
 
-enum _ItemKind { message, separator, typing }
+enum _ItemKind { message, separator, typing, album }
 
 class _ListItem {
   final _ItemKind kind;
   final Message?  msg;
   final DateTime? date;
+  final List<Message>? album;
 
-  const _ListItem._({required this.kind, this.msg, this.date});
+  const _ListItem._({required this.kind, this.msg, this.date, this.album});
 
   factory _ListItem.message(Message m)   => _ListItem._(kind: _ItemKind.message,   msg: m);
   factory _ListItem.separator(DateTime d) => _ListItem._(kind: _ItemKind.separator, date: d);
   factory _ListItem.typing()              => _ListItem._(kind: _ItemKind.typing);
+  factory _ListItem.album(List<Message> m) => _ListItem._(kind: _ItemKind.album, album: m);
+}
+
+/// Whether a message can be folded into a photo/video album group. Captioned,
+/// failed, and deleted media stay standalone so their own affordances (caption
+/// text, retry, tombstone) keep working.
+bool _isAlbumEligible(Message m) =>
+    (m.type == MessageType.image || m.type == MessageType.video) &&
+    m.media != null &&
+    !m.isDeleted &&
+    m.status != MessageStatus.failed &&
+    (m.content == null || m.content!.isEmpty);
+
+// ─── Album (grouped photos/videos) ──────────────────────────────────────────
+
+/// A run of consecutive photos/videos rendered as a single grid bubble.
+class _AlbumRow extends StatelessWidget {
+  const _AlbumRow({
+    required this.messages,
+    required this.mine,
+    required this.colors,
+  });
+
+  final List<Message> messages;
+  final bool          mine;
+  final LumioColors   colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final last = messages.last;
+    return Align(
+      alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.72,
+          ),
+          child: Column(
+            crossAxisAlignment:
+                mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: _bubbleRadius(mine),
+                child: _AlbumGrid(
+                  messages: messages,
+                  onTapItem: (index) => MediaGalleryScreen.open(
+                    context,
+                    items: messages
+                        .map((m) => GalleryMediaItem(
+                              url: m.media!.url,
+                              isVideo: m.type == MessageType.video,
+                            ))
+                        .toList(),
+                    initialIndex: index,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              _Timestamp(
+                time:   last.createdAt,
+                mine:   mine,
+                status: last.status,
+                colors: colors,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Lays a media run out as a grid: 2 side-by-side, 3 as one large + two
+/// stacked, 4 (or more) as a 2×2 with a "+N" overlay on the last tile.
+class _AlbumGrid extends StatelessWidget {
+  const _AlbumGrid({required this.messages, required this.onTapItem});
+
+  final List<Message> messages;
+  final void Function(int index) onTapItem;
+
+  static const double _gap = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = messages.length;
+    final shown = count > 4 ? 4 : count;
+    final extra = count - 4; // shown as "+N" on the last tile when > 4
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.of(context).size.width * 0.72;
+
+        if (shown == 2) {
+          final t = (w - _gap) / 2;
+          return SizedBox(
+            height: t,
+            child: Row(children: [
+              _tile(0, t, t),
+              const SizedBox(width: _gap),
+              _tile(1, t, t),
+            ]),
+          );
+        } else if (shown == 3) {
+          final left = (w - _gap) * 0.62;
+          final right = w - _gap - left;
+          final h = left;
+          final rt = (h - _gap) / 2;
+          return SizedBox(
+            height: h,
+            child: Row(children: [
+              _tile(0, left, h),
+              const SizedBox(width: _gap),
+              SizedBox(
+                width: right,
+                child: Column(children: [
+                  _tile(1, right, rt),
+                  const SizedBox(height: _gap),
+                  _tile(2, right, rt),
+                ]),
+              ),
+            ]),
+          );
+        }
+        // 4 or more
+        final t = (w - _gap) / 2;
+        return SizedBox(
+          height: t * 2 + _gap,
+          child: Column(children: [
+            Row(children: [
+              _tile(0, t, t),
+              const SizedBox(width: _gap),
+              _tile(1, t, t),
+            ]),
+            const SizedBox(height: _gap),
+            Row(children: [
+              _tile(2, t, t),
+              const SizedBox(width: _gap),
+              _tile(3, t, t, plus: extra > 0 ? extra : 0),
+            ]),
+          ]),
+        );
+      },
+    );
+  }
+
+  Widget _tile(int index, double w, double h, {int plus = 0}) {
+    return _AlbumTile(
+      message: messages[index],
+      width: w,
+      height: h,
+      plusCount: plus,
+      onTap: () => onTapItem(index),
+    );
+  }
+}
+
+class _AlbumTile extends StatelessWidget {
+  const _AlbumTile({
+    required this.message,
+    required this.width,
+    required this.height,
+    required this.onTap,
+    this.plusCount = 0,
+  });
+
+  final Message      message;
+  final double       width;
+  final double       height;
+  final VoidCallback onTap;
+  final int          plusCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: width,
+        height: height,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            _MediaThumb(msg: message),
+            if (plusCount > 0)
+              ColoredBox(
+                color: const Color(0x99000000),
+                child: Center(
+                  child: Text(
+                    '+$plusCount',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Cover thumbnail for a single media message used inside album tiles.
+/// Mirrors [_MediaVisualContent]'s local-vs-remote handling.
+class _MediaThumb extends StatelessWidget {
+  const _MediaThumb({required this.msg});
+
+  final Message msg;
+
+  bool get _isVideo => msg.type == MessageType.video;
+
+  String? get _previewUrl {
+    final media = msg.media;
+    if (media == null) return null;
+    if (_isVideo &&
+        media.thumbnailUrl != null &&
+        media.thumbnailUrl!.isNotEmpty) {
+      return media.thumbnailUrl;
+    }
+    return media.url;
+  }
+
+  bool _isLocalPath(String url) =>
+      !url.startsWith('http://') && !url.startsWith('https://');
+
+  @override
+  Widget build(BuildContext context) {
+    final url = _previewUrl;
+    Widget child;
+    if (url == null) {
+      child = _MediaPlaceholder(isVideo: _isVideo);
+    } else if (_isLocalPath(url)) {
+      child = Image.file(
+        File(url.startsWith('file://') ? Uri.parse(url).toFilePath() : url),
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _MediaPlaceholder(isVideo: _isVideo),
+      );
+    } else {
+      child = CachedNetworkImage(
+        imageUrl: url,
+        fit: BoxFit.cover,
+        placeholder: (_, _) => _MediaLoading(isVideo: _isVideo),
+        errorWidget: (_, _, _) => _MediaPlaceholder(isVideo: _isVideo),
+      );
+    }
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        child,
+        if (_isVideo)
+          const Center(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Color(0x80000000),
+              ),
+              child: Padding(
+                padding: EdgeInsets.all(8),
+                child: Icon(Icons.play_arrow_rounded,
+                    color: Colors.white, size: 26),
+              ),
+            ),
+          ),
+        if (msg.status == MessageStatus.sending)
+          const Positioned(
+            right: 6,
+            bottom: 6,
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 // ─── Date separator ───────────────────────────────────────────────────────────
@@ -1555,7 +1881,18 @@ class _MediaVisualContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _buildPreview(context);
+    final url = msg.media?.url;
+    final preview = _buildPreview(context);
+    // Tap opens the media full-screen. Disabled only when there's no source
+    // yet (e.g. a placeholder before the local file/URL is known).
+    if (url == null || url.isEmpty) return preview;
+    return GestureDetector(
+      onTap: () => MediaGalleryScreen.open(
+        context,
+        items: [GalleryMediaItem(url: url, isVideo: _isVideo)],
+      ),
+      child: preview,
+    );
   }
 }
 
