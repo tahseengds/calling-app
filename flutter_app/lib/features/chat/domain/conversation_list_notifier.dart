@@ -1,7 +1,5 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/config/app_config.dart';
-import '../../../core/mock/mock_data.dart';
 import '../../../core/services/signaling_service.dart';
 import '../../../core/services/sync_service.dart';
 import '../../../core/storage/local_db.dart';
@@ -17,9 +15,6 @@ class ConversationListNotifier
 
   @override
   AsyncValue<List<Conversation>> build() {
-    if (AppConfig.uiOnly) {
-      return AsyncData(_mockConversations());
-    }
     _startWatching();
     ref.onDispose(() {
       _dbSub?.cancel();
@@ -31,19 +26,26 @@ class ConversationListNotifier
 
   void _startWatching() {
     final db = ref.read(appDatabaseProvider);
+    final signaling = ref.read(signalingServiceProvider);
 
     _dbSub = db.conversationsDao.watchAll().listen((rows) async {
       final convos = await _rowsToConversations(rows);
       state = AsyncData(convos);
+      // Ask the signaling server for the current presence of everyone in the
+      // list. Live changes arrive afterwards via the presence:update stream;
+      // this seeds the initial online/last-seen state which REST never carries.
+      final ids = convos.map((c) => c.otherUser.id).toList();
+      if (ids.isNotEmpty) signaling.requestPresence(ids);
     });
 
     // New incoming message — bump conversation to top.
-    final signaling = ref.read(signalingServiceProvider);
     _msgSub = signaling.onMessageNew.listen((_) {
       ref.read(syncServiceProvider).syncConversations();
     });
 
-    // Presence updates — refresh user in conversation.
+    // Presence updates — refresh both online status and last-seen for the
+    // matching user. Covers the initial presence:data batch (seeded by
+    // requestPresence) and subsequent live presence:update broadcasts.
     _presenceSub = signaling.onPresence.listen((event) {
       final current = state.value;
       if (current == null) return;
@@ -54,6 +56,7 @@ class ConversationListNotifier
             presence: event.status == 'online'
                 ? PresenceStatus.online
                 : PresenceStatus.offline,
+            lastSeen: event.lastSeen,
           ),
         );
       }).toList());
@@ -64,7 +67,6 @@ class ConversationListNotifier
   }
 
   Future<void> refresh() async {
-    if (AppConfig.uiOnly) return;
     await ref.read(syncServiceProvider).syncConversations();
   }
 
@@ -124,48 +126,6 @@ class ConversationListNotifier
         MessageType.file => 'File',
         MessageType.text => '',
       };
-
-  List<Conversation> _mockConversations() {
-    final now = DateTime.now();
-    return [
-      Conversation(
-        id: 'rose',
-        otherUser: User(
-          id: 'rose',
-          name: 'Grandma Rose',
-          email: 'rose@example.com',
-          lastSeen: now.subtract(const Duration(minutes: 2)),
-          presence: PresenceStatus.online,
-        ),
-        lastMessagePreview: "Perfect. The kettle's already on.",
-        lastMessageType: MessageType.text,
-        lastActivity: now.subtract(const Duration(minutes: 18)),
-        unreadCount: 0,
-      ),
-      Conversation(
-        id: 'mike',
-        otherUser: User(
-          id: 'mike',
-          name: 'Dad Mike',
-          email: 'mike@example.com',
-          lastSeen: now.subtract(const Duration(hours: 1)),
-          presence: PresenceStatus.offline,
-        ),
-        lastMessagePreview: 'Will do, see you then',
-        lastMessageType: MessageType.text,
-        lastActivity: now.subtract(const Duration(hours: 1)),
-        unreadCount: 2,
-      ),
-      Conversation(
-        id: 'fam',
-        otherUser: MockData.currentUser,
-        lastMessagePreview: 'Photo',
-        lastMessageType: MessageType.image,
-        lastActivity: now.subtract(const Duration(days: 1)),
-        unreadCount: 0,
-      ),
-    ];
-  }
 }
 
 final conversationListProvider =

@@ -959,23 +959,32 @@ class CallNotifier extends Notifier<CallSession?> {
 
   void _startQualityMonitor() {
     _qualityTimer?.cancel();
-    _qualityTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
-      final session = state;
-      if (session == null || !session.isActive || _webrtc == null) {
-        return;
-      }
-      final stats = await _webrtc!.getStats();
-      state = session.copyWith(quality: stats.level);
+    // Sample once immediately so the badge reflects the real connection within
+    // a couple of seconds of connecting instead of sitting on the default
+    // "good" for a full poll interval; then keep it live on a 2s cadence.
+    _sampleQuality();
+    _qualityTimer = Timer.periodic(
+      const Duration(seconds: 2),
+      (_) => _sampleQuality(),
+    );
+  }
 
-      // Suggest audio-only if video FPS collapses
-      if (session.callType == CallType.video &&
-          !session.isCameraOff &&
-          stats.videoFps != null &&
-          stats.videoFps! < 5 &&
-          !session.showSwitchToAudioPrompt) {
-        state = state?.copyWith(showSwitchToAudioPrompt: true);
-      }
-    });
+  Future<void> _sampleQuality() async {
+    final session = state;
+    if (session == null || !session.isActive || _webrtc == null) {
+      return;
+    }
+    final stats = await _webrtc!.getStats();
+    state = session.copyWith(quality: stats.level);
+
+    // Suggest audio-only if video FPS collapses
+    if (session.callType == CallType.video &&
+        !session.isCameraOff &&
+        stats.videoFps != null &&
+        stats.videoFps! < 5 &&
+        !session.showSwitchToAudioPrompt) {
+      state = state?.copyWith(showSwitchToAudioPrompt: true);
+    }
   }
 
   void _startDurationTick() {

@@ -9,8 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../../../core/auth/auth_token.dart';
-import '../../../core/config/app_config.dart';
-import '../../../core/mock/mock_data.dart';
 import '../../../core/services/fcm_token_service.dart';
 import '../../../core/storage/secure_storage.dart';
 import '../../../shared/models/user.dart';
@@ -72,18 +70,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     GoogleSignIn? google,
   })  : _firebaseOverride = firebase,
         _googleOverride = google,
-        super(
-          AppConfig.uiOnly
-              ? AuthAuthenticated(me: MockData.currentUser)
-              : const AuthUnknown(),
-        ) {
-    if (AppConfig.uiOnly) {
-      Future.microtask(
-        () => _ref.read(authTokenProvider.notifier).set('ui-only-token'),
-      );
-    } else {
-      _tryRestoreSession();
-    }
+        super(const AuthUnknown()) {
+    _tryRestoreSession();
   }
 
   // ── Session restore ───────────────────────────────────────────────────────
@@ -196,13 +184,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     return false;
   }
 
-  // ── UI-only demo path (no backend) ────────────────────────────────────────
-
-  Future<void> signInDemo() async {
-    _ref.read(authTokenProvider.notifier).set('ui-only-token');
-    state = AuthAuthenticated(me: MockData.currentUser);
-  }
-
   // ── Google Sign-In ────────────────────────────────────────────────────────
 
   /// Run the native Google account picker, exchange the result for a
@@ -212,11 +193,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// [Exception] with a friendly message on Google-side failures (cancel,
   /// no network, etc.).
   Future<void> signInWithGoogle() async {
-    if (AppConfig.uiOnly) {
-      await signInDemo();
-      return;
-    }
-
     final GoogleSignInAccount? account = await _google.signIn();
     if (account == null) {
       // User cancelled — drop back to the login screen silently.
@@ -251,10 +227,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String password,
     required String name,
   }) async {
-    if (AppConfig.uiOnly) {
-      await signInDemo();
-      return;
-    }
     final normalized = email.trim().toLowerCase();
     final userCred = await _firebase.createUserWithEmailAndPassword(
       email: normalized,
@@ -282,10 +254,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String email,
     required String password,
   }) async {
-    if (AppConfig.uiOnly) {
-      await signInDemo();
-      return;
-    }
     final normalized = email.trim().toLowerCase();
     final userCred = await _firebase.signInWithEmailAndPassword(
       email: normalized,
@@ -333,8 +301,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   ///
   /// Safe to call with any URI — non-verification links return false silently.
   Future<bool> handleVerificationDeepLink(Uri uri) async {
-    if (AppConfig.uiOnly) return false;
-
     final mode = uri.queryParameters['mode'];
     final oobCode = uri.queryParameters['oobCode'];
     final looksLikeVerify =
@@ -474,11 +440,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   // ── Sign out ──────────────────────────────────────────────────────────────
 
   Future<void> signOut() async {
-    if (AppConfig.uiOnly) {
-      _ref.read(authTokenProvider.notifier).clear();
-      state = const AuthUnauthenticated();
-      return;
-    }
     final token = _ref.read(authTokenProvider);
     final refresh = await _secure.readRefreshToken();
     if (token != null && refresh != null) {
@@ -503,7 +464,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// Called by the Dio interceptor when a token refresh fails mid-flight.
   /// Does NOT await async cleanup — it's fire-and-forget by design.
   void forceSignOut() {
-    if (AppConfig.uiOnly) return;
     _ref.read(authTokenProvider.notifier).clear();
     state = const AuthUnauthenticated();
     _secure.deleteRefreshToken();

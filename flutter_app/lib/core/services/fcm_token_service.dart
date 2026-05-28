@@ -25,7 +25,6 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../config/app_config.dart';
 import '../network/dio_client.dart';
 import '../storage/secure_storage.dart';
 
@@ -40,7 +39,6 @@ class FcmTokenService {
   /// resolve one — happens on emulators without Play Services, behind some
   /// VPNs, etc.). Safe to call anytime.
   Future<String?> currentToken() async {
-    if (AppConfig.uiOnly) return null;
     try {
       return await _firebaseMessaging.getToken();
     } catch (e) {
@@ -56,7 +54,6 @@ class FcmTokenService {
   /// Returns true on 204, false otherwise. Errors are swallowed so token
   /// registration never blocks the sign-in flow.
   Future<bool> registerCurrentToken() async {
-    if (AppConfig.uiOnly) return false;
     final token = await currentToken();
     if (token == null || token.isEmpty) return false;
 
@@ -78,7 +75,6 @@ class FcmTokenService {
   /// once cancels the previous subscription. Call this once after the user
   /// is authenticated; cancel on sign-out via [stopRotationListener].
   void startRotationListener() {
-    if (AppConfig.uiOnly) return;
     stopRotationListener();
     _rotationSub = _firebaseMessaging.onTokenRefresh.listen((token) async {
       debugPrint('[fcm] token rotated — re-registering');

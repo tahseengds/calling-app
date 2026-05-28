@@ -38,12 +38,12 @@ class User {
         'presence': presence.name,
       };
 
-  User copyWith({PresenceStatus? presence}) => User(
+  User copyWith({PresenceStatus? presence, DateTime? lastSeen}) => User(
         id: id,
         name: name,
         email: email,
         avatarUrl: avatarUrl,
-        lastSeen: lastSeen,
+        lastSeen: lastSeen ?? this.lastSeen,
         presence: presence ?? this.presence,
       );
 }

@@ -9,6 +9,7 @@ import 'dart:ui';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
@@ -2176,11 +2177,13 @@ class _ChatInputBarState extends State<_ChatInputBar>
   int _recordSeconds = 0;
   Timer? _timer;
 
-  // Audio recorder — lazily opened on first long-press so we don't pay the
-  // codec/init cost for users who never send a voice note.
+  // Audio recorder. Pre-warmed in initState (when mic permission is already
+  // granted) so the hold-to-record gesture captures instantly instead of
+  // paying the permission + codec-init cost on the first press.
   final FlutterSoundRecorder _recorder = FlutterSoundRecorder();
   bool _recorderOpen = false;
   String? _currentRecordingPath;
+  String? _tempDirPath;
 
   @override
   void initState() {
@@ -2194,6 +2197,24 @@ class _ChatInputBarState extends State<_ChatInputBar>
     _trashCtrl   = AnimationController(vsync: this, duration: const Duration(milliseconds: 450))..repeat(reverse: true);
 
     widget.controller.addListener(_onTextChanged);
+    _prewarmRecorder();
+  }
+
+  /// Resolve the temp directory and open the recorder ahead of the first
+  /// press. We only open the recorder when the mic permission is already
+  /// granted — opening a chat shouldn't pop a permission dialog.
+  Future<void> _prewarmRecorder() async {
+    try {
+      _tempDirPath = (await getTemporaryDirectory()).path;
+    } catch (_) {}
+    try {
+      if (await Permission.microphone.isGranted && !_recorderOpen) {
+        await _recorder.openRecorder();
+        _recorderOpen = true;
+      }
+    } catch (e) {
+      debugPrint('[chat] recorder prewarm failed: $e');
+    }
   }
 
   void _onTextChanged() {
@@ -2224,20 +2245,26 @@ class _ChatInputBarState extends State<_ChatInputBar>
   }
 
   Future<void> _startRecording() async {
-    // Mic permission is requested via the long-press gesture starting — we
-    // confirm it before touching the recorder so we can short-circuit cleanly.
-    final mic = await Permission.microphone.request();
-    if (!mic.isGranted) {
-      // Previously silent — left the user wondering why the long-press did
-      // nothing. Surface a snackbar so the failure mode is visible.
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Microphone access is required to record a voice note.'),
-          ),
-        );
+    // Instant tactile feedback the moment the hold registers — before any
+    // async permission/codec work — so the press never feels laggy.
+    HapticFeedback.lightImpact();
+
+    // Fast path: the recorder is usually pre-warmed and permission already
+    // granted, so we skip straight to startRecorder. Only pop the permission
+    // dialog when we genuinely don't have access yet.
+    if (!await Permission.microphone.isGranted) {
+      final mic = await Permission.microphone.request();
+      if (!mic.isGranted) {
+        // Surface the failure so the long-press doesn't just do nothing.
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Microphone access is required to record a voice note.'),
+            ),
+          );
+        }
+        return;
       }
-      return;
     }
 
     try {
@@ -2245,9 +2272,9 @@ class _ChatInputBarState extends State<_ChatInputBar>
         await _recorder.openRecorder();
         _recorderOpen = true;
       }
-      final dir = await getTemporaryDirectory();
+      final dirPath = _tempDirPath ??= (await getTemporaryDirectory()).path;
       final path =
-          '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.aac';
+          '$dirPath/voice_${DateTime.now().millisecondsSinceEpoch}.aac';
       await _recorder.startRecorder(toFile: path, codec: Codec.aacADTS);
       _currentRecordingPath = path;
     } catch (e) {
@@ -2272,7 +2299,6 @@ class _ChatInputBarState extends State<_ChatInputBar>
       return;
     }
 
-    HapticFeedback.lightImpact();
     setState(() {
       _isRecording = true;
       _isCancelling = false;
@@ -2431,13 +2457,30 @@ class _ChatInputBarState extends State<_ChatInputBar>
   }
 
   Widget _buildIdleMicButton(LumioColors c) {
-    return GestureDetector(
+    // RawGestureDetector with a short-duration long-press so hold-to-record
+    // engages quickly. The default GestureDetector long-press is ~500ms, which
+    // (on top of recorder init) is what made starting a voice note feel laggy.
+    return RawGestureDetector(
       key: _micKey,
-      onTap: _hasText ? widget.onSend : null,
-      onLongPressStart: _hasText ? null : (_) => _startRecording(),
-      onLongPressMoveUpdate: _hasText ? null : _updateRecording,
-      onLongPressEnd: _hasText ? null : (_) => _endRecording(),
-      onLongPressCancel: _hasText ? null : _endRecording,
+      gestures: {
+        TapGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
+          () => TapGestureRecognizer(),
+          (r) => r.onTap = _hasText ? widget.onSend : null,
+        ),
+        LongPressGestureRecognizer:
+            GestureRecognizerFactoryWithHandlers<LongPressGestureRecognizer>(
+          () => LongPressGestureRecognizer(
+            duration: const Duration(milliseconds: 180),
+          ),
+          (r) {
+            r.onLongPressStart = _hasText ? null : (_) => _startRecording();
+            r.onLongPressMoveUpdate = _hasText ? null : _updateRecording;
+            r.onLongPressEnd = _hasText ? null : (_) => _endRecording();
+            r.onLongPressCancel = _hasText ? null : _endRecording;
+          },
+        ),
+      },
       child: Material(
         color:           AppColors.primary,
         shape:           const CircleBorder(),

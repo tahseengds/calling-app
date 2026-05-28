@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/config/app_config.dart';
 import '../../../shared/widgets/auth_widgets.dart';
 import '../../../shared/widgets/dismiss_keyboard.dart';
 import '../../../shared/widgets/fl_button.dart';
@@ -241,25 +240,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   textAlign: TextAlign.center,
                   style: TextStyle(fontSize: 13, color: fg3, height: 1.45),
                 ),
-                if (AppConfig.uiOnly) ...[
-                  const SizedBox(height: 12),
-                  Center(
-                    child: TextButton(
-                      onPressed: _isLoading
-                          ? null
-                          : () => ref
-                              .read(authNotifierProvider.notifier)
-                              .signInDemo(),
-                      child: const Text(
-                        'Explore app without signing in',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
                 const SizedBox(height: 24),
                 Center(
                   child: GestureDetector(

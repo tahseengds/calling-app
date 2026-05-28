@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
-import '../../../core/config/app_config.dart';
 import '../data/settings_repository.dart';
 import 'models/privacy_settings.dart';
 
@@ -14,10 +13,6 @@ class PrivacySettingsNotifier
   }
 
   Future<void> load() async {
-    if (AppConfig.uiOnly) {
-      state = const AsyncData(PrivacySettings());
-      return;
-    }
     state = const AsyncLoading();
     try {
       final prefs = await _repo.getPrivacy();
@@ -30,7 +25,6 @@ class PrivacySettingsNotifier
   Future<void> _apply(PrivacySettings next) async {
     final previous = state.value;
     state = AsyncData(next);
-    if (AppConfig.uiOnly) return;
     try {
       final saved = await _repo.updatePrivacy(next);
       state = AsyncData(saved);

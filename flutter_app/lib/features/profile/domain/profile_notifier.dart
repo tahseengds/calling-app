@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
-import '../../../core/config/app_config.dart';
-import '../../../core/mock/mock_data.dart';
 import '../../../shared/models/user.dart';
 import '../../auth/domain/auth_notifier.dart';
 import '../../auth/domain/auth_state.dart';
@@ -23,7 +21,6 @@ class ProfileNotifier extends StateNotifier<AsyncValue<User>> {
   /// the profile screen renders immediately instead of racing its own
   /// getMe() against the Dio interceptor's token refresh.
   static AsyncValue<User> _seed(Ref ref) {
-    if (AppConfig.uiOnly) return AsyncData(MockData.currentUser);
     final auth = ref.read(authNotifierProvider);
     if (auth is AuthAuthenticated) return AsyncData(auth.me);
     return const AsyncLoading();
@@ -34,10 +31,6 @@ class ProfileNotifier extends StateNotifier<AsyncValue<User>> {
   }
 
   Future<void> load() async {
-    if (AppConfig.uiOnly) {
-      state = AsyncData(MockData.currentUser);
-      return;
-    }
     // Only show the loading spinner if we have nothing to display yet —
     // a background refresh shouldn't flash the spinner on top of perfectly
     // good cached data.
@@ -62,27 +55,12 @@ class ProfileNotifier extends StateNotifier<AsyncValue<User>> {
   }
 
   Future<void> updateName(String name) async {
-    if (AppConfig.uiOnly) {
-      final current = state.value ?? MockData.currentUser;
-      state = AsyncData(User(
-        id: current.id,
-        name: name,
-        email: current.email,
-        avatarUrl: current.avatarUrl,
-        lastSeen: current.lastSeen,
-        presence: current.presence,
-      ));
-      return;
-    }
     final updated = await _repo.updateName(name);
     state = AsyncData(updated);
     _syncAuthCache(updated);
   }
 
   Future<void> updateAvatar(String filePath) async {
-    if (AppConfig.uiOnly) {
-      return;
-    }
     final updated = await _repo.updateAvatar(filePath);
     state = AsyncData(updated);
     _syncAuthCache(updated);

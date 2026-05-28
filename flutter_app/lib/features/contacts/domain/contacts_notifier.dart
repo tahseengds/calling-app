@@ -1,11 +1,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/legacy.dart';
-import '../../../core/config/app_config.dart';
-import '../../../core/mock/mock_data.dart';
 import '../../../shared/models/user.dart';
 import '../data/contact_repository.dart';
 
-/// Thrown when adding a contact that is already in the list (UI-only mode).
+/// Thrown when adding a contact that is already in the list.
 class DuplicateContactException implements Exception {
   const DuplicateContactException();
 }
@@ -47,10 +45,6 @@ class ContactsNotifier extends StateNotifier<ContactsState> {
   }
 
   Future<void> load() async {
-    if (AppConfig.uiOnly) {
-      state = ContactsState(contacts: List.of(MockData.sampleContacts));
-      return;
-    }
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final entries = await _repo.getContactEntries();
@@ -68,20 +62,6 @@ class ContactsNotifier extends StateNotifier<ContactsState> {
     required String email,
     String? nickname,
   }) async {
-    if (AppConfig.uiOnly) {
-      final duplicate = state.contacts.any((c) => c.email == email);
-      if (duplicate) {
-        throw const DuplicateContactException();
-      }
-      final user = User(
-        id: 'mock-${email.hashCode}',
-        name: nickname?.isNotEmpty == true ? nickname! : 'Contact',
-        email: email,
-        lastSeen: DateTime.now(),
-      );
-      state = state.copyWith(contacts: [user, ...state.contacts]);
-      return;
-    }
     final user = await _repo.addContact(email: email, nickname: nickname);
     // Optimistically prepend; reload to get server-sorted list and contactId.
     state = state.copyWith(contacts: [user, ...state.contacts]);
@@ -91,13 +71,6 @@ class ContactsNotifier extends StateNotifier<ContactsState> {
   /// Removes the contact whose target user has [userId]. Looks up the
   /// contact row id from the side map populated by `load()`.
   Future<void> removeContact(String userId) async {
-    if (AppConfig.uiOnly) {
-      _contactIdByUserId.remove(userId);
-      state = state.copyWith(
-        contacts: state.contacts.where((c) => c.id != userId).toList(),
-      );
-      return;
-    }
     final contactId = _contactIdByUserId[userId];
     if (contactId == null) {
       // We don't know the row id (e.g. optimistic add hasn't reloaded yet).

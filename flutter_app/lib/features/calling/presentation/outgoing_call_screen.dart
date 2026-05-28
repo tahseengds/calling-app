@@ -71,6 +71,15 @@ class _OutgoingCallScreenState extends ConsumerState<OutgoingCallScreen>
       if (next == null ||
           next.phase == CallPhase.ended ||
           next.phase == CallPhase.failed) {
+        // Surface why the call failed (permission denied, "you can only call
+        // your contacts", etc.) before the screen pops. The messenger is the
+        // app-level one, so the snackbar survives the pop.
+        final msg = next?.errorMessage;
+        if (msg != null && msg.isNotEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(msg)),
+          );
+        }
         if (context.canPop()) {
           context.pop();
         }
@@ -228,7 +237,10 @@ class _OutgoingCallScreenState extends ConsumerState<OutgoingCallScreen>
                   children: [
                     Text(
                       switch (session.phase) {
-                        CallPhase.outgoingRinging => 'Ringing',
+                        // Only say "Ringing" once the callee's device has
+                        // acknowledged; until then it's still "Calling".
+                        CallPhase.outgoingRinging =>
+                          session.peerRinging ? 'Ringing' : 'Calling',
                         CallPhase.connecting => 'Connecting',
                         _ => 'Calling',
                       },

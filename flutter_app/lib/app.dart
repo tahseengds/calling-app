@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'core/config/app_config.dart';
 import 'core/services/deep_link_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/domain/auth_notifier.dart';
@@ -58,7 +57,7 @@ final _routerProvider = Provider<GoRouter>((ref) {
   final refresh = ref.watch(_routerRefreshProvider);
 
   return GoRouter(
-    initialLocation: AppConfig.uiOnly ? '/home' : '/splash',
+    initialLocation: '/splash',
     refreshListenable: refresh,
     redirect: (context, state) {
       final loc = state.matchedLocation;
@@ -216,7 +215,6 @@ class _LuminAppState extends ConsumerState<LuminApp>
   /// auth state flips to [AuthAuthenticated] and the GoRouter redirect
   /// auto-advances to `/home`. We don't navigate manually here.
   void _bootstrapDeepLinks() {
-    if (AppConfig.uiOnly) return;
     final service = ref.read(deepLinkServiceProvider);
 
     // Cold start.

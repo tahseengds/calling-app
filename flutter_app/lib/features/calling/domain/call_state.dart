@@ -116,6 +116,15 @@ class CallSession {
   /// phase == incomingRinging.
   final Map<String, dynamic>? pendingOffer;
 
+  /// True once the callee's device has acknowledged ringing — lets the
+  /// outgoing screen switch its status text from "Calling" to "Ringing".
+  final bool peerRinging;
+
+  /// Human-readable explanation shown when a call fails (e.g. microphone
+  /// permission denied, or a backend call:error such as "You can only call
+  /// your contacts").
+  final String? errorMessage;
+
   const CallSession({
     required this.callId,
     required this.peerUser,
@@ -131,6 +140,8 @@ class CallSession {
     this.quality = 'good',
     this.showSwitchToAudioPrompt = false,
     this.pendingOffer,
+    this.peerRinging = false,
+    this.errorMessage,
   });
 
   /// Wall-clock seconds since ICE connected.
@@ -155,6 +166,8 @@ class CallSession {
     String? quality,
     bool? showSwitchToAudioPrompt,
     Map<String, dynamic>? pendingOffer,
+    bool? peerRinging,
+    String? errorMessage,
   }) =>
       CallSession(
         callId: callId,
@@ -172,5 +185,7 @@ class CallSession {
         showSwitchToAudioPrompt:
             showSwitchToAudioPrompt ?? this.showSwitchToAudioPrompt,
         pendingOffer: pendingOffer ?? this.pendingOffer,
+        peerRinging: peerRinging ?? this.peerRinging,
+        errorMessage: errorMessage ?? this.errorMessage,
       );
 }

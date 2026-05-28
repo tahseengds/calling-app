@@ -352,19 +352,35 @@ class SignalingService {
     s.on('presence:update', (data) {
       final map = _asMap(data);
       if (map == null) return;
-      // Backend occasionally emits presence updates with null user_id
-      // (e.g. for a user that was just deleted, or during socket
-      // handshake). Don't propagate them — they crashed the cast.
-      final userId = map['user_id'] as String?;
+      // The signaling server emits camelCase keys ({userId, status, lastSeen}).
+      // (Accept snake_case too in case an older server build is deployed.)
+      final userId = (map['userId'] ?? map['user_id']) as String?;
       final status = map['status'] as String?;
       if (userId == null || status == null) return;
       _presenceCtrl.add(PresenceEvent(
         userId: userId,
         status: status,
-        lastSeen: map['last_seen'] is String
-            ? DateTime.tryParse(map['last_seen'] as String)
-            : null,
+        lastSeen: _parseLastSeen(map['lastSeen'] ?? map['last_seen']),
       ));
+    });
+
+    // Batched response to requestPresence(): a map of { userId: {status,
+    // lastSeen} }. We fan it out into the same PresenceEvent stream so the
+    // initial seed and subsequent live updates flow through one code path.
+    s.on('presence:data', (data) {
+      final map = _asMap(data);
+      if (map == null) return;
+      map.forEach((userId, value) {
+        final entry = _asMap(value);
+        if (entry == null) return;
+        final status = entry['status'] as String?;
+        if (status == null) return;
+        _presenceCtrl.add(PresenceEvent(
+          userId: userId,
+          status: status,
+          lastSeen: _parseLastSeen(entry['lastSeen'] ?? entry['last_seen']),
+        ));
+      });
     });
 
     // ── Call events ──────────────────────────────────────────────────────────
@@ -489,10 +505,17 @@ class SignalingService {
 
   // ── Emit helpers ─────────────────────────────────────────────────────────
 
-  void emitTyping({required bool isTyping, required String conversationId}) {
+  /// Emit a typing indicator. The signaling server routes by the recipient's
+  /// user id ([toUserId]) and echoes [conversationId] back to the peer so its
+  /// chat screen can match the event to the right conversation.
+  void emitTyping({
+    required bool isTyping,
+    required String conversationId,
+    required String toUserId,
+  }) {
     _socket?.emit(
       isTyping ? 'typing:start' : 'typing:stop',
-      {'conversation_id': conversationId},
+      {'to': toUserId, 'conversation_id': conversationId},
     );
   }
 
@@ -500,9 +523,16 @@ class SignalingService {
     _socket?.emit('presence:update', {'status': status});
   }
 
+  /// Ask the server for the current presence of [userIds]. The reply arrives
+  /// as a `presence:data` event handled above. Note the server expects the
+  /// `userIds` (camelCase) key.
   void requestPresence(List<String> userIds) {
-    _socket?.emit('presence:request', {'user_ids': userIds});
+    _socket?.emit('presence:get', {'userIds': userIds});
   }
+
+  /// Parse a lastSeen value that may be an ISO-8601 string or null.
+  static DateTime? _parseLastSeen(dynamic raw) =>
+      raw is String ? DateTime.tryParse(raw) : null;
 
   // ── Call emit helpers ─────────────────────────────────────────────────────
   //
@@ -633,9 +663,9 @@ final signalingServiceProvider = Provider<SignalingService>((ref) {
   // start path) actually triggers connect(). Without it, ref.listen only
   // fires on subsequent changes and the socket stays closed forever.
   ref.listen(authTokenProvider, (_, next) {
-    if (next != null && !AppConfig.uiOnly) {
+    if (next != null) {
       service.connect(next);
-    } else if (next == null) {
+    } else {
       service.disconnect();
     }
   }, fireImmediately: true);

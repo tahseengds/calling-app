@@ -5,7 +5,6 @@ import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
-import '../../../core/config/app_config.dart';
 import '../../../core/services/signaling_service.dart';
 import '../../../core/services/sync_service.dart';
 import '../../../core/storage/local_db.dart';
@@ -67,6 +66,7 @@ class ChatNotifier extends Notifier<ChatState> {
   StreamSubscription<MessageDeletedEvent>? _msgDelSub;
   StreamSubscription<MessageReactionEvent>? _msgReactSub;
   StreamSubscription<TypingEvent>? _typingSub;
+  StreamSubscription<PresenceEvent>? _presenceSub;
   Timer? _typingStopTimer;
   bool _isTyping = false;
 
@@ -79,13 +79,9 @@ class ChatNotifier extends Notifier<ChatState> {
       _msgDelSub?.cancel();
       _msgReactSub?.cancel();
       _typingSub?.cancel();
+      _presenceSub?.cancel();
       _typingStopTimer?.cancel();
     });
-
-    if (AppConfig.uiOnly) {
-      // UI-only: use mock data from the existing chat_thread_notifier pattern.
-      return const ChatState();
-    }
 
     _init();
     return const ChatState();
@@ -118,6 +114,11 @@ class ChatNotifier extends Notifier<ChatState> {
             ),
           ),
         );
+        // Seed live presence/last-seen for the header — REST never carries it,
+        // so without this the chat header is stuck on "offline" / a stale time.
+        ref
+            .read(signalingServiceProvider)
+            .requestPresence([userRow.id]);
       }
     }
 
@@ -195,6 +196,20 @@ class ChatNotifier extends Notifier<ChatState> {
     _typingSub = signaling.onTyping.listen((event) {
       if (event.conversationId != _conversationId) return;
       state = state.copyWith(otherUserTyping: event.isTyping);
+    });
+
+    // Live presence/last-seen for the chat header.
+    _presenceSub = signaling.onPresence.listen((event) {
+      final other = state.otherUser;
+      if (other == null || other.id != event.userId) return;
+      state = state.copyWith(
+        otherUser: other.copyWith(
+          presence: event.status == 'online'
+              ? PresenceStatus.online
+              : PresenceStatus.offline,
+          lastSeen: event.lastSeen,
+        ),
+      );
     });
   }
 
@@ -596,11 +611,14 @@ class ChatNotifier extends Notifier<ChatState> {
   // ── Typing ────────────────────────────────────────────────────────────────
 
   void onUserTyping() {
+    final toUserId = state.otherUser?.id;
+    if (toUserId == null) return;
     if (!_isTyping) {
       _isTyping = true;
       ref.read(signalingServiceProvider).emitTyping(
             isTyping: true,
             conversationId: _conversationId,
+            toUserId: toUserId,
           );
     }
     _typingStopTimer?.cancel();
@@ -611,9 +629,12 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!_isTyping) return;
     _isTyping = false;
     _typingStopTimer?.cancel();
+    final toUserId = state.otherUser?.id;
+    if (toUserId == null) return;
     ref.read(signalingServiceProvider).emitTyping(
           isTyping: false,
           conversationId: _conversationId,
+          toUserId: toUserId,
         );
   }
 }

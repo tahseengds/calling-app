@@ -87,7 +87,6 @@ final dioProvider = Provider<Dio>((ref) {
     // where AuthNotifier is still resolving the session shouldn't yank the
     // user to /login mid-restore.
     onAuthExpired: () {
-      if (AppConfig.uiOnly) return;
       if (!refreshWasAuthRejected) return;
       // Belt-and-suspenders: if AuthNotifier is still restoring, defer to
       // its outcome — its rotated refresh-token may already be saved and

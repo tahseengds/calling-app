@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
-import '../../../core/config/app_config.dart';
 import '../data/settings_repository.dart';
 import 'models/notification_preferences.dart';
 
@@ -17,10 +16,6 @@ class NotificationSettingsNotifier
   }
 
   Future<void> load() async {
-    if (AppConfig.uiOnly) {
-      state = const AsyncData(NotificationPreferences());
-      return;
-    }
     state = const AsyncLoading();
     try {
       final prefs = await _repo.getNotifications();
@@ -33,7 +28,6 @@ class NotificationSettingsNotifier
   Future<void> _apply(NotificationPreferences next) async {
     final previous = state.value;
     state = AsyncData(next);
-    if (AppConfig.uiOnly) return;
     try {
       final saved = await _repo.updateNotifications(next);
       state = AsyncData(saved);

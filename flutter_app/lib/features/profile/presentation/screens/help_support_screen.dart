@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-import '../../../../core/config/app_config.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -86,15 +85,13 @@ class _HelpSupportScreenState extends ConsumerState<HelpSupportScreen> {
             }
           : null;
 
-      if (!AppConfig.uiOnly) {
-        await ref.read(supportRepositoryProvider).submit(
-              category: _category.wire,
-              message: text,
-              appVersion: version,
-              platform: platform,
-              deviceInfo: deviceInfo,
-            );
-      }
+      await ref.read(supportRepositoryProvider).submit(
+            category: _category.wire,
+            message: text,
+            appVersion: version,
+            platform: platform,
+            deviceInfo: deviceInfo,
+          );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

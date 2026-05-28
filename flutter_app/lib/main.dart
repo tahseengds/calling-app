@@ -7,7 +7,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
-import 'core/config/app_config.dart';
 import 'core/services/native_call_bridge.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/pending_deep_link.dart';
@@ -36,15 +35,13 @@ Future<void> main() async {
   late final ProviderContainer container;
 
   try {
-    if (!AppConfig.uiOnly) {
-      try {
-        await Firebase.initializeApp();
-        FirebaseMessaging.onBackgroundMessage(
-            _firebaseMessagingBackgroundHandler);
-      } catch (e) {
-        debugPrint('[startup] Firebase.initializeApp failed: $e');
-        // Continue without Firebase — the app can still show the UI.
-      }
+    try {
+      await Firebase.initializeApp();
+      FirebaseMessaging.onBackgroundMessage(
+          _firebaseMessagingBackgroundHandler);
+    } catch (e) {
+      debugPrint('[startup] Firebase.initializeApp failed: $e');
+      // Continue without Firebase — the app can still show the UI.
     }
 
     container = ProviderContainer();
@@ -60,7 +57,7 @@ Future<void> main() async {
     };
     await notifications.init();
 
-    if (!AppConfig.uiOnly) {
+    {
       // Request notification permission — no-op on Android < 13.
       try {
         await FirebaseMessaging.instance.requestPermission(
@@ -120,14 +117,9 @@ Future<void> main() async {
       container: container,
       child: LuminApp(
         onResume: () {
-          if (!AppConfig.uiOnly) {
-            // Ensure socket is up and sync missed messages.
-            container.read(signalingServiceProvider); // warm up provider
-            container
-                .read(syncServiceProvider)
-                .syncConversations()
-                .ignore();
-          }
+          // Ensure socket is up and sync missed messages.
+          container.read(signalingServiceProvider); // warm up provider
+          container.read(syncServiceProvider).syncConversations().ignore();
         },
       ),
     ),

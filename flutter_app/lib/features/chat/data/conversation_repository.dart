@@ -1,7 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/config/app_config.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/storage/local_db.dart';
 
@@ -18,8 +17,6 @@ class ConversationRepository {
   /// via `POST /api/conversations/` with `{user_id: userId}`.  The returned
   /// row is cached so the next call is always local.
   Future<String> getOrCreateConversation(String userId) async {
-    if (AppConfig.uiOnly) return userId;
-
     final local = await _db.conversationsDao.findByOtherUserId(userId);
     if (local != null) return local.id;
 
