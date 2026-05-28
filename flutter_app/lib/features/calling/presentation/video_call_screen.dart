@@ -74,6 +74,7 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
             _DraggablePip(
               offset: _pipOffset,
               onOffsetChanged: (o) => setState(() => _pipOffset = o),
+              speakingLevel: session.localAudioLevel,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(18),
                 child: SizedBox(
@@ -223,10 +224,14 @@ class _DraggablePip extends StatefulWidget {
   final Offset offset;
   final void Function(Offset) onOffsetChanged;
 
+  /// Local mic level (0.0–1.0) — drives a green "you're speaking" glow.
+  final double speakingLevel;
+
   const _DraggablePip({
     required this.child,
     required this.offset,
     required this.onOffsetChanged,
+    this.speakingLevel = 0.0,
   });
 
   @override
@@ -263,28 +268,49 @@ class _DraggablePipState extends State<_DraggablePip> {
 
   @override
   Widget build(BuildContext context) {
+    // Amplify the (typically small) mic level so ordinary speech glows clearly.
+    final norm = (widget.speakingLevel * 3.0).clamp(0.0, 1.0);
+    const glow = Color(0xFF34C77B);
+
     return Positioned(
       left: _pos.dx,
       top: _pos.dy,
       child: GestureDetector(
         onPanUpdate: _onPanUpdate,
-        child: Container(
-          width: _w,
-          height: _h,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white24, width: 1),
-            boxShadow: const [
-              BoxShadow(
-                  color: Colors.black38,
-                  blurRadius: 24,
-                  offset: Offset(0, 8))
-            ],
-          ),
+        child: TweenAnimationBuilder<double>(
+          tween: Tween<double>(end: norm),
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(18),
             child: widget.child,
           ),
+          builder: (_, v, child) {
+            return Container(
+              width: _w,
+              height: _h,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: Color.lerp(Colors.white24, glow, v)!,
+                  width: 1 + 1.5 * v,
+                ),
+                boxShadow: [
+                  const BoxShadow(
+                      color: Colors.black38,
+                      blurRadius: 24,
+                      offset: Offset(0, 8)),
+                  if (v > 0.02)
+                    BoxShadow(
+                      color: glow.withValues(alpha: 0.6 * v),
+                      blurRadius: 18 * v,
+                      spreadRadius: 2 * v,
+                    ),
+                ],
+              ),
+              child: child,
+            );
+          },
         ),
       ),
     );

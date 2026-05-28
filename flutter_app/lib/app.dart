@@ -18,7 +18,7 @@ import 'features/shell/ui/shell_screen.dart';
 // Chat screens — all live under features/chat/ now (the old features/chats/
 // split was removed). ChatRichScreen is the polished UI wired to chat_notifier.
 import 'features/chat/presentation/chat_rich_screen.dart';
-import 'features/chat/presentation/media_viewer_screen.dart';
+import 'features/chat/presentation/media_gallery_screen.dart';
 import 'features/chat/presentation/search_screen.dart';
 // New calling screens (Prompt 14)
 import 'features/calling/presentation/incoming_call_screen.dart';
@@ -117,11 +117,9 @@ final _routerProvider = Provider<GoRouter>((ref) {
         builder: (_, state) {
           final kind = state.uri.queryParameters['kind'] ?? 'image';
           final url = state.uri.queryParameters['url'] ?? '';
-          return MediaViewerScreen(
-            url: url,
-            kind: kind,
+          return MediaGalleryScreen(
+            items: [GalleryMediaItem(url: url, isVideo: kind == 'video')],
             sender: state.uri.queryParameters['sender'],
-            when: state.uri.queryParameters['when'],
           );
         },
       ),
