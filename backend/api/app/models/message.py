@@ -52,14 +52,6 @@ class Message(Base):
     edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     pinned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    # Stage-2 chat features:
-    #   edited_at  — set when the sender edits a text message's content
-    #   pinned_at  — non-null while the message is pinned in the conversation
-    #   expires_at — for disappearing messages; the row is hidden/cleared once
-    #                now() passes this (lazy cleanup on read + client purge)
-    edited_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    pinned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     conversation: Mapped[Conversation] = relationship(
         "Conversation", back_populates="messages", lazy="raise"
