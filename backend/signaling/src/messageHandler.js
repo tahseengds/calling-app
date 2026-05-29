@@ -47,6 +47,10 @@ function registerMessageBridge(io) {
         // message:new for any unknown/legacy value so old clients keep working.
         const eventMap = {
           message_deleted: 'message:deleted',
+          message_edited: 'message:edited',
+          message_pinned: 'message:pinned',
+          message_unpinned: 'message:unpinned',
+          disappearing_set: 'conversation:disappearing',
           reaction_added: 'message:reaction_added',
           reaction_removed: 'message:reaction_removed',
         };

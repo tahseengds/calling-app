@@ -62,6 +62,51 @@ class MessageLocalDao {
             ..where((c) => c.id.equals(conversationId)))
           .write(const ConversationsTableCompanion(unreadCount: Value(0)));
 
+  // ── Edit / Pin / Disappearing ───────────────────────────────────────────────
+
+  /// Update a message's content + mark it edited (text edits).
+  Future<void> setEdited(String id, String content, DateTime editedAt) =>
+      (_db.update(_db.messagesTable)..where((m) => m.id.equals(id))).write(
+        MessagesTableCompanion(
+          content: Value(content),
+          editedAt: Value(editedAt),
+        ),
+      );
+
+  /// Pin / unpin a message. Passing null unpins it.
+  Future<void> setPinned(String id, DateTime? pinnedAt) =>
+      (_db.update(_db.messagesTable)..where((m) => m.id.equals(id)))
+          .write(MessagesTableCompanion(pinnedAt: Value(pinnedAt)));
+
+  /// Set/clear a single message's disappearing expiry.
+  Future<void> setExpiresAt(String id, DateTime? expiresAt) =>
+      (_db.update(_db.messagesTable)..where((m) => m.id.equals(id)))
+          .write(MessagesTableCompanion(expiresAt: Value(expiresAt)));
+
+  /// Hard-delete every message in a conversation whose expiry has passed —
+  /// the client-side half of disappearing messages.
+  Future<void> purgeExpired(String conversationId, DateTime now) =>
+      (_db.delete(_db.messagesTable)
+            ..where((m) =>
+                m.conversationId.equals(conversationId) &
+                m.expiresAt.isSmallerOrEqualValue(now)))
+          .go();
+
+  /// Read the conversation's disappearing TTL (seconds), or null if disabled.
+  Future<int?> getDisappearingSeconds(String conversationId) async {
+    final row = await (_db.select(_db.conversationsTable)
+          ..where((c) => c.id.equals(conversationId)))
+        .getSingleOrNull();
+    return row?.disappearingSeconds;
+  }
+
+  /// Set/clear the conversation's disappearing TTL.
+  Future<void> setDisappearingSeconds(String conversationId, int? seconds) =>
+      (_db.update(_db.conversationsTable)
+            ..where((c) => c.id.equals(conversationId)))
+          .write(
+              ConversationsTableCompanion(disappearingSeconds: Value(seconds)));
+
   // ── Pending uploads ───────────────────────────────────────────────────────
 
   Future<List<PendingMediaUploadRow>> getPendingUploads() =>
@@ -99,6 +144,9 @@ class MessageLocalDao {
         replyToId: row.replyToId,
         isDeleted: row.isDeleted,
         reactions: decodeReactions(row.reactionsJson),
+        editedAt: row.editedAt,
+        pinnedAt: row.pinnedAt,
+        expiresAt: row.expiresAt,
       );
 
   MessagesTableCompanion _toCompanion(Message msg) =>
@@ -119,6 +167,9 @@ class MessageLocalDao {
             msg.status == MessageStatus.read),
         isDeleted: Value(msg.isDeleted),
         reactionsJson: Value(encodeReactions(msg.reactions)),
+        editedAt: Value(msg.editedAt),
+        pinnedAt: Value(msg.pinnedAt),
+        expiresAt: Value(msg.expiresAt),
       );
 
   // ── Reactions ─────────────────────────────────────────────────────────────

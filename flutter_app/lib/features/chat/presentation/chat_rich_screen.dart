@@ -73,7 +73,7 @@ class _T {
 // ─── ChatRichScreen ───────────────────────────────────────────────────────────
 
 /// Overflow-menu actions in the chat app bar.
-enum _ChatMenuAction { search, block, remove }
+enum _ChatMenuAction { search, disappearing, block, remove }
 
 class ChatRichScreen extends ConsumerStatefulWidget {
   final String conversationId;
@@ -98,6 +98,8 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
   final _inputFocus = FocusNode();
 
   Message? _replyingTo;
+  /// Non-null while editing an existing (own, text) message.
+  Message? _editing;
 
   /// Whether the list is scrolled to the newest message (offset ~0, since the
   /// list is reversed). Drives the scroll-to-bottom button and decides whether
@@ -573,6 +575,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
       appBar: _buildAppBar(lumioColors, theme, other),
       body: Column(
         children: [
+          _buildPinnedBanner(chatState.messages, lumioColors),
           Expanded(
             child: Stack(
               children: [
@@ -641,6 +644,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
           ),
           if (_replyingTo != null)
             _buildReplyPreviewBar(lumioColors, theme, other),
+          if (_editing != null) _buildEditingBar(lumioColors),
           _ChatInputBar(
             controller: _inputCtrl,
             focusNode: _inputFocus,
@@ -959,6 +963,8 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
                   _searchCtrl.clear();
                   _searchQuery = '';
                 });
+              case _ChatMenuAction.disappearing:
+                _showDisappearingDialog();
               case _ChatMenuAction.block:
                 _confirmBlockContact(other!);
               case _ChatMenuAction.remove:
@@ -973,6 +979,16 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
                   Icon(LucideIcons.search, size: 18, color: colors.fg1),
                   const SizedBox(width: 12),
                   const Text('Search'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: _ChatMenuAction.disappearing,
+              child: Row(
+                children: [
+                  Icon(LumioIcons.clock, size: 18, color: colors.fg1),
+                  const SizedBox(width: 12),
+                  const Text('Disappearing messages'),
                 ],
               ),
             ),
@@ -1113,6 +1129,135 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
           },
         );
       },
+    );
+  }
+
+  // ── Edit / Pin / Disappearing UI ────────────────────────────────────────────
+
+  Widget _buildEditingBar(LumioColors colors) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
+      color: colors.surfaceLo,
+      child: Row(
+        children: [
+          Icon(LumioIcons.edit, size: 18, color: AppColors.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Editing message',
+                    style:
+                        AppTextStyles.captionSemibold(color: AppColors.primary)),
+                Text(
+                  _editing?.content ?? '',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.caption(color: colors.fg2),
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            icon: Icon(LumioIcons.close, size: 20, color: colors.fg2),
+            tooltip: 'Cancel edit',
+            onPressed: _cancelEditing,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPinnedBanner(List<Message> messages, LumioColors colors) {
+    final pinned =
+        messages.where((m) => m.isPinned && !m.isDeleted).toList();
+    if (pinned.isEmpty) return const SizedBox.shrink();
+    pinned.sort((a, b) => b.pinnedAt!.compareTo(a.pinnedAt!));
+    final top = pinned.first;
+    return Material(
+      color: colors.surfaceLo,
+      child: InkWell(
+        onTap: () => _jumpToMessage(top.id),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
+          child: Row(
+            children: [
+              const Icon(Icons.push_pin, size: 16, color: AppColors.primary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      pinned.length > 1
+                          ? 'Pinned · ${pinned.length}'
+                          : 'Pinned message',
+                      style: AppTextStyles.captionSemibold(
+                          color: AppColors.primary),
+                    ),
+                    Text(
+                      _pinnedPreviewText(top),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.caption(color: colors.fg2),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: Icon(LumioIcons.close, size: 18, color: colors.fg3),
+                tooltip: 'Unpin',
+                onPressed: () => ref
+                    .read(chatProvider(widget.conversationId).notifier)
+                    .togglePin(top.id),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _pinnedPreviewText(Message m) {
+    final c = m.content?.trim();
+    if (c != null && c.isNotEmpty) return c;
+    return switch (m.type) {
+      MessageType.image => 'Photo',
+      MessageType.video => 'Video',
+      MessageType.audio => 'Voice message',
+      MessageType.file => 'Document',
+      _ => 'Message',
+    };
+  }
+
+  void _showDisappearingDialog() {
+    final current =
+        ref.read(chatProvider(widget.conversationId)).disappearingSeconds;
+    const options = <String, int?>{
+      'Off': null,
+      '24 hours': 86400,
+      '7 days': 604800,
+      '90 days': 7776000,
+    };
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Disappearing messages'),
+        children: [
+          for (final entry in options.entries)
+            RadioListTile<int?>(
+              value: entry.value,
+              groupValue: current,
+              title: Text(entry.key),
+              onChanged: (v) {
+                Navigator.pop(ctx);
+                ref
+                    .read(chatProvider(widget.conversationId).notifier)
+                    .setDisappearing(v);
+              },
+            ),
+        ],
+      ),
     );
   }
 
@@ -1388,6 +1533,10 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
           onReply: () => _enterReplyMode(msg),
           onCopy: () => _copyMessage(hostContext, msg),
           onForward: () => _forwardMessage(msg),
+          onEdit: () => _startEditing(msg),
+          onPin: () => ref
+              .read(chatProvider(widget.conversationId).notifier)
+              .togglePin(msg.id),
           onDelete: () {
             ref
                 .read(chatProvider(widget.conversationId).notifier)
@@ -2256,6 +2405,7 @@ class _MessageRow extends StatelessWidget {
                 mine:   mine,
                 status: msg.status,
                 colors: colors,
+                edited: msg.isEdited,
                 onRetry: _isFailed ? () => onRetry(msg.id) : null,
               ),
             ],
@@ -4417,6 +4567,8 @@ class _ContextMenuOverlay extends StatelessWidget {
   final VoidCallback onReply;
   final VoidCallback onCopy;
   final VoidCallback onForward;
+  final VoidCallback onEdit;
+  final VoidCallback onPin;
   final VoidCallback onDelete;
   final void Function(String emoji) onReact;
   final double topOffset;
@@ -4429,6 +4581,8 @@ class _ContextMenuOverlay extends StatelessWidget {
     required this.onReply,
     required this.onCopy,
     required this.onForward,
+    required this.onEdit,
+    required this.onPin,
     required this.onDelete,
     required this.onReact,
     required this.topOffset,
@@ -4566,6 +4720,27 @@ class _ContextMenuOverlay extends StatelessWidget {
                         onForward();
                       },
                     ),
+                    _ContextMenuAction(
+                      icon: Icons.push_pin_outlined,
+                      label: msg.isPinned ? 'Unpin' : 'Pin',
+                      color: fg,
+                      border: border,
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        onPin();
+                      },
+                    ),
+                    if (mine && msg.type == MessageType.text)
+                      _ContextMenuAction(
+                        icon: LucideIcons.pencil,
+                        label: 'Edit',
+                        color: fg,
+                        border: border,
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          onEdit();
+                        },
+                      ),
                     if (mine)
                       _ContextMenuAction(
                         icon: LucideIcons.trash2,

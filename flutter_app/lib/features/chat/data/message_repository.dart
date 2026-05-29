@@ -93,6 +93,33 @@ class MessageRepository {
     await _dio.delete<void>('/api/messages/$messageId');
   }
 
+  /// Edit a text message's content. Returns the updated message.
+  Future<Message> editMessage(String messageId, String content) async {
+    final resp = await _dio.patch<Map<String, dynamic>>(
+      '/api/messages/$messageId',
+      data: {'content': content},
+    );
+    return Message.fromJson(resp.data!);
+  }
+
+  /// Pin (or unpin) a message. Returns the updated message.
+  Future<Message> setPinned(String messageId, bool pinned) async {
+    final resp = pinned
+        ? await _dio.post<Map<String, dynamic>>('/api/messages/$messageId/pin')
+        : await _dio
+            .delete<Map<String, dynamic>>('/api/messages/$messageId/pin');
+    return Message.fromJson(resp.data!);
+  }
+
+  /// Enable/disable disappearing messages for a conversation (null = off).
+  Future<void> setDisappearing(
+      String conversationId, int? disappearingSeconds) async {
+    await _dio.patch<Map<String, dynamic>>(
+      '/api/conversations/$conversationId/disappearing',
+      data: {'disappearing_seconds': disappearingSeconds},
+    );
+  }
+
   // ── Reactions ─────────────────────────────────────────────────────────────
 
   /// Add a reaction. Server is idempotent — calling twice with the same emoji

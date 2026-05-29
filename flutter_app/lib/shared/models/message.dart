@@ -190,6 +190,12 @@ class Message {
   /// tombstones (the server scrubs reactions on soft-delete). Order is
   /// "first-reacted first" so chips don't shuffle as new emojis appear.
   final List<ReactionSummary> reactions;
+  /// Set when the message has been edited (text only). Drives the "edited" tag.
+  final DateTime? editedAt;
+  /// Non-null while the message is pinned in its conversation.
+  final DateTime? pinnedAt;
+  /// Disappearing-message expiry; the client purges the message once passed.
+  final DateTime? expiresAt;
 
   const Message({
     required this.id,
@@ -204,7 +210,13 @@ class Message {
     this.replyTo,
     this.isDeleted = false,
     this.reactions = const [],
+    this.editedAt,
+    this.pinnedAt,
+    this.expiresAt,
   });
+
+  bool get isEdited => editedAt != null;
+  bool get isPinned => pinnedAt != null;
 
   /// Lazily-decoded call-log metadata. Returns null for non-call_log
   /// messages or when `content` isn't valid JSON. Decoded on demand so
@@ -252,6 +264,15 @@ class Message {
                     ReactionSummary.fromJson(e as Map<String, dynamic>))
                 .toList() ??
             const [],
+        editedAt: json['edited_at'] != null
+            ? DateTime.parse(json['edited_at'] as String)
+            : null,
+        pinnedAt: json['pinned_at'] != null
+            ? DateTime.parse(json['pinned_at'] as String)
+            : null,
+        expiresAt: json['expires_at'] != null
+            ? DateTime.parse(json['expires_at'] as String)
+            : null,
       );
 
   Map<String, dynamic> toJson() => {
@@ -268,12 +289,19 @@ class Message {
         if (replyTo != null) 'reply_to': replyTo!.toJson(),
         'is_deleted': isDeleted,
         'reactions': reactions.map((r) => r.toJson()).toList(),
+        if (editedAt != null) 'edited_at': editedAt!.toUtc().toIso8601String(),
+        if (pinnedAt != null) 'pinned_at': pinnedAt!.toUtc().toIso8601String(),
+        if (expiresAt != null)
+          'expires_at': expiresAt!.toUtc().toIso8601String(),
       };
 
   Message copyWith({
     MessageStatus? status,
     ReplyPreview? replyTo,
     List<ReactionSummary>? reactions,
+    DateTime? editedAt,
+    DateTime? pinnedAt,
+    DateTime? expiresAt,
   }) =>
       Message(
         id: id,
@@ -288,5 +316,8 @@ class Message {
         replyTo: replyTo ?? this.replyTo,
         isDeleted: isDeleted,
         reactions: reactions ?? this.reactions,
+        editedAt: editedAt ?? this.editedAt,
+        pinnedAt: pinnedAt ?? this.pinnedAt,
+        expiresAt: expiresAt ?? this.expiresAt,
       );
 }

@@ -34,6 +34,11 @@ class MessagesTable extends Table {
   /// without a null check on the hot read path).
   TextColumn get reactionsJson =>
       text().withDefault(const Constant(''))();
+  // Stage-2 chat features. editedAt: set when a text message is edited;
+  // pinnedAt: non-null while pinned; expiresAt: disappearing-message expiry.
+  DateTimeColumn get editedAt => dateTime().nullable()();
+  DateTimeColumn get pinnedAt => dateTime().nullable()();
+  DateTimeColumn get expiresAt => dateTime().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -47,6 +52,8 @@ class ConversationsTable extends Table {
   DateTimeColumn get lastActivity => dateTime()();
   IntColumn get unreadCount =>
       integer().withDefault(const Constant(0))();
+  // Disappearing-messages TTL in seconds; null = disabled.
+  IntColumn get disappearingSeconds => integer().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -254,7 +261,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -271,6 +278,15 @@ class AppDatabase extends _$AppDatabase {
           // to '' which the DAO decodes as "no reactions".
           if (from < 3) {
             await m.addColumn(messagesTable, messagesTable.reactionsJson);
+          }
+          // v3 → v4: edit/pin/disappearing — messages gained editedAt,
+          // pinnedAt, expiresAt; conversations gained disappearingSeconds.
+          if (from < 4) {
+            await m.addColumn(messagesTable, messagesTable.editedAt);
+            await m.addColumn(messagesTable, messagesTable.pinnedAt);
+            await m.addColumn(messagesTable, messagesTable.expiresAt);
+            await m.addColumn(
+                conversationsTable, conversationsTable.disappearingSeconds);
           }
         },
         beforeOpen: (_) async {

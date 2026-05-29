@@ -99,6 +99,9 @@ class MessageResponse(BaseModel):
     is_deleted: bool
     created_at: datetime
     updated_at: datetime | None
+    edited_at: datetime | None = None      # set when the message was edited
+    pinned_at: datetime | None = None      # non-null while pinned
+    expires_at: datetime | None = None     # disappearing-message expiry
     reactions: list[ReactionSummary] = []
 
 
@@ -129,6 +132,39 @@ class ConversationResponse(BaseModel):
     last_message: MessageResponse | None
     last_activity: datetime
     unread_count: int
+    disappearing_seconds: int | None = None  # null = disabled
+
+
+class EditMessageRequest(BaseModel):
+    """Body for PATCH /messages/{message_id} — edit a text message's content."""
+    content: str
+
+    @field_validator("content")
+    @classmethod
+    def validate_content(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("content must not be empty")
+        if len(v) > 4000:
+            raise ValueError("content must be at most 4000 characters")
+        return v
+
+
+class SetDisappearingRequest(BaseModel):
+    """Body for PATCH /conversations/{id}/disappearing. null disables it."""
+    disappearing_seconds: int | None = None
+
+    @field_validator("disappearing_seconds")
+    @classmethod
+    def validate_seconds(cls, v: int | None) -> int | None:
+        if v is not None and (v < 1 or v > 31_536_000):  # 1s … 365d
+            raise ValueError("disappearing_seconds must be between 1 and 31536000")
+        return v
+
+
+class DisappearingResponse(BaseModel):
+    conversation_id: UUID
+    disappearing_seconds: int | None
 
 
 class MessagePage(BaseModel):

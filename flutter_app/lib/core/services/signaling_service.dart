@@ -47,6 +47,44 @@ class MessageReactionEvent {
   });
 }
 
+class MessageEditedEvent {
+  final String messageId;
+  final String conversationId;
+  final String content;
+  final DateTime editedAt;
+
+  const MessageEditedEvent({
+    required this.messageId,
+    required this.conversationId,
+    required this.content,
+    required this.editedAt,
+  });
+}
+
+class MessagePinnedEvent {
+  final String messageId;
+  final String conversationId;
+  final bool pinned;
+  final DateTime? pinnedAt;
+
+  const MessagePinnedEvent({
+    required this.messageId,
+    required this.conversationId,
+    required this.pinned,
+    this.pinnedAt,
+  });
+}
+
+class DisappearingChangedEvent {
+  final String conversationId;
+  final int? disappearingSeconds;
+
+  const DisappearingChangedEvent({
+    required this.conversationId,
+    required this.disappearingSeconds,
+  });
+}
+
 class TypingEvent {
   final String fromUserId;
   final String conversationId;
@@ -147,6 +185,10 @@ class SignalingService {
       StreamController<MessageDeletedEvent>.broadcast();
   final _messageReactionCtrl =
       StreamController<MessageReactionEvent>.broadcast();
+  final _messageEditedCtrl = StreamController<MessageEditedEvent>.broadcast();
+  final _messagePinnedCtrl = StreamController<MessagePinnedEvent>.broadcast();
+  final _disappearingCtrl =
+      StreamController<DisappearingChangedEvent>.broadcast();
   final _typingCtrl = StreamController<TypingEvent>.broadcast();
   final _presenceCtrl = StreamController<PresenceEvent>.broadcast();
 
@@ -170,6 +212,10 @@ class SignalingService {
       _messageDeletedCtrl.stream;
   Stream<MessageReactionEvent> get onMessageReaction =>
       _messageReactionCtrl.stream;
+  Stream<MessageEditedEvent> get onMessageEdited => _messageEditedCtrl.stream;
+  Stream<MessagePinnedEvent> get onMessagePinned => _messagePinnedCtrl.stream;
+  Stream<DisappearingChangedEvent> get onDisappearingChanged =>
+      _disappearingCtrl.stream;
   Stream<TypingEvent> get onTyping => _typingCtrl.stream;
   Stream<PresenceEvent> get onPresence => _presenceCtrl.stream;
 
@@ -285,6 +331,60 @@ class SignalingService {
       _messageDeletedCtrl.add(MessageDeletedEvent(
         messageId: messageId,
         conversationId: conversationId,
+      ));
+    });
+
+    s.on('message:edited', (data) {
+      final map = _asMap(data);
+      if (map == null) return;
+      final messageId = map['message_id'] as String?;
+      final conversationId = map['conversation_id'] as String?;
+      final content = map['content'] as String?;
+      final editedAt = map['edited_at'] as String?;
+      if (messageId == null ||
+          conversationId == null ||
+          content == null ||
+          editedAt == null) {
+        return;
+      }
+      _messageEditedCtrl.add(MessageEditedEvent(
+        messageId: messageId,
+        conversationId: conversationId,
+        content: content,
+        editedAt: DateTime.parse(editedAt),
+      ));
+    });
+
+    void emitPinned(Map<String, dynamic> map, {required bool pinned}) {
+      final messageId = map['message_id'] as String?;
+      final conversationId = map['conversation_id'] as String?;
+      if (messageId == null || conversationId == null) return;
+      final pinnedAt = map['pinned_at'] as String?;
+      _messagePinnedCtrl.add(MessagePinnedEvent(
+        messageId: messageId,
+        conversationId: conversationId,
+        pinned: pinned,
+        pinnedAt: pinnedAt != null ? DateTime.parse(pinnedAt) : null,
+      ));
+    }
+
+    s.on('message:pinned', (data) {
+      final map = _asMap(data);
+      if (map != null) emitPinned(map, pinned: true);
+    });
+    s.on('message:unpinned', (data) {
+      final map = _asMap(data);
+      if (map != null) emitPinned(map, pinned: false);
+    });
+
+    s.on('conversation:disappearing', (data) {
+      final map = _asMap(data);
+      if (map == null) return;
+      final conversationId = map['conversation_id'] as String?;
+      if (conversationId == null) return;
+      _disappearingCtrl.add(DisappearingChangedEvent(
+        conversationId: conversationId,
+        disappearingSeconds: (map['disappearing_seconds'] as num?)?.toInt(),
       ));
     });
 
@@ -640,6 +740,10 @@ class SignalingService {
     _messageNewCtrl.close();
     _messageAckCtrl.close();
     _messageDeletedCtrl.close();
+    _messageReactionCtrl.close();
+    _messageEditedCtrl.close();
+    _messagePinnedCtrl.close();
+    _disappearingCtrl.close();
     _typingCtrl.close();
     _presenceCtrl.close();
     _callIncomingCtrl.close();

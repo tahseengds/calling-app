@@ -29,6 +29,8 @@ class ChatState {
   final bool otherUserTyping;
   final bool hasOlderMessages;
   final String? oldestCursor;
+  /// Disappearing-messages TTL for this conversation (seconds); null = off.
+  final int? disappearingSeconds;
 
   /// Live upload progress for in-flight media sends, keyed by the optimistic
   /// message's client id → fraction in 0..1. Absent once the send completes,
@@ -43,6 +45,7 @@ class ChatState {
     this.hasOlderMessages = true,
     this.oldestCursor,
     this.uploadProgress = const {},
+    this.disappearingSeconds,
   });
 
   ChatState copyWith({
@@ -53,6 +56,8 @@ class ChatState {
     bool? hasOlderMessages,
     String? oldestCursor,
     Map<String, double>? uploadProgress,
+    int? disappearingSeconds,
+    bool clearDisappearing = false,
   }) =>
       ChatState(
         messages: messages ?? this.messages,
@@ -62,6 +67,9 @@ class ChatState {
         hasOlderMessages: hasOlderMessages ?? this.hasOlderMessages,
         oldestCursor: oldestCursor ?? this.oldestCursor,
         uploadProgress: uploadProgress ?? this.uploadProgress,
+        disappearingSeconds: clearDisappearing
+            ? null
+            : (disappearingSeconds ?? this.disappearingSeconds),
       );
 }
 
@@ -76,8 +84,13 @@ class ChatNotifier extends Notifier<ChatState> {
   StreamSubscription<MessageAckEvent>? _msgAckSub;
   StreamSubscription<MessageDeletedEvent>? _msgDelSub;
   StreamSubscription<MessageReactionEvent>? _msgReactSub;
+  StreamSubscription<MessageEditedEvent>? _msgEditSub;
+  StreamSubscription<MessagePinnedEvent>? _msgPinnedSub;
+  StreamSubscription<DisappearingChangedEvent>? _disappearingSub;
   StreamSubscription<TypingEvent>? _typingSub;
   StreamSubscription<PresenceEvent>? _presenceSub;
+  /// Periodically purges locally-expired disappearing messages.
+  Timer? _purgeTimer;
   Timer? _typingStopTimer;
   // Watchdog that clears the peer's "typing…" indicator if their typing:stop
   // event never arrives (app backgrounded/killed mid-type). Without it the
@@ -119,8 +132,12 @@ class ChatNotifier extends Notifier<ChatState> {
       _msgAckSub?.cancel();
       _msgDelSub?.cancel();
       _msgReactSub?.cancel();
+      _msgEditSub?.cancel();
+      _msgPinnedSub?.cancel();
+      _disappearingSub?.cancel();
       _typingSub?.cancel();
       _presenceSub?.cancel();
+      _purgeTimer?.cancel();
       _typingStopTimer?.cancel();
       _typingClearTimer?.cancel();
       for (final t in _uploadTokens.values) {
@@ -146,6 +163,10 @@ class ChatNotifier extends Notifier<ChatState> {
           ..where((c) => c.id.equals(_conversationId)))
         .get();
     if (convRows.isNotEmpty) {
+      state = state.copyWith(
+        disappearingSeconds: convRows.first.disappearingSeconds,
+        clearDisappearing: convRows.first.disappearingSeconds == null,
+      );
       final userRow = await db.usersDao.getById(convRows.first.otherUserId);
       if (userRow != null) {
         state = state.copyWith(
@@ -170,7 +191,21 @@ class ChatNotifier extends Notifier<ChatState> {
 
     // Watch Drift for any changes (including optimistic writes).
     _dbSub = dao.watchMessages(_conversationId).listen((msgs) {
-      state = state.copyWith(messages: msgs);
+      final now = DateTime.now();
+      // Hide disappearing messages whose TTL has passed (the periodic purge
+      // timer removes them from the DB; this keeps the UI honest in between).
+      final visible = msgs
+          .where((m) => m.expiresAt == null || m.expiresAt!.isAfter(now))
+          .toList();
+      state = state.copyWith(messages: visible);
+    });
+
+    // Disappearing-message purge: drop expired rows every 20s.
+    _purgeTimer = Timer.periodic(const Duration(seconds: 20), (_) {
+      ref.read(messageLocalDaoProvider).purgeExpired(
+            _conversationId,
+            DateTime.now(),
+          );
     });
 
     // Mark unread as read.
@@ -243,6 +278,31 @@ class ChatNotifier extends Notifier<ChatState> {
       ref
           .read(messageLocalDaoProvider)
           .updateReactions(event.messageId, summaries);
+    });
+
+    _msgEditSub = signaling.onMessageEdited.listen((event) {
+      if (event.conversationId != _conversationId) return;
+      ref
+          .read(messageLocalDaoProvider)
+          .setEdited(event.messageId, event.content, event.editedAt);
+    });
+
+    _msgPinnedSub = signaling.onMessagePinned.listen((event) {
+      if (event.conversationId != _conversationId) return;
+      ref
+          .read(messageLocalDaoProvider)
+          .setPinned(event.messageId, event.pinned ? event.pinnedAt : null);
+    });
+
+    _disappearingSub = signaling.onDisappearingChanged.listen((event) {
+      if (event.conversationId != _conversationId) return;
+      ref
+          .read(messageLocalDaoProvider)
+          .setDisappearingSeconds(_conversationId, event.disappearingSeconds);
+      state = state.copyWith(
+        disappearingSeconds: event.disappearingSeconds,
+        clearDisappearing: event.disappearingSeconds == null,
+      );
     });
 
     _typingSub = signaling.onTyping.listen((event) {
@@ -711,6 +771,70 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<void> deleteMessage(String messageId) async {
     await ref.read(messageLocalDaoProvider).markDeleted(messageId);
     ref.read(messageRepositoryProvider).deleteMessage(messageId).ignore();
+  }
+
+  // ── Edit / Pin / Disappearing ───────────────────────────────────────────────
+
+  Future<void> editMessage(String messageId, String newContent) async {
+    final content = newContent.trim();
+    if (content.isEmpty) return;
+    final dao = ref.read(messageLocalDaoProvider);
+    final msg = state.messages.where((m) => m.id == messageId).firstOrNull;
+    if (msg == null || msg.isDeleted || msg.type != MessageType.text) return;
+    if (content == (msg.content ?? '')) return;
+
+    // Optimistic.
+    await dao.setEdited(messageId, content, DateTime.now());
+    try {
+      final result =
+          await ref.read(messageRepositoryProvider).editMessage(messageId, content);
+      await dao.upsertMessage(result);
+    } catch (e, st) {
+      debugPrint('[chat] editMessage failed for $messageId: $e\n$st');
+      await dao.upsertMessage(msg); // rollback to pre-edit snapshot
+    }
+  }
+
+  Future<void> togglePin(String messageId) async {
+    final dao = ref.read(messageLocalDaoProvider);
+    final msg = state.messages.where((m) => m.id == messageId).firstOrNull;
+    if (msg == null || msg.isDeleted) return;
+    final pin = !msg.isPinned;
+
+    // Optimistic.
+    await dao.setPinned(messageId, pin ? DateTime.now() : null);
+    try {
+      final result =
+          await ref.read(messageRepositoryProvider).setPinned(messageId, pin);
+      await dao.upsertMessage(result);
+    } catch (e, st) {
+      debugPrint('[chat] togglePin failed for $messageId: $e\n$st');
+      await dao.setPinned(messageId, msg.pinnedAt); // rollback
+    }
+  }
+
+  Future<void> setDisappearing(int? seconds) async {
+    final dao = ref.read(messageLocalDaoProvider);
+    final prev = state.disappearingSeconds;
+
+    // Optimistic.
+    await dao.setDisappearingSeconds(_conversationId, seconds);
+    state = state.copyWith(
+      disappearingSeconds: seconds,
+      clearDisappearing: seconds == null,
+    );
+    try {
+      await ref
+          .read(messageRepositoryProvider)
+          .setDisappearing(_conversationId, seconds);
+    } catch (e, st) {
+      debugPrint('[chat] setDisappearing failed: $e\n$st');
+      await dao.setDisappearingSeconds(_conversationId, prev);
+      state = state.copyWith(
+        disappearingSeconds: prev,
+        clearDisappearing: prev == null,
+      );
+    }
   }
 
   // ── Pagination ────────────────────────────────────────────────────────────

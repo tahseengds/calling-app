@@ -8,6 +8,7 @@ from app.dependencies import get_current_user, get_db, get_redis, rate_limit
 from app.models.user import User
 from app.schemas.message import (
     AddReactionRequest,
+    EditMessageRequest,
     MessageResponse,
     ReactionSummary,
     ReceiptRequest,
@@ -61,6 +62,43 @@ async def soft_delete(
     redis: aioredis.Redis = Depends(get_redis),
 ) -> MessageResponse:
     return await message_service.soft_delete(db, redis, current_user, message_id)
+
+
+@router.patch(
+    "/{message_id}",
+    response_model=MessageResponse,
+    dependencies=[Depends(rate_limit("edit_message", max_calls=60, window_seconds=60))],
+)
+async def edit_message(
+    message_id: UUID,
+    req: EditMessageRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis: aioredis.Redis = Depends(get_redis),
+) -> MessageResponse:
+    return await message_service.edit_message(
+        db, redis, current_user, message_id, req.content
+    )
+
+
+@router.post("/{message_id}/pin", response_model=MessageResponse)
+async def pin_message(
+    message_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis: aioredis.Redis = Depends(get_redis),
+) -> MessageResponse:
+    return await message_service.set_pinned(db, redis, current_user, message_id, True)
+
+
+@router.delete("/{message_id}/pin", response_model=MessageResponse)
+async def unpin_message(
+    message_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis: aioredis.Redis = Depends(get_redis),
+) -> MessageResponse:
+    return await message_service.set_pinned(db, redis, current_user, message_id, False)
 
 
 # ── Reactions ────────────────────────────────────────────────────────────────

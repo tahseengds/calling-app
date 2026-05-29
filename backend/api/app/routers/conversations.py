@@ -7,7 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_current_user, get_db, get_redis
 from app.models.user import User
 from app.schemas.conversation import GetOrCreateConversationRequest
-from app.schemas.message import ConversationResponse, MessagePage
+from app.schemas.message import (
+    ConversationResponse,
+    DisappearingResponse,
+    MessagePage,
+    SetDisappearingRequest,
+)
 from app.services import conversation_service, message_service
 from app.services.realtime import stamp_presence
 
@@ -54,4 +59,22 @@ async def get_messages(
 ) -> MessagePage:
     return await message_service.fetch_messages(
         db, current_user, conversation_id, cursor=cursor, limit=limit
+    )
+
+
+@router.patch(
+    "/{conversation_id}/disappearing",
+    response_model=DisappearingResponse,
+)
+async def set_disappearing(
+    conversation_id: UUID,
+    req: SetDisappearingRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    redis: aioredis.Redis = Depends(get_redis),
+) -> DisappearingResponse:
+    """Enable/disable disappearing messages for a conversation. Either
+    participant may change it; the change is broadcast to the other party."""
+    return await conversation_service.set_disappearing(
+        db, redis, current_user, conversation_id, req.disappearing_seconds
     )

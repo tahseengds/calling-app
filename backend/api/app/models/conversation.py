@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, func
+from sqlalchemy import DateTime, ForeignKey, Integer, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -36,6 +36,9 @@ class Conversation(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
+    # Disappearing messages: TTL in seconds applied to new messages in this
+    # conversation. NULL = disabled (messages persist).
+    disappearing_seconds: Mapped[int | None] = mapped_column(Integer)
 
     user_a: Mapped[User] = relationship(
         "User", foreign_keys=[participant_a], lazy="raise"

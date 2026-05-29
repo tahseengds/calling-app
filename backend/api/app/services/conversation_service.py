@@ -82,6 +82,9 @@ def _msg_to_response(
         is_deleted=deleted,
         created_at=msg.created_at,
         updated_at=msg.updated_at,
+        edited_at=msg.edited_at,
+        pinned_at=None if deleted else msg.pinned_at,
+        expires_at=msg.expires_at,
         reactions=[] if deleted else (reactions or []),
     )
 
@@ -215,6 +218,7 @@ async def open_conversation_with(
         last_message=last_message,
         last_activity=conv.last_activity,
         unread_count=unread_count,
+        disappearing_seconds=conv.disappearing_seconds,
     )
 
 
@@ -331,7 +335,53 @@ async def list_conversations(
                 last_message=last_message,
                 last_activity=conv.last_activity,
                 unread_count=unread_by_conv.get(conv.id, 0),
+                disappearing_seconds=conv.disappearing_seconds,
             )
         )
 
     return responses
+
+
+# ── Disappearing messages ───────────────────────────────────────────────────
+
+async def set_disappearing(
+    db: AsyncSession,
+    redis,
+    user: User,
+    conversation_id: UUID,
+    disappearing_seconds: int | None,
+):
+    """Set (or clear, when None) the per-conversation disappearing-message TTL.
+    Either participant may change it. Publishes a `disappearing_set` event to
+    the other participant so their client updates its timer."""
+    from app.schemas.message import DisappearingResponse
+    from app.services.realtime import msg_delivery_channel, publish
+
+    conv_r = await db.execute(
+        select(Conversation).where(Conversation.id == conversation_id)
+    )
+    conv = conv_r.scalar_one_or_none()
+    if conv is None or user.id not in (conv.participant_a, conv.participant_b):
+        raise ForbiddenError("Conversation not found or access denied")
+
+    conv.disappearing_seconds = disappearing_seconds
+    await db.flush()
+
+    other_id = (
+        conv.participant_b if conv.participant_a == user.id else conv.participant_a
+    )
+    await publish(
+        redis,
+        msg_delivery_channel(str(other_id)),
+        {
+            "event": "disappearing_set",
+            "conversation_id": str(conv.id),
+            "disappearing_seconds": disappearing_seconds,
+            "actor_id": str(user.id),
+        },
+    )
+
+    return DisappearingResponse(
+        conversation_id=conv.id,
+        disappearing_seconds=disappearing_seconds,
+    )

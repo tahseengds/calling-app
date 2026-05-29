@@ -11,11 +11,11 @@ Key design decisions:
 from __future__ import annotations
 
 import uuid as _uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import redis.asyncio as aioredis
-from sqlalchemy import and_, func, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -190,6 +190,10 @@ async def send_message(
     )
     await db.execute(receipt_stmt)
 
+    # ── Disappearing messages: stamp expiry from the conversation TTL ─────────
+    if conv.disappearing_seconds is not None:
+        msg.expires_at = msg.created_at + timedelta(seconds=conv.disappearing_seconds)
+
     await db.flush()
 
     # Load media for the response if this is a media message
@@ -244,9 +248,26 @@ async def fetch_messages(
     if not conv or user.id not in (conv.participant_a, conv.participant_b):
         raise ForbiddenError("Conversation not found or access denied")
 
+    # Disappearing messages — lazy cleanup. Scrub any messages whose TTL has
+    # passed (clears content/media for privacy) and exclude them from the page.
+    now = datetime.now(timezone.utc)
+    await db.execute(
+        update(Message)
+        .where(
+            Message.conversation_id == conversation_id,
+            Message.expires_at.is_not(None),
+            Message.expires_at <= now,
+            Message.deleted_at.is_(None),
+        )
+        .values(deleted_at=now, content=None, media_id=None, updated_at=now)
+    )
+
     query = (
         select(Message)
-        .where(Message.conversation_id == conversation_id)
+        .where(
+            Message.conversation_id == conversation_id,
+            or_(Message.expires_at.is_(None), Message.expires_at > now),
+        )
         .order_by(Message.created_at.desc(), Message.id.desc())
     )
 
@@ -493,6 +514,108 @@ async def soft_delete(
     # Publish deletion event to recipient
     payload = response.model_dump(mode="json")
     payload["event"] = "message_deleted"
+    await publish(redis, msg_delivery_channel(str(recipient_id)), payload)
+
+    return response
+
+
+# ── Edit / Pin ──────────────────────────────────────────────────────────────
+
+async def _other_participant(db: AsyncSession, conv_id: UUID, user_id: UUID) -> UUID:
+    conv_r = await db.execute(
+        select(Conversation).where(Conversation.id == conv_id)
+    )
+    conv = conv_r.scalar_one()
+    return conv.participant_b if conv.participant_a == user_id else conv.participant_a
+
+
+async def edit_message(
+    db: AsyncSession,
+    redis: aioredis.Redis,
+    user: User,
+    message_id: UUID,
+    content: str,
+) -> MessageResponse:
+    """Edit a text message's content. Only the sender may edit; only text
+    messages; not after deletion. Publishes a `message_edited` event."""
+    msg_r = await db.execute(select(Message).where(Message.id == message_id))
+    msg = msg_r.scalar_one_or_none()
+
+    if not msg:
+        raise NotFoundError("Message not found")
+    if msg.sender_id != user.id:
+        raise ForbiddenError("Only the sender may edit this message")
+    if msg.deleted_at is not None:
+        raise ValidationFailedError("Cannot edit a deleted message")
+    if msg.message_type != "text":
+        raise ValidationFailedError("Only text messages can be edited")
+
+    now = datetime.now(timezone.utc)
+    msg.content = content
+    msg.edited_at = now
+    msg.updated_at = now
+    await db.flush()
+
+    reply_preview = await _load_reply_preview(db, msg)
+    react_map = await load_reactions_for_messages(db, [msg.id])
+    response = _msg_to_response(
+        msg, None, react_map.get(msg.id, []), reply_to=reply_preview
+    )
+
+    recipient_id = await _other_participant(db, msg.conversation_id, user.id)
+    payload = response.model_dump(mode="json")
+    payload["event"] = "message_edited"
+    await publish(redis, msg_delivery_channel(str(recipient_id)), payload)
+
+    return response
+
+
+async def set_pinned(
+    db: AsyncSession,
+    redis: aioredis.Redis,
+    user: User,
+    message_id: UUID,
+    pinned: bool,
+) -> MessageResponse:
+    """Pin or unpin a message. Either participant may pin. Publishes a
+    `message_pinned` / `message_unpinned` event to the other participant."""
+    msg_r = await db.execute(select(Message).where(Message.id == message_id))
+    msg = msg_r.scalar_one_or_none()
+
+    if not msg:
+        raise NotFoundError("Message not found")
+    if msg.deleted_at is not None:
+        raise ValidationFailedError("Cannot pin a deleted message")
+
+    conv_r = await db.execute(
+        select(Conversation).where(Conversation.id == msg.conversation_id)
+    )
+    conv = conv_r.scalar_one_or_none()
+    if conv is None or user.id not in (conv.participant_a, conv.participant_b):
+        raise ForbiddenError("Conversation not found or access denied")
+
+    now = datetime.now(timezone.utc)
+    msg.pinned_at = now if pinned else None
+    msg.updated_at = now
+    await db.flush()
+
+    media_resp = None
+    if msg.media_id:
+        mf_r = await db.execute(select(MediaFile).where(MediaFile.id == msg.media_id))
+        mf = mf_r.scalar_one_or_none()
+        if mf:
+            media_resp = media_file_to_response(mf)
+    reply_preview = await _load_reply_preview(db, msg)
+    react_map = await load_reactions_for_messages(db, [msg.id])
+    response = _msg_to_response(
+        msg, media_resp, react_map.get(msg.id, []), reply_to=reply_preview
+    )
+
+    recipient_id = (
+        conv.participant_b if conv.participant_a == user.id else conv.participant_a
+    )
+    payload = response.model_dump(mode="json")
+    payload["event"] = "message_pinned" if pinned else "message_unpinned"
     await publish(redis, msg_delivery_channel(str(recipient_id)), payload)
 
     return response
