@@ -35,6 +35,7 @@ import '../../../features/calling/domain/call_state.dart'
 import '../../../features/calling/presentation/widgets/permission_denied_screen.dart';
 import '../../../features/chat/domain/chat_notifier.dart';
 import '../../../features/contacts/domain/contacts_notifier.dart';
+import 'contact_profile_screen.dart';
 import 'media_gallery_screen.dart';
 import '../../../shared/models/message.dart';
 import '../../../shared/models/user.dart' as user_model;
@@ -796,7 +797,10 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
         onPressed: () => Navigator.of(context).maybePop(),
       ),
       titleSpacing: 0,
-      title: Row(
+      // Tapping the avatar / name opens the contact-info screen (WhatsApp-style).
+      title: InkWell(
+        onTap: other == null ? null : _openContactProfile,
+        child: Row(
         children: [
           // Avatar with online dot
           Stack(
@@ -848,6 +852,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
           ),
           ),
         ],
+        ),
       ),
       actions: [
         IconButton(
@@ -907,6 +912,15 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
   }
 
   // ── Contact actions (block / remove) ────────────────────────────────────────
+
+  /// Open the WhatsApp-style contact-info screen for this conversation.
+  void _openContactProfile() {
+    ContactProfileScreen.open(
+      context,
+      conversationId: widget.conversationId,
+      contactName: _otherName(ref.read(chatProvider(widget.conversationId)).otherUser),
+    );
+  }
 
   void _confirmBlockContact(user_model.User other) {
     showDialog<void>(
