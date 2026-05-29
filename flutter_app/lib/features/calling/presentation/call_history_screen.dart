@@ -169,6 +169,7 @@ class _CallHistoryScreenState
                       ),
                     );
                   }
+                  final entries = _groupByDate(filtered);
                   return RefreshIndicator(
                     onRefresh: () async =>
                         ref.invalidate(_callHistoryProvider),
@@ -176,17 +177,26 @@ class _CallHistoryScreenState
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding:
                           const EdgeInsets.all(AppSpacing.space4),
-                      itemCount: filtered.length,
+                      itemCount: entries.length,
                       itemBuilder: (context, index) {
+                        final e = entries[index];
+                        if (e.header != null) {
+                          return _DateHeader(
+                            label: e.header!,
+                            isFirst: index == 0,
+                            lumioColors: lumioColors,
+                          );
+                        }
+                        final record = e.record!;
                         return _CallRow(
-                          record: filtered[index],
-                          isFirst: index == 0,
-                          isLast: index == filtered.length - 1,
-                          isOpen: _expandedId == filtered[index].id,
+                          record: record,
+                          isFirst: e.isFirstInGroup,
+                          isLast: e.isLastInGroup,
+                          isOpen: _expandedId == record.id,
                           onTap: () => setState(() {
-                            _expandedId = _expandedId == filtered[index].id
+                            _expandedId = _expandedId == record.id
                                 ? null
-                                : filtered[index].id;
+                                : record.id;
                           }),
                           lumioColors: lumioColors,
                         );
@@ -202,12 +212,102 @@ class _CallHistoryScreenState
     );
   }
 
+  /// Section label for a call's date — "Today" / "Yesterday" / "This week",
+  /// then the month (with year when it's not the current year).
+  String _sectionLabel(DateTime dt) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final day = DateTime(dt.year, dt.month, dt.day);
+    final diff = today.difference(day).inDays;
+    if (diff <= 0) return 'Today';
+    if (diff == 1) return 'Yesterday';
+    if (diff < 7) return 'This week';
+    const months = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
+    final month = months[dt.month - 1];
+    return dt.year == now.year ? month : '$month ${dt.year}';
+  }
+
+  /// Flatten the (time-descending) records into header + row entries, tagging
+  /// each row with its position in its section so the card corners round
+  /// correctly per group.
+  List<_HistoryItem> _groupByDate(List<CallRecord> records) {
+    final items = <_HistoryItem>[];
+    var i = 0;
+    while (i < records.length) {
+      final label = _sectionLabel(records[i].startedAt);
+      var j = i;
+      while (j < records.length &&
+          _sectionLabel(records[j].startedAt) == label) {
+        j++;
+      }
+      items.add(_HistoryItem.header(label));
+      for (var k = i; k < j; k++) {
+        items.add(_HistoryItem.row(
+          records[k],
+          isFirstInGroup: k == i,
+          isLastInGroup: k == j - 1,
+        ));
+      }
+      i = j;
+    }
+    return items;
+  }
+
   List<CallRecord> _applyFilter(List<CallRecord> records) {
     return switch (_filter) {
       'Missed' => records.where((r) => r.isMissed).toList(),
       'Video' => records.where((r) => r.callType == CallType.video).toList(),
       _ => records,
     };
+  }
+}
+
+// ── Date-grouped list entries ───────────────────────────────────────────────
+
+/// Either a section header (when [header] != null) or a call row. [record]'s
+/// position flags drive per-group card-corner rounding.
+class _HistoryItem {
+  final String? header;
+  final CallRecord? record;
+  final bool isFirstInGroup;
+  final bool isLastInGroup;
+
+  const _HistoryItem.header(this.header)
+      : record = null,
+        isFirstInGroup = false,
+        isLastInGroup = false;
+
+  const _HistoryItem.row(
+    this.record, {
+    required this.isFirstInGroup,
+    required this.isLastInGroup,
+  }) : header = null;
+}
+
+class _DateHeader extends StatelessWidget {
+  final String label;
+  final bool isFirst;
+  final LumioColors lumioColors;
+
+  const _DateHeader({
+    required this.label,
+    required this.isFirst,
+    required this.lumioColors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(top: isFirst ? 0 : 20, bottom: 8, left: 4),
+      child: Text(
+        label.toUpperCase(),
+        style: AppTextStyles.captionSemibold(color: lumioColors.fg3)
+            .copyWith(letterSpacing: 0.8),
+      ),
+    );
   }
 }
 
