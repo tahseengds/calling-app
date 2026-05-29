@@ -87,12 +87,19 @@ Future<void> main() async {
       FirebaseMessaging.onMessage.listen((msg) {
         final type = msg.data['type'] as String?;
         if (type == 'new_message') {
+          final convId = msg.data['conversation_id'] as String? ?? '';
+          // Don't post a notification for the chat the user is currently
+          // viewing — it's already on screen and gets marked read.
+          if (convId.isNotEmpty &&
+              convId == container.read(activeConversationProvider)) {
+            return;
+          }
           final notif = msg.notification;
           container.read(notificationServiceProvider).showMessageNotification(
                 id: msg.messageId ?? '',
                 senderName: notif?.title ?? 'New message',
                 preview: notif?.body ?? '',
-                conversationId: msg.data['conversation_id'] as String? ?? '',
+                conversationId: convId,
               );
         }
         // incoming_call & missed_call are handled by the native FcmService
@@ -104,6 +111,22 @@ Future<void> main() async {
       // the Dart engine was alive (CallService full-screen intent or
       // CallActionReceiver cold-launch). Seed the CallNotifier with it.
       await _consumeInitialNativeCallData(container);
+
+      // Message-notification tap routing. The native FcmService owns FCM
+      // message notifications, so firebase_messaging's onMessageOpenedApp never
+      // fires for them — MainActivity forwards the conversation_id instead.
+      final bridge = container.read(nativeCallBridgeProvider);
+      bridge.onOpenConversation = (convId) {
+        container
+            .read(pendingDeepLinkProvider.notifier)
+            .set('/chat/$convId');
+      };
+      final initialConv = await bridge.getInitialConversation();
+      if (initialConv != null && initialConv.isNotEmpty) {
+        container
+            .read(pendingDeepLinkProvider.notifier)
+            .set('/chat/$initialConv');
+      }
     }
   } catch (e, st) {
     debugPrint('[startup] Unexpected initialization error: $e\n$st');

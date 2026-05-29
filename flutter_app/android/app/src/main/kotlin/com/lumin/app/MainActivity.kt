@@ -46,6 +46,10 @@ class MainActivity : FlutterFragmentActivity() {
      */
     private var pipActive = false
 
+    /** conversation_id from a tapped message notification, pending until the
+     * Flutter engine pulls it via "getInitialConversation" (cold start). */
+    private var pendingConversationId: String? = null
+
     /**
      * Proximity-screen-off wake lock — acquired while a voice call is active
      * (not video calls). When the user puts the phone to their ear the screen
@@ -59,6 +63,7 @@ class MainActivity : FlutterFragmentActivity() {
         super.onCreate(savedInstanceState)
         applyKeyguardFlagsForIntent(intent)
         captureCallExtras(intent)
+        captureConversationExtra(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -66,6 +71,7 @@ class MainActivity : FlutterFragmentActivity() {
         setIntent(intent)
         applyKeyguardFlagsForIntent(intent)
         captureCallExtras(intent)
+        captureConversationExtra(intent)
 
         // If the engine is already alive, forward the action immediately.
         val payload = pendingCallData
@@ -230,6 +236,13 @@ class MainActivity : FlutterFragmentActivity() {
                     // back to its in-app mini view.
                     result.success(enterPipMode())
                 }
+                "getInitialConversation" -> {
+                    // Cold-start: Flutter pulls the conversation_id from a
+                    // tapped message notification so it can route to the chat.
+                    val c = pendingConversationId
+                    pendingConversationId = null
+                    result.success(c)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -263,6 +276,22 @@ class MainActivity : FlutterFragmentActivity() {
         if (data.isNotEmpty()) {
             pendingCallData = data
             pendingCallAction = intent.getStringExtra(CallService.EXTRA_NATIVE_ACTION)
+        }
+    }
+
+    /**
+     * Capture a `conversation_id` extra from a tapped message notification
+     * (posted by FcmService). If the engine is live, route immediately; else
+     * stash it for Flutter to pull on startup via "getInitialConversation".
+     */
+    private fun captureConversationExtra(intent: Intent?) {
+        val convId = intent?.getStringExtra("conversation_id")
+            ?.takeIf { it.isNotBlank() } ?: return
+        val channel = methodChannel
+        if (channel != null && NativeCallBus.isEngineAlive()) {
+            channel.invokeMethod("openConversation", convId)
+        } else {
+            pendingConversationId = convId
         }
     }
 

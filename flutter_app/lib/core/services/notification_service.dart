@@ -1,9 +1,32 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 // Channel IDs referenced by the native manifest and prompt 15 call service.
 const kChannelMessages = 'messages';
 const kChannelCalls = 'calls';
+
+// Status-bar small icon (white silhouette). Shared by the Dart-shown
+// (foreground) notifications and the native FcmService (background).
+const _kNotifIcon = '@drawable/ic_stat_notification';
+const _kMessagesGroup = 'lumin_messages';
+
+/// The conversation the user is currently viewing (null when none). New
+/// messages for this conversation are NOT turned into notifications — the open
+/// chat already shows them and marks them read. Set by the chat screen.
+final activeConversationProvider = StateProvider<String?>((_) => null);
+
+/// Stable notification id for a conversation. Deliberately a hand-rolled 31x
+/// polynomial hash (masked to 26 bits so the *31 never overflows a 32-bit Kotlin
+/// Int) so it produces the SAME value as `convNotifId` in FcmService.kt — that
+/// lets Dart cancel notifications the native background handler posted.
+int conversationNotificationId(String conversationId) {
+  var h = 0;
+  for (final c in conversationId.codeUnits) {
+    h = (h * 31 + c) & 0x3FFFFFF;
+  }
+  return h == 0 ? 1 : h;
+}
 
 class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
@@ -15,7 +38,7 @@ class NotificationService {
   void Function(String conversationId)? onMessageNotificationTap;
 
   Future<void> init() async {
-    const android = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const android = AndroidInitializationSettings(_kNotifIcon);
     await _plugin.initialize(
       settings: const InitializationSettings(android: android),
       onDidReceiveNotificationResponse: _handleTap,
@@ -58,10 +81,13 @@ class NotificationService {
     );
   }
 
-  /// Shows a heads-up notification for a new message received while the app is
-  /// backgrounded. [payload] is the conversationId for deep-link routing.
+  /// Shows a heads-up notification for a new message. Keyed by [conversationId]
+  /// so successive messages from the same chat COLLAPSE into one updating
+  /// notification (instead of stacking separately), and so [cancelConversation]
+  /// can clear it when the chat is opened/read. [payload] is the conversationId
+  /// for deep-link routing.
   Future<void> showMessageNotification({
-    required String id,
+    required String id, // unused for the notification id now; kept for callers
     required String senderName,
     required String preview,
     required String conversationId,
@@ -72,16 +98,30 @@ class NotificationService {
       channelDescription: 'New message notifications',
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
+      icon: _kNotifIcon,
+      groupKey: _kMessagesGroup,
       styleInformation: BigTextStyleInformation(''),
     );
     await _plugin.show(
-      id: id.hashCode,
+      id: conversationNotificationId(conversationId),
       title: senderName,
       body: preview,
       notificationDetails: const NotificationDetails(android: androidDetails),
       payload: conversationId,
     );
   }
+
+  /// Clear the tray notification for [conversationId] — call when the chat is
+  /// opened or its messages are marked read. Also clears the launcher badge on
+  /// most launchers (they derive the badge from active notifications). Matches
+  /// the id used by both the Dart and native (FcmService) message paths.
+  Future<void> cancelConversation(String conversationId) async {
+    if (conversationId.isEmpty) return;
+    await _plugin.cancel(conversationNotificationId(conversationId));
+  }
+
+  /// Clear every message notification (e.g. on logout).
+  Future<void> cancelAll() => _plugin.cancelAll();
 
   // Incoming-call full-screen notifications are owned by the native
   // FcmService + CallService on Android (see android/.../FcmService.kt).

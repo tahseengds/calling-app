@@ -148,14 +148,36 @@ class FcmService : FirebaseMessagingService() {
 
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val notif = NotificationCompat.Builder(this, MESSAGES_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_email)
+            .setSmallIcon(R.drawable.ic_stat_notification)
             .setContentTitle(title)
             .setContentText(body)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
+            .setGroup(MESSAGES_GROUP)
             .setContentIntent(tapPending)
             .build()
-        nm.notify(messageId.hashCode().takeIf { it != 0 } ?: 1, notif)
+        // Stable per-conversation id (matches Dart's conversationNotificationId)
+        // so a chat's messages collapse into one notification AND Flutter can
+        // cancel it when the chat is opened/read.
+        val notifId = if (conversationId.isNotEmpty()) {
+            convNotifId(conversationId)
+        } else {
+            messageId.hashCode().takeIf { it != 0 } ?: 1
+        }
+        nm.notify(notifId, notif)
+    }
+
+    /**
+     * 31x polynomial hash masked to 26 bits — kept identical to the Dart
+     * `conversationNotificationId` so Flutter can cancel notifications this
+     * service posts. (26-bit mask keeps h*31 inside a 32-bit Int.)
+     */
+    private fun convNotifId(conversationId: String): Int {
+        var h = 0
+        for (ch in conversationId) {
+            h = (h * 31 + ch.code) and 0x3FFFFFF
+        }
+        return if (h == 0) 1 else h
     }
 
     private fun ensureMessagesNotificationChannel() {
@@ -205,5 +227,6 @@ class FcmService : FirebaseMessagingService() {
         private const val PREFS = "fcm_prefs"
         private const val KEY_FCM_TOKEN = "fcm_token"
         private const val MESSAGES_CHANNEL_ID = "messages"
+        private const val MESSAGES_GROUP = "lumin_messages"
     }
 }

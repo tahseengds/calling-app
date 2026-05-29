@@ -70,6 +70,10 @@ class NativeCallBridge {
   /// screens watch this to collapse to a video-only layout while in PiP.
   final ValueNotifier<bool> isInPip = ValueNotifier<bool>(false);
 
+  /// Called when the user taps a message notification (warm start) — the arg
+  /// is the conversation_id to route to. Set by main.dart.
+  void Function(String conversationId)? onOpenConversation;
+
   /// Stream of events pushed by the native side.
   Stream<NativeCallEvent> get events => _events.stream;
 
@@ -263,6 +267,20 @@ class NativeCallBridge {
     }
   }
 
+  /// Cold-start: the conversation_id from a message notification that launched
+  /// the app (null if it wasn't launched from one).
+  Future<String?> getInitialConversation() async {
+    if (kIsWeb) return null;
+    try {
+      return await _channel.invokeMethod<String>('getInitialConversation');
+    } on PlatformException catch (e) {
+      debugPrint('[native_call_bridge] getInitialConversation failed: $e');
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
   /// Explicitly request Picture-in-Picture (e.g. the minimize button).
   /// Returns true if the OS entered PiP; false when unsupported.
   Future<bool> enterPip() async {
@@ -301,6 +319,12 @@ class NativeCallBridge {
         return null;
       case 'pipModeChanged':
         isInPip.value = call.arguments == true;
+        return null;
+      case 'openConversation':
+        final convId = call.arguments as String?;
+        if (convId != null && convId.isNotEmpty) {
+          onOpenConversation?.call(convId);
+        }
         return null;
       default:
         return null;

@@ -21,6 +21,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -133,7 +134,16 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToBottom();
+      // Mark this chat active (so incoming messages for it don't notify) and
+      // clear any tray notification / badge already showing for it.
+      ref.read(activeConversationProvider.notifier).state =
+          widget.conversationId;
+      ref
+          .read(notificationServiceProvider)
+          .cancelConversation(widget.conversationId);
+    });
     _scrollCtrl.addListener(_onScroll);
     // Opening the soft keyboard dismisses the emoji panel so the two never
     // fight for the bottom of the screen.
@@ -171,6 +181,10 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
 
   @override
   void dispose() {
+    // No longer the active conversation (only clear if it's still us — the
+    // next chat may have already claimed it).
+    final active = ref.read(activeConversationProvider.notifier);
+    if (active.state == widget.conversationId) active.state = null;
     _clockTicker?.cancel();
     _inputCtrl.dispose();
     _scrollCtrl.dispose();
