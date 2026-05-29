@@ -10,6 +10,7 @@ import '../../../shared/widgets/lumio_icons.dart';
 import '../../../shared/widgets/permissions_sheet.dart';
 import '../../profile/ui/profile_screen.dart';
 import '../../calling/presentation/call_history_screen.dart';
+import '../../calling/domain/missed_calls_badge.dart';
 // Polished "Messages" home — rich card list backed by live conversation data.
 import '../../chat/presentation/chats_home_screen.dart';
 import '../../chat/domain/conversation_list_notifier.dart';
@@ -74,6 +75,8 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
               convos.fold<int>(0, (sum, c) => sum + c.unreadCount),
           orElse: () => 0,
         );
+    // Missed calls since the user last opened the Calls tab.
+    final callsMissed = ref.watch(missedCallsBadgeProvider);
 
     return Scaffold(
       body: IndexedStack(
@@ -87,7 +90,12 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       bottomNavigationBar: _FlBottomNav(
         currentIndex: tabIndex,
         chatsUnread: chatsUnread,
-        onTap: (i) => ref.read(shellTabProvider.notifier).state = i,
+        callsMissed: callsMissed,
+        onTap: (i) {
+          // Viewing the Calls tab clears its missed badge.
+          if (i == 1) ref.read(callsLastSeenProvider.notifier).markSeen();
+          ref.read(shellTabProvider.notifier).state = i;
+        },
       ),
     );
   }
@@ -112,11 +120,13 @@ class _FlBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
   final int chatsUnread;
+  final int callsMissed;
 
   const _FlBottomNav({
     required this.currentIndex,
     required this.onTap,
     this.chatsUnread = 0,
+    this.callsMissed = 0,
   });
 
   @override
@@ -145,7 +155,11 @@ class _FlBottomNav extends StatelessWidget {
                       isActive: i == currentIndex,
                       onTap: () => onTap(i),
                       isDark: isDark,
-                      badgeCount: i == 0 ? chatsUnread : 0,
+                      badgeCount: switch (i) {
+                        0 => chatsUnread,
+                        1 => callsMissed,
+                        _ => 0,
+                      },
                     ),
                   ),
               ],
