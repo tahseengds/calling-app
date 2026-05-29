@@ -32,11 +32,17 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen>
       vsync: this,
       duration: const Duration(milliseconds: 3600),
     )..repeat(reverse: true);
+    // Tell the global "return to call" overlay we're on the call screen, so it
+    // hides while this screen is visible and reappears once we leave.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(callScreenVisibleProvider.notifier).state = true;
+    });
   }
 
   @override
   void dispose() {
     _breath.dispose();
+    ref.read(callScreenVisibleProvider.notifier).state = false;
     super.dispose();
   }
 

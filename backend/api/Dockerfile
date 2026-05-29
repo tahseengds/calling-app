@@ -17,5 +17,7 @@ COPY scripts/ ./scripts/
 COPY tests/ ./tests/
 COPY pytest.ini .
 
+# 2 workers to use both vCPUs. Rate limits are Redis-backed (shared across
+# workers) and DB pool is 15/worker → 30 total, well under Postgres' 100.
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", \
-     "--workers", "1", "--loop", "uvloop", "--http", "httptools"]
+     "--workers", "2", "--loop", "uvloop", "--http", "httptools"]

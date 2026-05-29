@@ -26,6 +26,7 @@ import 'features/calling/presentation/outgoing_call_screen.dart';
 import 'features/calling/presentation/active_call_screen.dart';
 import 'features/calling/presentation/video_call_screen.dart';
 import 'features/calling/presentation/call_history_screen.dart';
+import 'features/calling/presentation/widgets/call_return_overlay.dart';
 import 'features/calling/domain/call_notifier.dart';
 import 'features/calling/domain/call_state.dart';
 // App lock gate
@@ -349,8 +350,21 @@ class _LuminAppState extends ConsumerState<LuminApp>
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: overlay,
           // Wrap every route in the App Lock gate so a locked app can't be
-          // bypassed by deep-linking past the home screen.
-          child: AppLockGate(child: child ?? const SizedBox.shrink()),
+          // bypassed by deep-linking past the home screen. The call-return
+          // overlay floats above all routes (but below the lock screen) so an
+          // in-progress call is always one tap away from anywhere in the app.
+          child: AppLockGate(
+            child: Stack(
+              children: [
+                child ?? const SizedBox.shrink(),
+                CallReturnOverlay(
+                  onReturn: (isVideo) => router.push(
+                    isVideo ? '/call/video' : '/call/active',
+                  ),
+                ),
+              ],
+            ),
+          ),
         );
       },
     );

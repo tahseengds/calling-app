@@ -32,6 +32,7 @@ from pathlib import Path
 
 import aiofiles
 import magic
+from fastapi.concurrency import run_in_threadpool
 from PIL import Image, ImageOps
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -165,50 +166,67 @@ def _open_image(data: bytes) -> Image.Image:
     return img
 
 
+def _render_image_webp(data: bytes) -> tuple[bytes, bytes, int, int]:
+    """CPU-bound: decode, re-encode to WebP, and build a 400×400 thumbnail.
+    Returns (original_bytes, thumb_bytes, width, height). Pure/synchronous so
+    it can run off the event loop via run_in_threadpool."""
+    img = _open_image(data)
+    width, height = img.size
+
+    buf = io.BytesIO()
+    img.save(buf, "WEBP", quality=85)
+
+    thumb = img.copy()
+    thumb.thumbnail((400, 400), Image.LANCZOS)
+    tbuf = io.BytesIO()
+    thumb.save(tbuf, "WEBP", quality=85)
+
+    return buf.getvalue(), tbuf.getvalue(), width, height
+
+
 async def process_image(
     data: bytes, media_id: str
 ) -> tuple[str, str, int, int]:
     """
     Convert to WebP + generate thumbnail.
     Returns (stored_name, thumb_stored_name, width, height).
+
+    The Pillow work is CPU-bound and synchronous, so it's pushed to a worker
+    thread — otherwise it would block the (single per-worker) event loop for
+    the whole duration of a resize/encode, stalling every other request.
     """
     base = Path(settings.MEDIA_BASE_PATH)
     stored_name = f"images/originals/{media_id}.webp"
     thumb_stored_name = f"images/thumbnails/{media_id}_thumb.webp"
 
-    img = _open_image(data)
-    width, height = img.size
-
-    # Save original as WebP
-    buf = io.BytesIO()
-    img.save(buf, "WEBP", quality=85)
-    await write_bytes(base / stored_name, buf.getvalue())
-
-    # Thumbnail (max 400×400, preserve aspect ratio)
-    thumb = img.copy()
-    thumb.thumbnail((400, 400), Image.LANCZOS)
-    tbuf = io.BytesIO()
-    thumb.save(tbuf, "WEBP", quality=85)
-    await write_bytes(base / thumb_stored_name, tbuf.getvalue())
+    original_bytes, thumb_bytes, width, height = await run_in_threadpool(
+        _render_image_webp, data
+    )
+    await write_bytes(base / stored_name, original_bytes)
+    await write_bytes(base / thumb_stored_name, thumb_bytes)
 
     return stored_name, thumb_stored_name, width, height
+
+
+def _render_avatar_webp(data: bytes) -> bytes:
+    """CPU-bound: decode + cover-crop to 200×200 WebP. Runs off the loop."""
+    img = _open_image(data)
+    img = ImageOps.fit(img, (200, 200), Image.LANCZOS)
+    buf = io.BytesIO()
+    img.save(buf, "WEBP", quality=85)
+    return buf.getvalue()
 
 
 async def process_avatar(data: bytes, media_id: str) -> str:
     """
     Convert to WebP, cover-crop to 200×200.
-    Returns stored_name.
+    Returns stored_name. Pillow work runs in a worker thread (see process_image).
     """
     base = Path(settings.MEDIA_BASE_PATH)
     stored_name = f"avatars/{media_id}.webp"
 
-    img = _open_image(data)
-    # Cover crop: fill 200×200, centred
-    img = ImageOps.fit(img, (200, 200), Image.LANCZOS)
-
-    buf = io.BytesIO()
-    img.save(buf, "WEBP", quality=85)
-    await write_bytes(base / stored_name, buf.getvalue())
+    avatar_bytes = await run_in_threadpool(_render_avatar_webp, data)
+    await write_bytes(base / stored_name, avatar_bytes)
 
     return stored_name
 

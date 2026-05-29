@@ -3,6 +3,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show WidgetsBinding, AppLifecycleState;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -177,6 +178,10 @@ class CallNotifier extends Notifier<CallSession?> {
 
     final callId = const Uuid().v4();
 
+    // Video calls default to the loudspeaker (you hold the phone away from
+    // your ear to see the screen); audio calls default to the earpiece.
+    final speakerDefault = callType == CallType.video;
+
     state = CallSession(
       callId: callId,
       peerUser: peer,
@@ -184,13 +189,14 @@ class CallNotifier extends Notifier<CallSession?> {
       direction: CallDirection.outgoing,
       phase: CallPhase.outgoingRinging,
       startedAt: DateTime.now().toUtc(),
+      isSpeakerOn: speakerDefault,
     );
 
     // ── Voice-call audio mode ────────────────────────────────────────────────
     // Hardware volume buttons should control the in-call (STREAM_VOICE_CALL)
     // stream from now until call end. For audio calls, also acquire the
     // proximity wake lock so the screen blanks when the phone is at the ear.
-    _applyVoiceCallAudioMode(callType: callType, isSpeakerOn: false);
+    _applyVoiceCallAudioMode(callType: callType, isSpeakerOn: speakerDefault);
 
     try {
       final iceServers =
@@ -270,6 +276,8 @@ class CallNotifier extends Notifier<CallSession?> {
       phase: CallPhase.incomingRinging,
       startedAt: DateTime.now().toUtc(),
       pendingOffer: payload['offer'] as Map<String, dynamic>?,
+      // Video calls answer on the loudspeaker (see startCall).
+      isSpeakerOn: callType == CallType.video,
     );
 
     // ── Backgrounded fallback (Option B) ───────────────────────────────────
@@ -904,6 +912,10 @@ class CallNotifier extends Notifier<CallSession?> {
             phase: CallPhase.connected,
             connectedAt: connectedAt,
           );
+          // Route audio now that media is flowing. WebRTC.initialize() forces
+          // the earpiece on setup; re-assert the session's choice here so video
+          // calls actually come out of the loudspeaker.
+          _webrtc?.setSpeakerphone(session.isSpeakerOn).catchError((_) {});
           _startQualityMonitor();
           _startDurationTick();
           // Ignore errors on platforms where wakelock is unavailable (tests, web).
@@ -1209,3 +1221,10 @@ class CallNotifier extends Notifier<CallSession?> {
 /// The single active call session. Null when no call is in progress.
 final callSessionProvider =
     NotifierProvider<CallNotifier, CallSession?>(CallNotifier.new);
+
+/// True while a full-screen call UI (active / video) is on top. The global
+/// "return to call" overlay uses this to know when to show itself — it appears
+/// only when a call is live but the user has navigated away from the call
+/// screen. Set by ActiveCallScreen / VideoCallScreen on mount/unmount.
+final callScreenVisibleProvider =
+    StateProvider<bool>((_) => false);

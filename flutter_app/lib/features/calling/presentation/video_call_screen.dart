@@ -24,6 +24,21 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
   Offset _pipOffset = const Offset(double.infinity, 80); // top-right initially
 
   @override
+  void initState() {
+    super.initState();
+    // Hide the global "return to call" overlay while the full call screen is up.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(callScreenVisibleProvider.notifier).state = true;
+    });
+  }
+
+  @override
+  void dispose() {
+    ref.read(callScreenVisibleProvider.notifier).state = false;
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final session = ref.watch(callSessionProvider);
 
