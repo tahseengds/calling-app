@@ -461,7 +461,11 @@ class _CallRow extends ConsumerWidget {
   }
 
   String _timeAgo(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) {
+      return 'Just now';
+    }
     if (diff.inMinutes < 60) {
       return '${diff.inMinutes}m ago';
     }
@@ -471,7 +475,17 @@ class _CallRow extends ConsumerWidget {
     if (diff.inDays == 1) {
       return 'Yesterday';
     }
-    return '${diff.inDays}d ago';
+    if (diff.inDays < 7) {
+      return '${diff.inDays}d ago';
+    }
+    // Older than a week → show an actual date so it's readable at a glance
+    // (e.g. "15 Jan", or "15 Jan 2024" when it's not the current year).
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final label = '${dt.day} ${months[dt.month - 1]}';
+    return dt.year == now.year ? label : '$label ${dt.year}';
   }
 }
 

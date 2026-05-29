@@ -59,6 +59,42 @@ class _EditNameScreenState extends ConsumerState<EditNameScreen> {
     }
   }
 
+  /// True when the field differs from the saved name (and isn't empty) — used
+  /// to prompt before discarding unsaved edits.
+  bool get _isDirty {
+    final t = _controller.text.trim();
+    return t.isNotEmpty && t != _initialName;
+  }
+
+  /// Back/close handler: confirm discard if there are unsaved edits.
+  Future<void> _maybePop() async {
+    if (!_isDirty) {
+      context.pop();
+      return;
+    }
+    final discard = await _confirmDiscard();
+    if (discard == true && mounted) context.pop();
+  }
+
+  Future<bool?> _confirmDiscard() => showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Discard changes?'),
+          content: const Text("Your edited name hasn't been saved."),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Keep editing'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Discard',
+                  style: TextStyle(color: AppColors.danger)),
+            ),
+          ],
+        ),
+      );
+
   Future<void> _save() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _errorText != null || text == _initialName) return;
@@ -68,6 +104,8 @@ class _EditNameScreenState extends ConsumerState<EditNameScreen> {
     try {
       await ref.read(profileNotifierProvider.notifier).updateName(text);
       if (mounted) {
+        // Mark clean so the discard guard doesn't fire on the post-save pop.
+        setState(() => _initialName = text);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -87,7 +125,11 @@ class _EditNameScreenState extends ConsumerState<EditNameScreen> {
             ),
           ),
         );
-        context.pop();
+        // Pop after the rebuild (above setState cleared the dirty flag) so the
+        // PopScope discard guard sees canPop=true and lets us out.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) context.pop();
+        });
       }
     } catch (e) {
       if (mounted) {
@@ -119,7 +161,14 @@ class _EditNameScreenState extends ConsumerState<EditNameScreen> {
     final text = _controller.text.trim();
     final canSave = text.isNotEmpty && _errorText == null && text != _initialName && !_isLoading;
 
-    return Scaffold(
+    return PopScope(
+      canPop: !_isDirty,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final discard = await _confirmDiscard();
+        if (discard == true && mounted) context.pop();
+      },
+      child: Scaffold(
       backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
       appBar: AppBar(
         backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
@@ -127,7 +176,7 @@ class _EditNameScreenState extends ConsumerState<EditNameScreen> {
         leading: IconButton(
           icon: Icon(LumioIcons.back, color: colors.fg1),
           tooltip: 'Back',
-          onPressed: () => context.pop(),
+          onPressed: _maybePop,
         ),
         title: Text(
           'Edit Name',
@@ -204,6 +253,7 @@ class _EditNameScreenState extends ConsumerState<EditNameScreen> {
           ),
         ),
         ),
+      ),
       ),
     );
   }
