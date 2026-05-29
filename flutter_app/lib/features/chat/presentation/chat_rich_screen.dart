@@ -310,12 +310,34 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
 
   void _enterReplyMode(Message msg) {
     HapticFeedback.selectionClick();
-    setState(() => _replyingTo = msg);
+    setState(() {
+      _replyingTo = msg;
+      _editing = null;
+    });
     FocusScope.of(context).requestFocus(_inputFocus);
   }
 
   void _cancelReply() {
     setState(() => _replyingTo = null);
+  }
+
+  /// Enter edit mode for an own text message: prefill the input + show banner.
+  void _startEditing(Message msg) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _editing = msg;
+      _replyingTo = null;
+    });
+    _inputCtrl.text = msg.content ?? '';
+    _inputCtrl.selection = TextSelection.fromPosition(
+      TextPosition(offset: _inputCtrl.text.length),
+    );
+    FocusScope.of(context).requestFocus(_inputFocus);
+  }
+
+  void _cancelEditing() {
+    setState(() => _editing = null);
+    _inputCtrl.clear();
   }
 
   /// Copy a message's textual content (or caption) to the clipboard.
