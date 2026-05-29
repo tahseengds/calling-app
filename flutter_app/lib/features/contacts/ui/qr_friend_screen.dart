@@ -560,25 +560,49 @@ class _MyQrTabState extends ConsumerState<_MyQrTab> {
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(24),
                     ),
-                    child: QrImageView(
-                      data: payload,
-                      version: QrVersions.auto,
-                      size: 240,
-                      gapless: true,
-                      backgroundColor: Colors.white,
-                      // High EC so the centered logo doesn't break scanning.
-                      errorCorrectionLevel: QrErrorCorrectLevel.H,
-                      eyeStyle: const QrEyeStyle(
-                        eyeShape: QrEyeShape.circle,
-                        color: AppColors.primary,
-                      ),
-                      dataModuleStyle: const QrDataModuleStyle(
-                        dataModuleShape: QrDataModuleShape.circle,
-                        color: Color(0xFF101828),
-                      ),
-                      embeddedImage: const AssetImage('assets/lumin-logo.png'),
-                      embeddedImageStyle: const QrEmbeddedImageStyle(
-                        size: Size(52, 52),
+                    child: SizedBox(
+                      width: 240,
+                      height: 240,
+                      child: Stack(
+                        alignment: Alignment.center,
+                        children: [
+                          QrImageView(
+                            data: payload,
+                            version: QrVersions.auto,
+                            size: 240,
+                            gapless: true,
+                            backgroundColor: Colors.white,
+                            // High EC tolerates the cleared centre below.
+                            errorCorrectionLevel: QrErrorCorrectLevel.H,
+                            eyeStyle: const QrEyeStyle(
+                              eyeShape: QrEyeShape.circle,
+                              color: AppColors.primary,
+                            ),
+                            dataModuleStyle: const QrDataModuleStyle(
+                              dataModuleShape: QrDataModuleShape.circle,
+                              color: Color(0xFF101828),
+                            ),
+                          ),
+                          // Clean white punch-out so the logo sits clear of the
+                          // dots instead of on top of them. EC level H recovers
+                          // the ~6% of modules this covers, so it still scans.
+                          Container(
+                            width: 64,
+                            height: 64,
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            alignment: Alignment.center,
+                            child: Padding(
+                              padding: const EdgeInsets.all(10),
+                              child: Image.asset(
+                                'assets/lumin-logo.png',
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
