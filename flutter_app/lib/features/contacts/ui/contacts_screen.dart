@@ -254,12 +254,33 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
             user: user,
             onRemove: () async {
               final messenger = ScaffoldMessenger.of(context);
-              await ref
-                  .read(contactsNotifierProvider.notifier)
-                  .removeContact(user.id);
-              messenger.showSnackBar(
-                SnackBar(content: Text('Removed ${user.name}')),
-              );
+              try {
+                await ref
+                    .read(contactsNotifierProvider.notifier)
+                    .removeContact(user.id);
+                messenger.showSnackBar(
+                  SnackBar(content: Text('Removed ${user.name}')),
+                );
+              } catch (_) {
+                if (context.mounted) {
+                  showErrorSnackbar(context, 'Could not remove ${user.name}');
+                }
+              }
+            },
+            onBlock: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              try {
+                await ref
+                    .read(contactsNotifierProvider.notifier)
+                    .blockContact(user.id);
+                messenger.showSnackBar(
+                  SnackBar(content: Text('Blocked ${user.name}')),
+                );
+              } catch (_) {
+                if (context.mounted) {
+                  showErrorSnackbar(context, 'Could not block ${user.name}');
+                }
+              }
             },
             onCallAudio: () => _placeCall(user, CallType.audio),
             onMessage: () async {
@@ -374,12 +395,14 @@ class _PillSearchBarState extends State<_PillSearchBar> {
 class _ContactRow extends StatelessWidget {
   final User user;
   final VoidCallback onRemove;
+  final VoidCallback onBlock;
   final VoidCallback onMessage;
   final VoidCallback onCallAudio;
 
   const _ContactRow({
     required this.user,
     required this.onRemove,
+    required this.onBlock,
     required this.onMessage,
     required this.onCallAudio,
   });
@@ -393,7 +416,7 @@ class _ContactRow extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onLongPress: () => _showRemoveDialog(context),
+        onLongPress: () => _showActionsSheet(context),
         onTap: onMessage,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -473,6 +496,12 @@ class _ContactRow extends StatelessWidget {
                 tooltip: 'Call',
                 onTap: onCallAudio,
               ),
+              _IconButton(
+                icon: LucideIcons.ellipsisVertical,
+                color: colors.fg2,
+                tooltip: 'More',
+                onTap: () => _showActionsSheet(context),
+              ),
             ],
           ),
         ),
@@ -480,7 +509,91 @@ class _ContactRow extends StatelessWidget {
     );
   }
 
-  void _showRemoveDialog(BuildContext context) {
+  /// Bottom sheet exposing the destructive contact actions (block / remove).
+  void _showActionsSheet(BuildContext context) {
+    final colors = context.lumioColors;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: colors.surfaceLo,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: colors.hairline,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              leading: Icon(LucideIcons.ban, color: AppColors.danger),
+              title: const Text('Block contact'),
+              subtitle: Text(
+                '${user.name} won\'t be able to message or call you.',
+                style: TextStyle(color: colors.fg2, fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                _confirmBlock(context);
+              },
+            ),
+            ListTile(
+              leading: Icon(LucideIcons.trash2, color: AppColors.danger),
+              title: const Text('Remove contact'),
+              subtitle: Text(
+                'Remove ${user.name} from your family list.',
+                style: TextStyle(color: colors.fg2, fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.pop(sheetCtx);
+                _confirmRemove(context);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmBlock(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Block ${user.name}?'),
+        content: Text(
+          'They won\'t be able to message or call you, and any ongoing call '
+          'will end. You can unblock them later from Privacy → Blocked '
+          'contacts.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              onBlock();
+            },
+            child: const Text(
+              'Block',
+              style: TextStyle(color: AppColors.danger),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmRemove(BuildContext context) {
     showDialog<void>(
       context: context,
       builder: (_) => AlertDialog(

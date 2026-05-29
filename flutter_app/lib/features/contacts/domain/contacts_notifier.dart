@@ -48,10 +48,19 @@ class ContactsNotifier extends StateNotifier<ContactsState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final entries = await _repo.getContactEntries();
+      // Keep the id map for ALL rows (blocked included) so we can still
+      // resolve a contact row when unblocking/removing, but only surface
+      // non-blocked contacts in the family list — blocked ones live in the
+      // dedicated Blocked-contacts screen.
       _contactIdByUserId
         ..clear()
         ..addEntries(entries.map((e) => MapEntry(e.user.id, e.contactId)));
-      state = ContactsState(contacts: entries.map((e) => e.user).toList());
+      state = ContactsState(
+        contacts: entries
+            .where((e) => !e.isBlocked)
+            .map((e) => e.user)
+            .toList(),
+      );
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
@@ -71,12 +80,11 @@ class ContactsNotifier extends StateNotifier<ContactsState> {
   /// Removes the contact whose target user has [userId]. Looks up the
   /// contact row id from the side map populated by `load()`.
   Future<void> removeContact(String userId) async {
-    final contactId = _contactIdByUserId[userId];
+    final contactId = await _resolveContactId(userId);
     if (contactId == null) {
-      // We don't know the row id (e.g. optimistic add hasn't reloaded yet).
-      // Refresh and let the user retry — silently ignore for now.
-      await load();
-      return;
+      // We still don't know the row id even after a refresh — surface it so
+      // callers can show an error instead of a false "removed" confirmation.
+      throw StateError('No contact row for user $userId');
     }
 
     // Optimistic removal.
@@ -87,10 +95,48 @@ class ContactsNotifier extends StateNotifier<ContactsState> {
     _contactIdByUserId.remove(userId);
     try {
       await _repo.removeContact(contactId);
-    } on DioException catch (_) {
-      // Rollback on error.
+    } on DioException {
+      // Rollback on error and rethrow so callers can surface it.
       load();
+      rethrow;
     }
+  }
+
+  /// Blocks the contact whose target user has [userId]. Resolves the contact
+  /// row id from the side map and flips `is_blocked` on the backend, which
+  /// also publishes a `user:blocked` event (ending any in-progress call) and
+  /// makes message/call attempts between the two fail server-side.
+  ///
+  /// The blocked user is removed from the family list immediately; they remain
+  /// reachable for un-blocking via the Blocked-contacts screen.
+  Future<void> blockContact(String userId) async {
+    final contactId = await _resolveContactId(userId);
+    if (contactId == null) {
+      throw StateError('No contact row for user $userId');
+    }
+
+    // Optimistic removal from the visible family list.
+    final previous = state.contacts;
+    state = state.copyWith(
+      contacts: previous.where((c) => c.id != userId).toList(),
+    );
+    try {
+      await _repo.setBlocked(contactId: contactId, blocked: true);
+    } on DioException {
+      // Rollback to the pre-block list and rethrow so callers can surface it.
+      load();
+      rethrow;
+    }
+  }
+
+  /// Resolves the contact-row id for [userId], refreshing from the server once
+  /// if it isn't cached yet (e.g. a cold-start deep-link straight into a chat,
+  /// before the contacts list has been loaded).
+  Future<String?> _resolveContactId(String userId) async {
+    final cached = _contactIdByUserId[userId];
+    if (cached != null) return cached;
+    await load();
+    return _contactIdByUserId[userId];
   }
 
   /// Updates presence for a contact — called by the signaling layer.

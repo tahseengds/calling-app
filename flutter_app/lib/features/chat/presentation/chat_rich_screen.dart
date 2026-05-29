@@ -34,6 +34,7 @@ import '../../../features/calling/domain/call_state.dart'
     show CallType, PeerUser;
 import '../../../features/calling/presentation/widgets/permission_denied_screen.dart';
 import '../../../features/chat/domain/chat_notifier.dart';
+import '../../../features/contacts/domain/contacts_notifier.dart';
 import 'media_gallery_screen.dart';
 import '../../../shared/models/message.dart';
 import '../../../shared/models/user.dart' as user_model;
@@ -68,6 +69,9 @@ class _T {
 }
 
 // ─── ChatRichScreen ───────────────────────────────────────────────────────────
+
+/// Overflow-menu actions in the chat app bar.
+enum _ChatMenuAction { block, remove }
 
 class ChatRichScreen extends ConsumerStatefulWidget {
   final String conversationId;
@@ -854,10 +858,125 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
               ? null
               : () => _placeCall(other, CallType.video),
         ),
+        PopupMenuButton<_ChatMenuAction>(
+          icon: Icon(LucideIcons.ellipsisVertical, color: colors.fg1, size: 22),
+          tooltip: 'More',
+          color: colors.surfaceLo,
+          enabled: other != null,
+          onSelected: (action) {
+            switch (action) {
+              case _ChatMenuAction.block:
+                _confirmBlockContact(other!);
+              case _ChatMenuAction.remove:
+                _confirmRemoveContact(other!);
+            }
+          },
+          itemBuilder: (_) => [
+            PopupMenuItem(
+              value: _ChatMenuAction.block,
+              child: Row(
+                children: [
+                  Icon(LucideIcons.ban, size: 18, color: AppColors.danger),
+                  const SizedBox(width: 12),
+                  const Text('Block contact'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: _ChatMenuAction.remove,
+              child: Row(
+                children: [
+                  Icon(LucideIcons.trash2, size: 18, color: AppColors.danger),
+                  const SizedBox(width: 12),
+                  const Text('Remove contact'),
+                ],
+              ),
+            ),
+          ],
+        ),
         const SizedBox(width: 4),
       ],
       shape: Border(bottom: BorderSide(color: colors.hairline)),
     );
+  }
+
+  // ── Contact actions (block / remove) ────────────────────────────────────────
+
+  void _confirmBlockContact(user_model.User other) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Block ${other.name}?'),
+        content: const Text(
+          'They won\'t be able to message or call you, and any ongoing call '
+          'will end. You can unblock them later from Privacy → Blocked '
+          'contacts.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _runContactAction(
+                () => ref
+                    .read(contactsNotifierProvider.notifier)
+                    .blockContact(other.id),
+                'Blocked ${other.name}',
+              );
+            },
+            child: const Text('Block', style: TextStyle(color: AppColors.danger)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmRemoveContact(user_model.User other) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Remove family member?'),
+        content: Text('${other.name} will be removed from your family list.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _runContactAction(
+                () => ref
+                    .read(contactsNotifierProvider.notifier)
+                    .removeContact(other.id),
+                'Removed ${other.name}',
+              );
+            },
+            child: const Text('Remove', style: TextStyle(color: AppColors.danger)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Runs a block/remove action, shows a confirmation snackbar, and leaves the
+  /// chat (the conversation no longer makes sense once the contact is gone).
+  Future<void> _runContactAction(
+    Future<void> Function() action,
+    String successMessage,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      await action();
+      messenger.showSnackBar(SnackBar(content: Text(successMessage)));
+      if (mounted) navigator.maybePop();
+    } catch (_) {
+      if (mounted) showErrorSnackbar(context, 'Something went wrong');
+    }
   }
 
   // ── Message list ────────────────────────────────────────────────────────────
