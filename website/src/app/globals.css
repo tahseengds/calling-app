@@ -65,7 +65,7 @@ html.lenis body {
     @apply border border-white/10 bg-white/[0.04] backdrop-blur-xl;
   }
   .glass-strong {
-    @apply border border-white/12 bg-white/[0.06] backdrop-blur-2xl;
+    @apply border border-white/[0.12] bg-white/[0.06] backdrop-blur-2xl;
   }
   .gradient-text {
     @apply bg-gradient-to-br from-white via-white to-brand-400 bg-clip-text text-transparent;

@@ -13,7 +13,7 @@ export function PhoneFrame({
   return (
     <div
       className={clsx(
-        'relative aspect-[9/19] w-[260px] rounded-[2.6rem] border border-white/12 bg-ink-900 p-2.5 shadow-card ring-glow',
+        'relative aspect-[9/19] w-[260px] rounded-[2.6rem] border border-white/[0.12] bg-ink-900 p-2.5 shadow-card ring-glow',
         className,
       )}
     >
