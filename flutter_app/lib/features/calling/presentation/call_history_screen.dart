@@ -511,14 +511,17 @@ class _CallRow extends ConsumerWidget {
     // ── Microphone (required for all calls) ───────────────────────
     var micStatus = await Permission.microphone.status;
     if (micStatus.isPermanentlyDenied) {
-      if (context.mounted) {
-        await Navigator.of(context).push(MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => const PermissionDeniedScreen(
-              type: PermissionDeniedType.microphone),
-        ));
-      }
-      return;
+      if (!context.mounted) return;
+      // The gate auto-pops `true` if the user grants mic in settings and
+      // returns — re-check and carry on instead of forcing a second tap.
+      final granted = await Navigator.of(context).push<bool>(MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const PermissionDeniedScreen(
+            type: PermissionDeniedType.microphone),
+      ));
+      if (granted != true) return;
+      micStatus = await Permission.microphone.status;
+      if (!micStatus.isGranted) return;
     }
     if (!micStatus.isGranted) {
       micStatus = await Permission.microphone.request();
@@ -529,14 +532,18 @@ class _CallRow extends ConsumerWidget {
     if (callType == CallType.video) {
       var camStatus = await Permission.camera.status;
       if (camStatus.isPermanentlyDenied) {
-        if (context.mounted) {
-          await Navigator.of(context).push(MaterialPageRoute(
-            fullscreenDialog: true,
-            builder: (_) => const PermissionDeniedScreen(
-                type: PermissionDeniedType.camera),
-          ));
+        if (!context.mounted) return;
+        final granted =
+            await Navigator.of(context).push<bool>(MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => const PermissionDeniedScreen(
+              type: PermissionDeniedType.camera),
+        ));
+        if (granted == true) {
+          camStatus = await Permission.camera.status;
+        } else {
+          return;
         }
-        return;
       }
       if (!camStatus.isGranted) {
         camStatus = await Permission.camera.request();

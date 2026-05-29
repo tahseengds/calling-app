@@ -171,14 +171,16 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
   Future<void> _placeCall(user_model.User other, CallType callType) async {
     var micStatus = await Permission.microphone.status;
     if (micStatus.isPermanentlyDenied) {
-      if (mounted) {
-        await Navigator.of(context).push(MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => const PermissionDeniedScreen(
-              type: PermissionDeniedType.microphone),
-        ));
-      }
-      return;
+      if (!mounted) return;
+      // Auto-retry: the gate pops `true` once mic is granted on return.
+      final granted = await Navigator.of(context).push<bool>(MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const PermissionDeniedScreen(
+            type: PermissionDeniedType.microphone),
+      ));
+      if (granted != true) return;
+      micStatus = await Permission.microphone.status;
+      if (!micStatus.isGranted) return;
     }
     if (!micStatus.isGranted) {
       micStatus = await Permission.microphone.request();
@@ -188,14 +190,18 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
     if (callType == CallType.video) {
       var camStatus = await Permission.camera.status;
       if (camStatus.isPermanentlyDenied) {
-        if (mounted) {
-          await Navigator.of(context).push(MaterialPageRoute(
-            fullscreenDialog: true,
-            builder: (_) => const PermissionDeniedScreen(
-                type: PermissionDeniedType.camera),
-          ));
+        if (!mounted) return;
+        final granted =
+            await Navigator.of(context).push<bool>(MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (_) => const PermissionDeniedScreen(
+              type: PermissionDeniedType.camera),
+        ));
+        if (granted == true) {
+          camStatus = await Permission.camera.status;
+        } else {
+          return;
         }
-        return;
       }
       if (!camStatus.isGranted) {
         camStatus = await Permission.camera.request();

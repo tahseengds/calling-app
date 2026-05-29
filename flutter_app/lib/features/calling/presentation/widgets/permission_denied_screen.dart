@@ -5,14 +5,54 @@ import '../../../../core/theme/app_colors.dart';
 enum PermissionDeniedType { microphone, camera }
 
 /// Full-screen "permanently denied" gate. Push as a fullscreen dialog route.
-class PermissionDeniedScreen extends StatelessWidget {
+///
+/// Pops `true` automatically once the relevant permission becomes granted —
+/// e.g. the user taps "Open settings", flips the toggle, and returns: the
+/// app resumes, we re-check, and the caller (which awaited the route result)
+/// can retry the call without a second tap.
+class PermissionDeniedScreen extends StatefulWidget {
   final PermissionDeniedType type;
   const PermissionDeniedScreen({super.key, required this.type});
 
   @override
+  State<PermissionDeniedScreen> createState() => _PermissionDeniedScreenState();
+}
+
+class _PermissionDeniedScreenState extends State<PermissionDeniedScreen>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _recheck();
+    }
+  }
+
+  Future<void> _recheck() async {
+    final perm = widget.type == PermissionDeniedType.microphone
+        ? Permission.microphone
+        : Permission.camera;
+    final status = await perm.status;
+    if (status.isGranted && mounted) {
+      Navigator.of(context).pop(true);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isMic = type == PermissionDeniedType.microphone;
+    final isMic = widget.type == PermissionDeniedType.microphone;
 
     final fg1 = isDark ? AppColors.darkFg1 : AppColors.lightFg1;
     final fg2 = isDark ? AppColors.darkFg2 : AppColors.lightFg2;
