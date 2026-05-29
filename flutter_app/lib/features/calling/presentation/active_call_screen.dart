@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/services/native_call_bridge.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
@@ -32,6 +33,8 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen>
       vsync: this,
       duration: const Duration(milliseconds: 3600),
     )..repeat(reverse: true);
+    // Allow auto-PiP when the user backgrounds the app during a voice call.
+    ref.read(nativeCallBridgeProvider).setPipActive(true);
     // Tell the global "return to call" overlay we're on the call screen, so it
     // hides while this screen is visible and reappears once we leave.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -42,6 +45,7 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen>
   @override
   void dispose() {
     _breath.dispose();
+    ref.read(nativeCallBridgeProvider).setPipActive(false);
     ref.read(callScreenVisibleProvider.notifier).state = false;
     super.dispose();
   }

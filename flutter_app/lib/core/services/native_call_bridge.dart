@@ -66,6 +66,10 @@ class NativeCallBridge {
       StreamController<NativeCallEvent>.broadcast();
   bool _handlerInstalled = false;
 
+  /// Whether the app is currently in Android Picture-in-Picture mode. The call
+  /// screens watch this to collapse to a video-only layout while in PiP.
+  final ValueNotifier<bool> isInPip = ValueNotifier<bool>(false);
+
   /// Stream of events pushed by the native side.
   Stream<NativeCallEvent> get events => _events.stream;
 
@@ -246,8 +250,36 @@ class NativeCallBridge {
     }
   }
 
+  /// Toggle whether backgrounding the app should auto-enter Picture-in-Picture.
+  /// Call with `true` while a call screen is foregrounded, `false` on leave.
+  Future<void> setPipActive(bool active) async {
+    if (kIsWeb) return;
+    try {
+      await _channel.invokeMethod<void>('setPipActive', {'active': active});
+    } on PlatformException catch (e) {
+      debugPrint('[native_call_bridge] setPipActive failed: $e');
+    } on MissingPluginException {
+      /* tests / iOS */
+    }
+  }
+
+  /// Explicitly request Picture-in-Picture (e.g. the minimize button).
+  /// Returns true if the OS entered PiP; false when unsupported.
+  Future<bool> enterPip() async {
+    if (kIsWeb) return false;
+    try {
+      return await _channel.invokeMethod<bool>('enterPip') ?? false;
+    } on PlatformException catch (e) {
+      debugPrint('[native_call_bridge] enterPip failed: $e');
+      return false;
+    } on MissingPluginException {
+      return false;
+    }
+  }
+
   Future<void> dispose() async {
     _channel.setMethodCallHandler(null);
+    isInPip.dispose();
     await _events.close();
   }
 
@@ -266,6 +298,9 @@ class NativeCallBridge {
         if (event != null) {
           _events.add(event);
         }
+        return null;
+      case 'pipModeChanged':
+        isInPip.value = call.arguments == true;
         return null;
       default:
         return null;

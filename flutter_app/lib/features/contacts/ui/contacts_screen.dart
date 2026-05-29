@@ -133,7 +133,7 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
         actions: [
           IconButton(
             onPressed: () => context.push('/qr'),
-            icon: Icon(LucideIcons.qrCode, color: colors.fg1),
+            icon: Icon(LucideIcons.scanLine, color: colors.fg1),
             tooltip: 'Add by QR code',
           ),
           IconButton(

@@ -1,12 +1,16 @@
 package com.lumin.app
 
+import android.app.PictureInPictureParams
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
 import android.os.PowerManager
 import android.util.Log
+import android.util.Rational
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -34,6 +38,13 @@ class MainActivity : FlutterFragmentActivity() {
 
     /** Pending native action ('accept' | 'decline' | null) carried in the launch intent. */
     private var pendingCallAction: String? = null
+
+    /**
+     * True while a call screen is up — lets [onUserLeaveHint] auto-enter
+     * Picture-in-Picture when the user backgrounds the app mid-call. Set from
+     * Flutter via the "setPipActive" channel method.
+     */
+    private var pipActive = false
 
     /**
      * Proximity-screen-off wake lock — acquired while a voice call is active
@@ -207,6 +218,18 @@ class MainActivity : FlutterFragmentActivity() {
                     ActiveCallService.stop(this)
                     result.success(true)
                 }
+                "setPipActive" -> {
+                    // Flutter toggles this while a call screen is foregrounded
+                    // so backgrounding the app auto-enters Picture-in-Picture.
+                    pipActive = call.argument<Boolean>("active") ?: false
+                    result.success(true)
+                }
+                "enterPip" -> {
+                    // Explicit request (e.g. the minimize button). Returns
+                    // false if the device/OS can't do PiP so Flutter can fall
+                    // back to its in-app mini view.
+                    result.success(enterPipMode())
+                }
                 else -> result.notImplemented()
             }
         }
@@ -306,6 +329,46 @@ class MainActivity : FlutterFragmentActivity() {
             Log.w(TAG, "proximity wake lock release failed: ${t.message}")
         }
         proximityWakeLock = null
+    }
+
+    // ── Picture-in-Picture ──────────────────────────────────────────────────
+
+    /**
+     * Auto-enter PiP when the user leaves the app (Home/Recents) during a call.
+     * Only fires when a call screen has marked itself active via "setPipActive".
+     */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (pipActive) enterPipMode()
+    }
+
+    /** Tell Flutter so the call screen can hide controls / show only video. */
+    override fun onPictureInPictureModeChanged(
+        isInPictureInPictureMode: Boolean,
+        newConfig: Configuration,
+    ) {
+        super.onPictureInPictureModeChanged(isInPictureInPictureMode, newConfig)
+        methodChannel?.invokeMethod("pipModeChanged", isInPictureInPictureMode)
+    }
+
+    /** Enter PiP with a portrait phone aspect. Returns false when unsupported. */
+    private fun enterPipMode(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false
+        if (!packageManager.hasSystemFeature(
+                PackageManager.FEATURE_PICTURE_IN_PICTURE,
+            )
+        ) {
+            return false
+        }
+        return try {
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(Rational(9, 16))
+                .build()
+            enterPictureInPictureMode(params)
+        } catch (t: Throwable) {
+            Log.w(TAG, "enterPip failed: ${t.message}")
+            false
+        }
     }
 
     override fun onDestroy() {

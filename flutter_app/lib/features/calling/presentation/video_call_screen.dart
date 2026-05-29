@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/services/native_call_bridge.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/utils/call_utils.dart';
 import '../domain/call_notifier.dart';
@@ -24,17 +25,33 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
   bool _showControls = true;
   Offset _pipOffset = const Offset(double.infinity, 80); // top-right initially
 
+  /// True while the OS has the app in a Picture-in-Picture window — we strip
+  /// the chrome down to just the remote video then.
+  bool _inPip = false;
+  late final NativeCallBridge _bridge;
+
   @override
   void initState() {
     super.initState();
+    _bridge = ref.read(nativeCallBridgeProvider);
+    // Allow auto-PiP when the user backgrounds the app mid-call.
+    _bridge.setPipActive(true);
+    _bridge.isInPip.addListener(_onPipChanged);
     // Hide the global "return to call" overlay while the full call screen is up.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) ref.read(callScreenVisibleProvider.notifier).state = true;
     });
   }
 
+  void _onPipChanged() {
+    if (!mounted) return;
+    setState(() => _inPip = _bridge.isInPip.value);
+  }
+
   @override
   void dispose() {
+    _bridge.isInPip.removeListener(_onPipChanged);
+    _bridge.setPipActive(false);
     ref.read(callScreenVisibleProvider.notifier).state = false;
     super.dispose();
   }
@@ -86,7 +103,7 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
           ),
 
           // ── Draggable local PiP ─────────────────────────────────────
-          if (webrtc != null && !session.isCameraOff)
+          if (webrtc != null && !session.isCameraOff && !_inPip)
             _DraggablePip(
               offset: _pipOffset,
               onOffsetChanged: (o) => setState(() => _pipOffset = o),
@@ -108,7 +125,7 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
 
           // ── "Camera off" chip — shown where the self-view would be, so the
           // user knows their own camera is disabled (not just frozen). ────────
-          if (session.isCameraOff)
+          if (session.isCameraOff && !_inPip)
             Positioned(
               top: MediaQuery.of(context).padding.top + 60,
               right: 16,
@@ -139,7 +156,7 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
             left: 0,
             right: 0,
             child: AnimatedOpacity(
-              opacity: _showControls ? 1.0 : 0.0,
+              opacity: (_showControls && !_inPip) ? 1.0 : 0.0,
               duration: const Duration(milliseconds: 200),
               child: Container(
                 padding: const EdgeInsets.fromLTRB(16, 44, 16, 18),
@@ -160,7 +177,12 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
                       shape: const CircleBorder(),
                       child: InkWell(
                         customBorder: const CircleBorder(),
-                        onTap: () => context.pop(),
+                        // Enter system Picture-in-Picture; if the device can't,
+                        // fall back to the in-app return-to-call overlay.
+                        onTap: () async {
+                          final entered = await _bridge.enterPip();
+                          if (!entered && context.mounted) context.pop();
+                        },
                         child: Semantics(
                           button: true,
                           label: 'Minimize call',
@@ -215,9 +237,9 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
             duration: const Duration(milliseconds: 200),
             left: 16,
             right: 16,
-            bottom: _showControls ? 32 : -120,
+            bottom: (_showControls && !_inPip) ? 32 : -120,
             child: AnimatedOpacity(
-              opacity: _showControls ? 1.0 : 0.0,
+              opacity: (_showControls && !_inPip) ? 1.0 : 0.0,
               duration: const Duration(milliseconds: 200),
               child: VideoCallControls(
                 isMuted: session.isMuted,
@@ -233,7 +255,7 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
           ),
 
           // ── Tap hint ─────────────────────────────────────────────────
-          if (!_showControls)
+          if (!_showControls && !_inPip)
             Positioned(
               left: 0,
               right: 0,
