@@ -1,17 +1,21 @@
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
 import '../data/settings_repository.dart';
 import 'models/notification_preferences.dart';
+import 'settings_save_error.dart';
 
 /// Reads + writes the user's NotificationPreferences. Toggle setters
 /// update local state optimistically, then PUT the server; on failure
-/// they roll back.
+/// they roll back and surface the error via [settingsSaveErrorProvider].
 class NotificationSettingsNotifier
     extends StateNotifier<AsyncValue<NotificationPreferences>> {
   final SettingsRepository _repo;
+  final Ref _ref;
 
-  NotificationSettingsNotifier(this._repo) : super(const AsyncLoading()) {
+  NotificationSettingsNotifier(this._repo, this._ref)
+      : super(const AsyncLoading()) {
     load();
   }
 
@@ -26,18 +30,22 @@ class NotificationSettingsNotifier
   }
 
   Future<void> _apply(NotificationPreferences next) async {
+    HapticFeedback.selectionClick();
     final previous = state.value;
     state = AsyncData(next);
     try {
       final saved = await _repo.updateNotifications(next);
       state = AsyncData(saved);
     } catch (e, st) {
+      // Roll the optimistic change back and surface a "couldn't save" message
+      // instead of throwing into the void (the toggle reverting alone left the
+      // user with no explanation).
       if (previous != null) {
         state = AsyncData(previous);
+        _ref.read(settingsSaveErrorProvider.notifier).state = e;
       } else {
         state = AsyncError(e, st);
       }
-      rethrow;
     }
   }
 
@@ -73,5 +81,6 @@ class NotificationSettingsNotifier
 
 final notificationSettingsProvider = StateNotifierProvider<
     NotificationSettingsNotifier, AsyncValue<NotificationPreferences>>((ref) {
-  return NotificationSettingsNotifier(ref.watch(settingsRepositoryProvider));
+  return NotificationSettingsNotifier(
+      ref.watch(settingsRepositoryProvider), ref);
 });

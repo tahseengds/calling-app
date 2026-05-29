@@ -1,14 +1,18 @@
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
 import '../data/settings_repository.dart';
 import 'models/privacy_settings.dart';
+import 'settings_save_error.dart';
 
 class PrivacySettingsNotifier
     extends StateNotifier<AsyncValue<PrivacySettings>> {
   final SettingsRepository _repo;
+  final Ref _ref;
 
-  PrivacySettingsNotifier(this._repo) : super(const AsyncLoading()) {
+  PrivacySettingsNotifier(this._repo, this._ref)
+      : super(const AsyncLoading()) {
     load();
   }
 
@@ -23,6 +27,7 @@ class PrivacySettingsNotifier
   }
 
   Future<void> _apply(PrivacySettings next) async {
+    HapticFeedback.selectionClick();
     final previous = state.value;
     state = AsyncData(next);
     try {
@@ -31,10 +36,10 @@ class PrivacySettingsNotifier
     } catch (e, st) {
       if (previous != null) {
         state = AsyncData(previous);
+        _ref.read(settingsSaveErrorProvider.notifier).state = e;
       } else {
         state = AsyncError(e, st);
       }
-      rethrow;
     }
   }
 
@@ -62,5 +67,5 @@ class PrivacySettingsNotifier
 
 final privacySettingsProvider = StateNotifierProvider<PrivacySettingsNotifier,
     AsyncValue<PrivacySettings>>((ref) {
-  return PrivacySettingsNotifier(ref.watch(settingsRepositoryProvider));
+  return PrivacySettingsNotifier(ref.watch(settingsRepositoryProvider), ref);
 });

@@ -11,6 +11,7 @@ import '../../../../shared/widgets/lumio_icons.dart';
 import '../../../../shared/widgets/settings_tile.dart';
 import '../../../settings/domain/models/notification_preferences.dart';
 import '../../../settings/domain/notification_settings_notifier.dart';
+import '../../../settings/domain/settings_save_error.dart';
 import 'message_sounds_screen.dart';
 
 class NotificationSettingsScreen extends ConsumerWidget {
@@ -21,6 +22,18 @@ class NotificationSettingsScreen extends ConsumerWidget {
     final colors = context.lumioColors;
     final isDark = context.isDarkMode;
     final async = ref.watch(notificationSettingsProvider);
+
+    // Surface save failures (the toggle already rolled back) with a snackbar.
+    ref.listen(settingsSaveErrorProvider, (_, err) {
+      if (err == null) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Couldn't save — check your connection and try again."),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      ref.read(settingsSaveErrorProvider.notifier).state = null;
+    });
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,
