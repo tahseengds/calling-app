@@ -167,26 +167,28 @@ def build_message_notification(
     android.priority=NORMAL, channel_id="messages".
     Body preview is generic for media types.
     """
+    # DATA-ONLY on Android (no top-level "notification" block). With a
+    # notification block the OS draws the tray notification itself when the app
+    # is backgrounded — with an id the app can't see, so it could never be
+    # cleared when the chat was opened. Data-only routes every message through
+    # FcmService.onMessageReceived, which builds the notification with a stable
+    # per-conversation id the app CAN cancel on read. HIGH priority so it's
+    # still delivered promptly under Doze. (iOS keeps an apns alert below.)
     return {
-        "notification": {
-            "title": sender_name,
-            "body": preview[:100],  # cap preview length
-        },
         "android": {
-            "priority": "NORMAL",
-            "notification": {
-                "channel_id": "messages",
-                "default_sound": True,
-            },
+            "priority": "HIGH",
         },
         "data": {
-            # IDs only — no message content, no secrets
             "type": "new_message",
             "conversation_id": conversation_id,
             "message_id": message_id,
             "sender_id": sender_id,
+            # Needed so the app can render the notification text itself.
+            "sender_name": sender_name,
+            "preview": preview[:100],
         },
         "apns": {
+            "headers": {"apns-priority": "10"},
             "payload": {
                 "aps": {
                     "alert": {"title": sender_name, "body": preview[:100]},

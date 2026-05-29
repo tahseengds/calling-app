@@ -142,6 +142,21 @@ class NotificationService {
   Future<void> cancelConversation(String conversationId) async {
     if (conversationId.isEmpty) return;
     await _plugin.cancel(id: conversationNotificationId(conversationId));
+    // Android doesn't reliably auto-remove a group SUMMARY when its last child
+    // is cancelled — and a lingering summary keeps the launcher badge. So if no
+    // message notifications remain, clear the summary too.
+    try {
+      final active = await _plugin.getActiveNotifications();
+      final messagesLeft = active.any((n) =>
+          n.id != _kMessagesSummaryId &&
+          (n.channelId == null || n.channelId == kChannelMessages));
+      if (!messagesLeft) {
+        await _plugin.cancel(id: _kMessagesSummaryId);
+      }
+    } catch (_) {
+      // getActiveNotifications unsupported on this platform/version — the
+      // child cancel above is still the important part.
+    }
   }
 
   /// Clear every message notification (e.g. on logout).

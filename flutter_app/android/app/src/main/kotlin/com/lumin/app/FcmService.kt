@@ -122,6 +122,10 @@ class FcmService : FirebaseMessagingService() {
         // app is backgrounded or killed. (When the app is foregrounded, the
         // socket delivers the message before this fires, and the Dart side
         // shows its own in-app feedback.)
+        // App is open → the in-app UI / socket already shows the message; don't
+        // drop a tray notification that we'd then have to clear.
+        if (isAppForeground()) return
+
         ensureMessagesNotificationChannel()
         val data = message.data
         val notification = message.notification
