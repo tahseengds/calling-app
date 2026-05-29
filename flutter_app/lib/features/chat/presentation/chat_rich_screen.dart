@@ -17,6 +17,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_sound/flutter_sound.dart' hide PlayerState;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
