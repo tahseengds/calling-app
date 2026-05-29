@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
@@ -131,7 +132,7 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
         actions: [
           IconButton(
             onPressed: () => context.push('/qr'),
-            icon: Icon(Icons.qr_code, color: colors.fg1),
+            icon: Icon(LucideIcons.qrCode, color: colors.fg1),
             tooltip: 'Add by QR code',
           ),
           IconButton(

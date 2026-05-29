@@ -78,6 +78,8 @@ dependencies:
   go_router: ^17.2.3
 
   cupertino_icons: ^1.0.8
+  # Lucide icon set — crisper, consistent line icons (bottom nav, QR feature).
+  lucide_icons_flutter: ^3.1.14+2
   google_fonts: ^8.1.0
   # Runtime splash control (preserve/remove APIs used in main.dart).
   flutter_native_splash: ^2.4.0

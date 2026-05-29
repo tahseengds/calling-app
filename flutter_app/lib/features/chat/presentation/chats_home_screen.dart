@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -64,7 +65,7 @@ class _ChatsHomeScreenState extends ConsumerState<ChatsHomeScreen> {
                         ),
                         const SizedBox(width: AppSpacing.space1),
                         IconButton(
-                          icon: Icon(Icons.qr_code,
+                          icon: Icon(LucideIcons.qrCode,
                               color: lumioColors.fg1),
                           onPressed: () => context.push('/qr'),
                           tooltip: 'Add friend by QR',

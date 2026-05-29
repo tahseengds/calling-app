@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/battery_optimization_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/battery_optimization_sheet.dart';
-import '../../../shared/widgets/lumio_icons.dart';
 import '../../../shared/widgets/permissions_sheet.dart';
 import '../../profile/ui/profile_screen.dart';
 import '../../calling/presentation/call_history_screen.dart';
@@ -105,9 +105,9 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 // tab 2; it's now reached via the chats-home "new chat" FAB which pushes
 // /contacts as a routed screen.
 const _navItems = [
-  _NavItem(label: 'Messages', icon: LumioIcons.message),
-  _NavItem(label: 'Calls', icon: LumioIcons.phone),
-  _NavItem(label: 'Settings', icon: LumioIcons.settings),
+  _NavItem(label: 'Messages', icon: LucideIcons.messageCircle),
+  _NavItem(label: 'Calls', icon: LucideIcons.phone),
+  _NavItem(label: 'Settings', icon: LucideIcons.settings),
 ];
 
 class _NavItem {
@@ -143,9 +143,9 @@ class _FlBottomNav extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: SizedBox(
-          height: 72,
+          height: 78,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
               children: [
                 for (int i = 0; i < _navItems.length; i++)
@@ -247,7 +247,7 @@ class _NavButton extends StatelessWidget {
                 ),
             ],
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 6),
           Text(
             item.label,
             maxLines: 1,

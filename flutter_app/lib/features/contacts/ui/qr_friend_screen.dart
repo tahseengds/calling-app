@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -346,8 +347,8 @@ class _QRFriendScreenState extends ConsumerState<QRFriendScreen>
               const SizedBox(height: 16),
               _CircleIconButton(
                 icon: _torchOn
-                    ? Icons.flash_on_rounded
-                    : Icons.flash_off_rounded,
+                    ? LucideIcons.flashlight
+                    : LucideIcons.flashlightOff,
                 onTap: _toggleTorch,
                 tooltip: 'Toggle flash',
               ),
@@ -393,7 +394,7 @@ class _CameraPermissionPrompt extends StatelessWidget {
               color: AppColors.primary.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.photo_camera_rounded,
+            child: const Icon(LucideIcons.camera,
                 size: 44, color: AppColors.primary),
           ),
           const SizedBox(height: 20),
@@ -628,7 +629,7 @@ class _MyQrTabState extends ConsumerState<_MyQrTab> {
                             AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
-                  : const Icon(Icons.share_rounded, size: 20),
+                  : const Icon(LucideIcons.share2, size: 20),
               label: Text(_sharing ? 'Preparing…' : 'Share my code'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
