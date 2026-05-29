@@ -9,6 +9,7 @@ import 'dart:ui';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -99,6 +100,10 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
   /// "new messages" hint on the scroll-to-bottom button.
   bool _hasNewBelow = false;
 
+  /// Whether the in-app emoji picker panel is open (mutually exclusive with the
+  /// soft keyboard).
+  bool _showEmojiPicker = false;
+
   /// Refreshes relative timestamps ("Just now", "2m ago", app-bar "last seen…")
   /// while the screen is open. Without this they freeze at the value they had
   /// when the row was first built. 30 s strikes a balance: the "Just now" →
@@ -130,9 +135,26 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
     _scrollCtrl.addListener(_onScroll);
+    // Opening the soft keyboard dismisses the emoji panel so the two never
+    // fight for the bottom of the screen.
+    _inputFocus.addListener(() {
+      if (_inputFocus.hasFocus && _showEmojiPicker) {
+        setState(() => _showEmojiPicker = false);
+      }
+    });
     _clockTicker = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() {});
     });
+  }
+
+  /// Toggle the emoji picker, swapping with the soft keyboard.
+  void _toggleEmojiPicker() {
+    setState(() => _showEmojiPicker = !_showEmojiPicker);
+    if (_showEmojiPicker) {
+      _inputFocus.unfocus(); // hide keyboard so the panel has room
+    } else {
+      _inputFocus.requestFocus();
+    }
   }
 
   /// Track whether we're parked at the newest message (reversed list → offset
@@ -489,12 +511,28 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
             onSend: _sendMessage,
             onRecordAudio: _sendAudioMessage,
             onAttach: () => _showAttachmentSheet(context),
+            onToggleEmoji: _toggleEmojiPicker,
             onChanged: () => ref
                 .read(chatProvider(widget.conversationId).notifier)
                 .onUserTyping(),
             lumioColors: lumioColors,
             theme: theme,
           ),
+          // ── Emoji picker panel (mutually exclusive with the keyboard) ──────
+          if (_showEmojiPicker)
+            SizedBox(
+              height: 300,
+              child: EmojiPicker(
+                textEditingController: _inputCtrl,
+                onEmojiSelected: (category, emoji) {
+                  // Keep the send button in sync (controller listener handles
+                  // the actual insert).
+                  ref
+                      .read(chatProvider(widget.conversationId).notifier)
+                      .onUserTyping();
+                },
+              ),
+            ),
         ],
       ),
     );
@@ -3007,6 +3045,7 @@ class _ChatInputBar extends StatefulWidget {
     required this.onSend,
     required this.onRecordAudio,
     required this.onAttach,
+    required this.onToggleEmoji,
     required this.lumioColors,
     required this.theme,
     this.onChanged,
@@ -3020,6 +3059,8 @@ class _ChatInputBar extends StatefulWidget {
   /// Callers are responsible for uploading and deleting the file.
   final void Function(File file, int seconds) onRecordAudio;
   final VoidCallback onAttach;
+  /// Toggles the emoji picker panel (owned by the chat screen).
+  final VoidCallback onToggleEmoji;
   final LumioColors  lumioColors;
   final ThemeData    theme;
 
@@ -3284,6 +3325,17 @@ class _ChatInputBarState extends State<_ChatInputBar>
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            // ── Emoji button ────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.only(left: 8, bottom: 6),
+              child: _PillIconButton(
+                icon:    LucideIcons.smile,
+                color:   c.fg2,
+                size:    _kIconBtn,
+                iconSz:  _kIconSz,
+                onTap:   widget.onToggleEmoji,
+              ),
+            ),
             // ── Text field ──────────────────────────────────────────────────
             Expanded(
               child: TextField(

@@ -71,6 +71,9 @@ dependencies:
   qr_flutter: ^4.1.0
   share_plus: ^13.1.0
 
+  # Full searchable emoji keyboard for composing messages.
+  emoji_picker_flutter: ^4.3.0
+
   # WebRTC — flutter_webrtc 0.11+ uses Flutter plugin v2 API (no PluginRegistry.Registrar)
   flutter_webrtc: ^0.13.0
 
