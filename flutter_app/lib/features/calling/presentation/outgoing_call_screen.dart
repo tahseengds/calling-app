@@ -72,13 +72,19 @@ class _OutgoingCallScreenState extends ConsumerState<OutgoingCallScreen>
       if (next == null ||
           next.phase == CallPhase.ended ||
           next.phase == CallPhase.failed) {
-        // Surface why the call failed (permission denied, "you can only call
-        // your contacts", etc.) before the screen pops. The messenger is the
-        // app-level one, so the snackbar survives the pop.
-        final msg = next?.errorMessage;
-        if (msg != null && msg.isNotEmpty) {
+        // On a genuine failure (not a normal hang-up), always tell the user
+        // why — with a red snackbar and a sensible fallback when the backend
+        // gave no message (timeout / ICE failure). Survives the pop because the
+        // messenger is the app-level one.
+        if (next != null && next.phase == CallPhase.failed) {
+          final reason = (next.errorMessage?.isNotEmpty ?? false)
+              ? next.errorMessage!
+              : 'Call failed. Please try again.';
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(msg)),
+            SnackBar(
+              content: Text(reason),
+              backgroundColor: AppColors.danger,
+            ),
           );
         }
         if (context.canPop()) {

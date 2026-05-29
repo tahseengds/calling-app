@@ -105,6 +105,32 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
               ),
             ),
 
+          // ── "Camera off" chip — shown where the self-view would be, so the
+          // user knows their own camera is disabled (not just frozen). ────────
+          if (session.isCameraOff)
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 60,
+              right: 16,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.55),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.videocam_off_rounded,
+                        color: Colors.white70, size: 16),
+                    SizedBox(width: 6),
+                    Text('Your camera is off',
+                        style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ),
+
           // ── Top info bar (auto-hides) ────────────────────────────────
           AnimatedPositioned(
             duration: const Duration(milliseconds: 200),
