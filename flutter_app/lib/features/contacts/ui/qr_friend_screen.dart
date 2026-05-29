@@ -27,9 +27,14 @@ class QRFriendScreen extends ConsumerStatefulWidget {
 }
 
 class _QRFriendScreenState extends ConsumerState<QRFriendScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final TabController _tabs;
   MobileScannerController? _scanner;
+
+  /// mobile_scanner v7 no longer auto-manages the camera — we drive start/stop
+  /// ourselves (per tab + app lifecycle). Tracks whether it's currently on so
+  /// we don't double-start (which throws).
+  bool _cameraRunning = false;
 
   _CamPerm _perm = _CamPerm.checking;
   bool _torchOn = false;
@@ -48,24 +53,58 @@ class _QRFriendScreenState extends ConsumerState<QRFriendScreen>
     // Camera is only alive while the Scan tab is showing — keeps the torch/
     // preview off (and the battery happy) while viewing "My QR".
     _tabs.addListener(_onTabChanged);
+    WidgetsBinding.instance.addObserver(this);
     _ensureCameraPermission();
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _tabs.removeListener(_onTabChanged);
     _tabs.dispose();
     _scanner?.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Release the camera while backgrounded; resume it when we come back (only
+    // if the Scan tab is the one showing).
+    if (_scanner == null || _perm != _CamPerm.granted) return;
+    if (state == AppLifecycleState.resumed) {
+      if (_tabs.index == 0) _startCamera();
+    } else {
+      _stopCamera();
+    }
+  }
+
   void _onTabChanged() {
     if (_tabs.indexIsChanging) return;
     if (_tabs.index == 0) {
-      _scanner?.start();
+      _startCamera();
     } else {
-      _scanner?.stop();
+      _stopCamera();
     }
+  }
+
+  Future<void> _startCamera() async {
+    final scanner = _scanner;
+    if (scanner == null || _cameraRunning) return;
+    _cameraRunning = true;
+    try {
+      await scanner.start();
+    } catch (_) {
+      _cameraRunning = false;
+    }
+  }
+
+  Future<void> _stopCamera() async {
+    final scanner = _scanner;
+    if (scanner == null || !_cameraRunning) return;
+    _cameraRunning = false;
+    try {
+      await scanner.stop();
+    } catch (_) {}
   }
 
   Future<void> _ensureCameraPermission() async {
@@ -74,18 +113,18 @@ class _QRFriendScreenState extends ConsumerState<QRFriendScreen>
       status = await Permission.camera.request();
     }
     if (!mounted) return;
-    setState(() {
-      if (status.isGranted) {
-        _perm = _CamPerm.granted;
-        _scanner ??= MobileScannerController(
-          detectionSpeed: DetectionSpeed.noDuplicates,
-        );
-      } else if (status.isPermanentlyDenied) {
-        _perm = _CamPerm.permanentlyDenied;
-      } else {
-        _perm = _CamPerm.denied;
-      }
-    });
+    if (status.isGranted) {
+      // v7: create the controller, then start it ourselves.
+      _scanner ??= MobileScannerController(
+        detectionSpeed: DetectionSpeed.noDuplicates,
+      );
+      setState(() => _perm = _CamPerm.granted);
+      if (_tabs.index == 0) _startCamera();
+    } else {
+      setState(() => _perm = status.isPermanentlyDenied
+          ? _CamPerm.permanentlyDenied
+          : _CamPerm.denied);
+    }
   }
 
   // ── Scan handling ──────────────────────────────────────────────────────
