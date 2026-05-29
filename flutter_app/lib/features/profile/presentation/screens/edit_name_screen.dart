@@ -167,7 +167,7 @@ class _EditNameScreenState extends ConsumerState<EditNameScreen> {
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         final discard = await _confirmDiscard();
-        if (discard == true && mounted) context.pop();
+        if (discard == true && context.mounted) context.pop();
       },
       child: Scaffold(
       backgroundColor: isDark ? AppColors.darkBg : AppColors.lightBg,

@@ -47,7 +47,10 @@ final callsLastSeenProvider =
 
 /// Count of missed calls newer than the last Calls-tab view.
 final missedCallsBadgeProvider = Provider<int>((ref) {
-  final rows = ref.watch(cachedCallHistoryProvider).valueOrNull ?? const [];
+  final rows = ref.watch(cachedCallHistoryProvider).maybeWhen(
+        data: (r) => r,
+        orElse: () => const <CallRecordRow>[],
+      );
   final lastSeen = ref.watch(callsLastSeenProvider);
   if (lastSeen == null) return 0; // prefs still loading
   return rows
