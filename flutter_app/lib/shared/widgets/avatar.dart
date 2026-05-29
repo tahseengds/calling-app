@@ -53,6 +53,9 @@ class UserAvatar extends StatelessWidget {
               width: radius * 2,
               height: radius * 2,
               fit: BoxFit.cover,
+              // Decode at the avatar's pixel size (×3 for hi-DPI), not the
+              // uploaded full-res photo — avatars appear in long lists.
+              memCacheWidth: (radius * 2 * 3).round(),
               placeholder: (context, url) =>
                   _InitialsAvatar(initials: _initials, radius: radius, tint: tint),
               errorWidget: (context, url, error) =>

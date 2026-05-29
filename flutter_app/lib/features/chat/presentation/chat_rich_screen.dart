@@ -948,7 +948,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
       itemCount: reversedItems.length,
       itemBuilder: (context, i) {
         final item = reversedItems[i];
-        return switch (item.kind) {
+        final Widget child = switch (item.kind) {
           _ItemKind.separator => _DateSeparator(
               date:   item.date!,
               colors: colors,
@@ -988,9 +988,20 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
                   .toggleReaction(id, emoji),
             ),
         };
+        // Stable key so inserting a new message reuses existing row elements
+        // instead of rebuilding the whole visible list.
+        return KeyedSubtree(key: ValueKey(_listItemKey(item)), child: child);
       },
     );
   }
+
+  /// Stable identity for a rendered list item, used as its widget key.
+  String _listItemKey(_ListItem item) => switch (item.kind) {
+        _ItemKind.message => 'm_${item.msg!.id}',
+        _ItemKind.album => 'a_${item.album!.first.id}',
+        _ItemKind.separator => 's_${item.date!.toIso8601String()}',
+        _ItemKind.typing => 'typing',
+      };
 
   // ── Bottom sheets ───────────────────────────────────────────────────────────
 
@@ -1389,12 +1400,15 @@ class _MediaThumb extends StatelessWidget {
       child = Image.file(
         File(url.startsWith('file://') ? Uri.parse(url).toFilePath() : url),
         fit: BoxFit.cover,
+        // Decode at display resolution, not the camera's full size.
+        cacheWidth: _decodeWidth(context),
         errorBuilder: (_, _, _) => _MediaPlaceholder(isVideo: _isVideo),
       );
     } else {
       child = CachedNetworkImage(
         imageUrl: url,
         fit: BoxFit.cover,
+        memCacheWidth: _decodeWidth(context),
         placeholder: (_, _) => _MediaLoading(isVideo: _isVideo),
         errorWidget: (_, _, _) => _MediaPlaceholder(isVideo: _isVideo),
       );
@@ -2058,12 +2072,14 @@ class _ReplyThumbnail extends StatelessWidget {
       child = Image.file(
         File(url.startsWith('file://') ? Uri.parse(url).toFilePath() : url),
         fit: BoxFit.cover,
+        cacheWidth: 120, // 40px thumbnail @ 3x
         errorBuilder: (_, _, _) => const ColoredBox(color: Color(0x33000000)),
       );
     } else {
       child = CachedNetworkImage(
         imageUrl: url,
         fit: BoxFit.cover,
+        memCacheWidth: 120,
         placeholder: (_, _) => const ColoredBox(color: Color(0x22000000)),
         errorWidget: (_, _, _) => const ColoredBox(color: Color(0x33000000)),
       );
@@ -2194,6 +2210,15 @@ bool _isEmojiOnly(String raw) {
   // ZWJ sequences inflate the raw match count, so allow a generous cap.
   final count = _emojiCharRegex.allMatches(t).length;
   return count > 0 && count <= 16;
+}
+
+/// Pixel width to decode chat media at — the device's logical width × DPR,
+/// capped at 1440. Decoding a full-resolution photo/video frame into a small
+/// bubble is the main source of scroll jank and memory pressure, so we ask the
+/// codec to downscale to (roughly) what's actually shown.
+int _decodeWidth(BuildContext context) {
+  final mq = MediaQuery.of(context);
+  return (mq.size.width * mq.devicePixelRatio).clamp(1.0, 1440.0).round();
 }
 
 class _Bubble extends StatelessWidget {
@@ -2394,12 +2419,15 @@ class _MediaVisualContent extends StatelessWidget {
       child = Image.file(
         File(url.startsWith('file://') ? Uri.parse(url).toFilePath() : url),
         fit: BoxFit.cover,
+        // Decode at display resolution, not the camera's full size.
+        cacheWidth: _decodeWidth(context),
         errorBuilder: (_, _, _) => _MediaPlaceholder(isVideo: _isVideo),
       );
     } else {
       child = CachedNetworkImage(
         imageUrl: url,
         fit: BoxFit.cover,
+        memCacheWidth: _decodeWidth(context),
         placeholder: (_, _) => _MediaLoading(isVideo: _isVideo),
         errorWidget: (_, _, _) => _MediaPlaceholder(isVideo: _isVideo),
       );
