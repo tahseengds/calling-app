@@ -1,10 +1,16 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
@@ -266,7 +272,7 @@ class _QRFriendScreenState extends ConsumerState<QRFriendScreen>
         controller: _tabs,
         children: [
           _buildScanTab(colors),
-          _MyQrTab(colors: colors, isDark: isDark),
+          _MyQrTab(colors: colors),
         ],
       ),
     );
@@ -431,14 +437,60 @@ class _CameraPermissionPrompt extends StatelessWidget {
 
 // ── My QR tab ────────────────────────────────────────────────────────────────
 
-class _MyQrTab extends ConsumerWidget {
-  const _MyQrTab({required this.colors, required this.isDark});
+class _MyQrTab extends ConsumerStatefulWidget {
+  const _MyQrTab({required this.colors});
 
   final LumioColors colors;
-  final bool isDark;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_MyQrTab> createState() => _MyQrTabState();
+}
+
+class _MyQrTabState extends ConsumerState<_MyQrTab> {
+  /// Wraps the branded card so it can be rasterised into a shareable PNG.
+  final GlobalKey _cardKey = GlobalKey();
+  bool _sharing = false;
+
+  /// Capture the branded card to a PNG and hand it to the system share sheet.
+  Future<void> _shareQr() async {
+    if (_sharing) return;
+    setState(() => _sharing = true);
+    try {
+      final boundary =
+          _cardKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) throw StateError('Card not ready');
+      // 3x device pixels → a crisp image that stays scannable when resized.
+      final image = await boundary.toImage(pixelRatio: 3.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) throw StateError('PNG encode failed');
+
+      final dir = await getTemporaryDirectory();
+      final file = File(
+        '${dir.path}/lumio_qr_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path, mimeType: 'image/png')],
+          text: 'Add me on Lumio — scan my QR code to connect.',
+          subject: 'My Lumio QR code',
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't share your QR code")),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _sharing = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
     final auth = ref.watch(authNotifierProvider);
     final me = auth is AuthAuthenticated ? auth.me : null;
     final email = me?.email;
@@ -466,88 +518,92 @@ class _MyQrTab extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
       child: Column(
         children: [
-          // Branded QR card.
-          Container(
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [AppColors.primary, Color(0xFF6D5DF6)],
+          // Branded QR card — wrapped in a RepaintBoundary so "Share my code"
+          // can capture exactly what's on screen.
+          RepaintBoundary(
+            key: _cardKey,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [AppColors.primary, Color(0xFF6D5DF6)],
+                ),
+                borderRadius: BorderRadius.circular(28),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.30),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
               ),
-              borderRadius: BorderRadius.circular(28),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.primary.withValues(alpha: 0.30),
-                  blurRadius: 24,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                const Text(
-                  'LUMIO',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 4,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // White rounded plate keeps the code high-contrast and
-                // scannable regardless of light/dark theme.
-                Container(
-                  padding: const EdgeInsets.all(18),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: QrImageView(
-                    data: payload,
-                    version: QrVersions.auto,
-                    size: 240,
-                    gapless: true,
-                    backgroundColor: Colors.white,
-                    // High EC so the centered logo doesn't break scanning.
-                    errorCorrectionLevel: QrErrorCorrectLevel.H,
-                    eyeStyle: const QrEyeStyle(
-                      eyeShape: QrEyeShape.circle,
-                      color: AppColors.primary,
-                    ),
-                    dataModuleStyle: const QrDataModuleStyle(
-                      dataModuleShape: QrDataModuleShape.circle,
-                      color: Color(0xFF101828),
-                    ),
-                    embeddedImage: const AssetImage('assets/lumin-logo.png'),
-                    embeddedImageStyle: const QrEmbeddedImageStyle(
-                      size: Size(52, 52),
+              child: Column(
+                children: [
+                  const Text(
+                    'LUMIO',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 4,
                     ),
                   ),
-                ),
-                const SizedBox(height: 20),
-                Text(
-                  me.name,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
+                  const SizedBox(height: 20),
+                  // White rounded plate keeps the code high-contrast and
+                  // scannable regardless of light/dark theme.
+                  Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: QrImageView(
+                      data: payload,
+                      version: QrVersions.auto,
+                      size: 240,
+                      gapless: true,
+                      backgroundColor: Colors.white,
+                      // High EC so the centered logo doesn't break scanning.
+                      errorCorrectionLevel: QrErrorCorrectLevel.H,
+                      eyeStyle: const QrEyeStyle(
+                        eyeShape: QrEyeShape.circle,
+                        color: AppColors.primary,
+                      ),
+                      dataModuleStyle: const QrDataModuleStyle(
+                        dataModuleShape: QrDataModuleShape.circle,
+                        color: Color(0xFF101828),
+                      ),
+                      embeddedImage: const AssetImage('assets/lumin-logo.png'),
+                      embeddedImageStyle: const QrEmbeddedImageStyle(
+                        size: Size(52, 52),
+                      ),
+                    ),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  email,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.85),
-                    fontSize: 14,
+                  const SizedBox(height: 20),
+                  Text(
+                    me.name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    email,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.85),
+                      fontSize: 14,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 24),
@@ -555,6 +611,37 @@ class _MyQrTab extends ConsumerWidget {
             'Have a friend scan this code to add you on Lumio.',
             style: AppTextStyles.body(color: colors.fg2),
             textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton.icon(
+              onPressed: _sharing ? null : _shareQr,
+              icon: _sharing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor:
+                            AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Icon(Icons.share_rounded, size: 20),
+              label: Text(_sharing ? 'Preparing…' : 'Share my code'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor:
+                    AppColors.primary.withValues(alpha: 0.6),
+                disabledForegroundColor: Colors.white,
+                shape: const StadiumBorder(),
+                elevation: 0,
+                textStyle:
+                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              ),
+            ),
           ),
         ],
       ),

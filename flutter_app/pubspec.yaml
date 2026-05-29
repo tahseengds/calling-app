@@ -63,9 +63,10 @@ dependencies:
   permission_handler: ^12.0.1
 
   # QR friend-adding — camera scanning + branded QR generation (rounded
-  # modules + centered app logo).
+  # modules + centered app logo) + sharing the code as an image.
   mobile_scanner: ^7.2.0
   qr_flutter: ^4.1.0
+  share_plus: ^11.0.0
 
   # WebRTC — flutter_webrtc 0.11+ uses Flutter plugin v2 API (no PluginRegistry.Registrar)
   flutter_webrtc: ^0.13.0

@@ -130,6 +130,11 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
         ),
         actions: [
           IconButton(
+            onPressed: () => context.push('/qr'),
+            icon: Icon(Icons.qr_code, color: colors.fg1),
+            tooltip: 'Add by QR code',
+          ),
+          IconButton(
             onPressed: () => context.push('/contacts/add'),
             icon: Icon(LumioIcons.add, color: colors.fg1),
             tooltip: 'Add family member',
