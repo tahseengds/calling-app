@@ -28,6 +28,11 @@ class ChatState {
   final bool hasOlderMessages;
   final String? oldestCursor;
 
+  /// Live upload progress for in-flight media sends, keyed by the optimistic
+  /// message's client id → fraction in 0..1. Absent once the send completes,
+  /// fails, or is cancelled.
+  final Map<String, double> uploadProgress;
+
   const ChatState({
     this.messages = const [],
     this.otherUser,
@@ -35,6 +40,7 @@ class ChatState {
     this.otherUserTyping = false,
     this.hasOlderMessages = true,
     this.oldestCursor,
+    this.uploadProgress = const {},
   });
 
   ChatState copyWith({
@@ -44,6 +50,7 @@ class ChatState {
     bool? otherUserTyping,
     bool? hasOlderMessages,
     String? oldestCursor,
+    Map<String, double>? uploadProgress,
   }) =>
       ChatState(
         messages: messages ?? this.messages,
@@ -52,6 +59,7 @@ class ChatState {
         otherUserTyping: otherUserTyping ?? this.otherUserTyping,
         hasOlderMessages: hasOlderMessages ?? this.hasOlderMessages,
         oldestCursor: oldestCursor ?? this.oldestCursor,
+        uploadProgress: uploadProgress ?? this.uploadProgress,
       );
 }
 
@@ -75,6 +83,32 @@ class ChatNotifier extends Notifier<ChatState> {
   Timer? _typingClearTimer;
   bool _isTyping = false;
 
+  /// CancelTokens for in-flight media uploads, keyed by optimistic client id —
+  /// lets [cancelUpload] abort the HTTP send.
+  final Map<String, CancelToken> _uploadTokens = {};
+
+  void _setUploadProgress(String clientId, double fraction) {
+    final next = Map<String, double>.from(state.uploadProgress)
+      ..[clientId] = fraction.clamp(0.0, 1.0);
+    state = state.copyWith(uploadProgress: next);
+  }
+
+  void _clearUploadProgress(String clientId) {
+    if (!state.uploadProgress.containsKey(clientId)) return;
+    final next = Map<String, double>.from(state.uploadProgress)
+      ..remove(clientId);
+    state = state.copyWith(uploadProgress: next);
+  }
+
+  /// Abort an in-flight media upload and remove its optimistic message + the
+  /// pending-upload row, so a cancelled send vanishes cleanly.
+  Future<void> cancelUpload(String clientId) async {
+    _uploadTokens.remove(clientId)?.cancel('cancelled by user');
+    _clearUploadProgress(clientId);
+    await ref.read(messageLocalDaoProvider).deleteMessage(clientId);
+    await ref.read(appDatabaseProvider).pendingMediaUploadsDao.markDone(clientId);
+  }
+
   @override
   ChatState build() {
     ref.onDispose(() {
@@ -87,6 +121,10 @@ class ChatNotifier extends Notifier<ChatState> {
       _presenceSub?.cancel();
       _typingStopTimer?.cancel();
       _typingClearTimer?.cancel();
+      for (final t in _uploadTokens.values) {
+        t.cancel('chat closed');
+      }
+      _uploadTokens.clear();
     });
 
     _init();
@@ -446,12 +484,18 @@ class ChatNotifier extends Notifier<ChatState> {
       return;
     }
 
+    final cancelToken = CancelToken();
+    _uploadTokens[clientId] = cancelToken;
+    _setUploadProgress(clientId, 0);
+
     try {
       final upload = await ref.read(messageRepositoryProvider).uploadMedia(
             file: file,
             type: MessageRepository.wireType(type),
+            cancelToken: cancelToken,
             onProgress: (sent, total) {
               onProgress?.call(sent, total);
+              if (total > 0) _setUploadProgress(clientId, sent / total);
               // Fire-and-forget; row was already inserted above with all
               // required columns, so a plain UPDATE is sufficient here.
               db.pendingMediaUploadsDao.updateProgress(clientId, sent);
@@ -469,11 +513,19 @@ class ChatNotifier extends Notifier<ChatState> {
       await ref.read(messageLocalDaoProvider).markSynced(clientId);
       await db.pendingMediaUploadsDao.markDone(clientId);
     } catch (e, st) {
+      // User-initiated cancellation already removed the message in
+      // cancelUpload(); don't resurrect it as a "failed" send.
+      if (e is DioException && CancelToken.isCancel(e)) {
+        return;
+      }
       _logSendFailure('sendMedia', clientId, type.name, e, st);
       await ref.read(messageLocalDaoProvider).updateStatus(
             clientId,
             MessageStatus.failed,
           );
+    } finally {
+      _uploadTokens.remove(clientId);
+      _clearUploadProgress(clientId);
     }
   }
 

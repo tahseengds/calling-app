@@ -1210,6 +1210,58 @@ class _MediaThumb extends StatelessWidget {
   }
 }
 
+// ─── Media upload progress + cancel overlay ─────────────────────────────────
+
+/// Overlays an uploading image/video bubble with a determinate progress ring
+/// that doubles as a cancel button. Watches the live fraction from ChatState
+/// so only this bubble rebuilds as bytes upload.
+class _UploadProgressOverlay extends ConsumerWidget {
+  const _UploadProgressOverlay({
+    required this.conversationId,
+    required this.messageId,
+  });
+
+  final String conversationId;
+  final String messageId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final progress = ref.watch(
+      chatProvider(conversationId).select((s) => s.uploadProgress[messageId]),
+    );
+    return DecoratedBox(
+      decoration: const BoxDecoration(color: Color(0x55000000)),
+      child: Center(
+        child: Tooltip(
+          message: 'Cancel upload',
+          child: GestureDetector(
+            onTap: () => ref
+                .read(chatProvider(conversationId).notifier)
+                .cancelUpload(messageId),
+            child: SizedBox(
+              width: 56,
+              height: 56,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  CircularProgressIndicator(
+                    value: progress,
+                    strokeWidth: 3,
+                    backgroundColor: Colors.white24,
+                    valueColor:
+                        const AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                  const Icon(Icons.close_rounded, color: Colors.white, size: 22),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ─── Scroll-to-latest button ────────────────────────────────────────────────
 
 class _ScrollToBottomButton extends StatelessWidget {
@@ -1526,6 +1578,7 @@ class _MessageRow extends StatelessWidget {
                             msg:     msg,
                             replyTo: _replyTo,
                             colors:  colors,
+                            conversationId: conversationId,
                           ),
                   );
                 }
@@ -1755,12 +1808,15 @@ class _Bubble extends StatelessWidget {
     required this.msg,
     required this.colors,
     this.replyTo,
+    this.conversationId,
   });
 
   final bool        mine;
   final Message     msg;
   final LumioColors colors;
   final ReplyPreview? replyTo;
+  // When set, media bubbles can show live upload progress + a cancel button.
+  final String?     conversationId;
 
   bool get _isFailed => msg.status == MessageStatus.failed;
   bool get _isAudio => msg.type == MessageType.audio;
@@ -1828,6 +1884,7 @@ class _Bubble extends StatelessWidget {
               msg: msg,
               fgColor: fg,
               innerRadius: BorderRadius.circular(_T.bigR - 6),
+              conversationId: conversationId,
             )
           else if (_isFile)
             _FileMessageContent(msg: msg, fgColor: fg)
@@ -1874,11 +1931,13 @@ class _MediaVisualContent extends StatelessWidget {
     required this.msg,
     required this.fgColor,
     required this.innerRadius,
+    this.conversationId,
   });
 
   final Message msg;
   final Color fgColor;
   final BorderRadius innerRadius;
+  final String? conversationId;
 
   bool get _isVideo => msg.type == MessageType.video;
 
@@ -1950,18 +2009,26 @@ class _MediaVisualContent extends StatelessWidget {
                   ),
                 ),
               if (msg.status == MessageStatus.sending)
-                const Positioned(
-                  right: 6,
-                  bottom: 6,
-                  child: SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                    ),
-                  ),
-                ),
+                conversationId != null
+                    ? Positioned.fill(
+                        child: _UploadProgressOverlay(
+                          conversationId: conversationId!,
+                          messageId: msg.id,
+                        ),
+                      )
+                    : const Positioned(
+                        right: 6,
+                        bottom: 6,
+                        child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        ),
+                      ),
             ],
           ),
         ),

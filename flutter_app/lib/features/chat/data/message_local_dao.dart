@@ -44,6 +44,9 @@ class MessageLocalDao {
   Future<void> markDeleted(String id) =>
       _db.messagesDao.markDeleted(id);
 
+  Future<void> deleteMessage(String id) =>
+      _db.messagesDao.deleteById(id);
+
   // ── Conversations ─────────────────────────────────────────────────────────
 
   Stream<List<ConversationRow>> watchConversations() =>

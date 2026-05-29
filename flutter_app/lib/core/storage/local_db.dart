@@ -122,6 +122,12 @@ class MessagesDao extends DatabaseAccessor<AppDatabase>
   Future<void> markDeleted(String id) =>
       (update(messagesTable)..where((m) => m.id.equals(id)))
           .write(const MessagesTableCompanion(isDeleted: Value(true)));
+
+  /// Hard-remove a row — used when a never-sent optimistic message is
+  /// cancelled (e.g. the user cancels a media upload mid-flight), so it
+  /// vanishes entirely rather than leaving a "deleted" tombstone.
+  Future<void> deleteById(String id) =>
+      (delete(messagesTable)..where((m) => m.id.equals(id))).go();
 }
 
 @DriftAccessor(tables: [ConversationsTable])
