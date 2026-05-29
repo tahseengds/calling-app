@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter, Space_Grotesk } from 'next/font/google';
+import { Instrument_Serif, Syne, DM_Sans } from 'next/font/google';
 import './globals.css';
 import { site } from '@/lib/site';
 import { SmoothScroll } from '@/components/providers/SmoothScroll';
@@ -8,21 +8,30 @@ import { ScrollProgress } from '@/components/ui/ScrollProgress';
 import { Navbar } from '@/components/Navbar';
 import { Loader } from '@/components/Loader';
 
-const inter = Inter({
+const instrumentSerif = Instrument_Serif({
   subsets: ['latin'],
-  variable: '--font-inter',
+  weight: ['400'],
+  style: ['normal', 'italic'],
+  variable: '--font-serif',
   display: 'swap',
 });
 
-const display = Space_Grotesk({
+const syne = Syne({
   subsets: ['latin'],
-  weight: ['500', '600', '700'],
+  weight: ['600', '700', '800'],
   variable: '--font-display',
   display: 'swap',
 });
 
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  weight: ['300', '400', '500'],
+  variable: '--font-sans',
+  display: 'swap',
+});
+
 export const viewport: Viewport = {
-  themeColor: '#05060c',
+  themeColor: '#06070f',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
@@ -36,14 +45,7 @@ export const metadata: Metadata = {
   },
   description: site.description,
   applicationName: site.name,
-  keywords: [
-    'Lumio',
-    'private messaging',
-    'video calling',
-    'voice calls',
-    'encrypted chat',
-    'group calls',
-  ],
+  keywords: ['Lumio', 'private messaging', 'video calling', 'voice calls', 'encrypted chat'],
   authors: [{ name: site.name }],
   openGraph: {
     type: 'website',
@@ -63,7 +65,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${display.variable} dark`}>
+    <html
+      lang="en"
+      className={`${instrumentSerif.variable} ${syne.variable} ${dmSans.variable} dark`}
+    >
       <body className="grain min-h-screen bg-ink-950 font-sans text-white antialiased selection:bg-brand/30">
         <Loader />
         <SmoothScroll>

@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  --bg: #05060c;
+  --bg: #06070f;
   --brand: #6d7cff;
   --brand-glow: #7c5cff;
 }
@@ -13,27 +13,25 @@
 }
 
 html {
-  scroll-behavior: auto; /* Lenis handles smoothing */
+  scroll-behavior: auto;
 }
 
 html,
 body {
   background: var(--bg);
-  color: #e7e9f3;
+  color: #e4e6f2;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   overscroll-behavior-y: none;
 }
 
 body {
-  /* Subtle ambient base so the page never reads pure-black flat. */
   background-image:
-    radial-gradient(900px 600px at 80% -10%, rgba(124, 92, 255, 0.18), transparent 60%),
-    radial-gradient(800px 500px at 10% 10%, rgba(70, 224, 208, 0.1), transparent 55%);
+    radial-gradient(900px 600px at 80% -10%, rgba(124, 92, 255, 0.16), transparent 60%),
+    radial-gradient(800px 500px at 10% 10%, rgba(70, 224, 208, 0.08), transparent 55%);
   background-attachment: fixed;
 }
 
-/* Lenis */
 html.lenis,
 html.lenis body {
   height: auto;
@@ -45,33 +43,34 @@ html.lenis body {
   overflow: hidden;
 }
 
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 10px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
-  background: rgba(124, 92, 255, 0.35);
+  background: rgba(124, 92, 255, 0.3);
   border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(124, 92, 255, 0.55);
+  background: rgba(124, 92, 255, 0.5);
 }
 
 @layer components {
   .glass {
-    @apply border border-white/10 bg-white/[0.04] backdrop-blur-xl;
+    @apply border border-white/[0.08] bg-white/[0.03] backdrop-blur-xl;
   }
   .glass-strong {
-    @apply border border-white/[0.12] bg-white/[0.06] backdrop-blur-2xl;
+    @apply border border-white/[0.1] bg-white/[0.05] backdrop-blur-2xl;
   }
   .gradient-text {
     @apply bg-gradient-to-br from-white via-white to-brand-400 bg-clip-text text-transparent;
   }
   .gradient-text-accent {
-    background: linear-gradient(110deg, #8b95ff 0%, #c8b4ff 40%, #46e0d0 100%);
+    background: linear-gradient(110deg, #8b95ff 0%, #c8b4ff 45%, #46e0d0 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .gradient-text-warm {
+    background: linear-gradient(110deg, #ffd479 0%, #ff9ad5 60%, #c8b4ff 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -79,7 +78,10 @@ html.lenis body {
   .ring-glow {
     box-shadow:
       0 0 0 1px rgba(255, 255, 255, 0.06),
-      0 0 60px -12px rgba(124, 92, 255, 0.55);
+      0 0 60px -12px rgba(124, 92, 255, 0.5);
+  }
+  .divider {
+    @apply h-px w-full bg-white/[0.06];
   }
 }
 
@@ -91,19 +93,17 @@ html.lenis body {
     -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
     mask-image: linear-gradient(to bottom, black 70%, transparent 100%);
   }
-  /* Film-grain / noise overlay (pure CSS, no asset). */
   .grain::after {
     content: '';
     position: fixed;
     inset: 0;
     z-index: 60;
     pointer-events: none;
-    opacity: 0.05;
+    opacity: 0.04;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
   }
 }
 
-/* Respect users who ask for less motion. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
