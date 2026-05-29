@@ -14,6 +14,7 @@ import 'features/auth/ui/register_screen.dart';
 import 'features/auth/ui/splash_screen.dart';
 import 'features/contacts/ui/add_contact_screen.dart';
 import 'features/contacts/ui/contacts_screen.dart';
+import 'features/contacts/ui/qr_friend_screen.dart';
 import 'features/shell/ui/shell_screen.dart';
 // Chat screens — all live under features/chat/ now (the old features/chats/
 // split was removed). ChatRichScreen is the polished UI wired to chat_notifier.
@@ -99,6 +100,9 @@ final _routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/contacts/add',
           builder: (_, _) => const AddContactScreen()),
+      GoRoute(
+          path: '/qr',
+          builder: (_, _) => const QRFriendScreen()),
       // ── Search ───────────────────────────────────────────────────────────
       GoRoute(
           path: '/chat/search',

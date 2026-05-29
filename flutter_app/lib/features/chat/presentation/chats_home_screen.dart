@@ -6,15 +6,12 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../features/auth/domain/auth_notifier.dart';
-import '../../../features/auth/domain/auth_state.dart';
 import '../../../features/chat/domain/conversation_list_notifier.dart';
 import '../../../shared/models/conversation.dart';
 import '../../../shared/models/message.dart';
 import '../../../shared/models/user.dart';
 import '../../../shared/widgets/avatar.dart';
 import '../../../shared/widgets/lumio_icons.dart';
-import '../../shell/ui/shell_screen.dart';
 
 /// Polished "Messages" home screen — rich card list with filter chips,
 /// attachment-type icons, missed-call coloring, animated empty state.
@@ -36,9 +33,6 @@ class _ChatsHomeScreenState extends ConsumerState<ChatsHomeScreen> {
     final asyncConvos = ref.watch(conversationListProvider);
     final theme = Theme.of(context);
     final lumioColors = context.lumioColors;
-    final auth = ref.watch(authNotifierProvider);
-    final meName = auth is AuthAuthenticated ? auth.me.name : 'You';
-    final meAvatar = auth is AuthAuthenticated ? auth.me.avatarUrl : null;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -69,17 +63,11 @@ class _ChatsHomeScreenState extends ConsumerState<ChatsHomeScreen> {
                           tooltip: 'Search',
                         ),
                         const SizedBox(width: AppSpacing.space1),
-                        GestureDetector(
-                          onTap: () {
-                            // Focus Profile tab in shell (index 2 since
-                            // Contacts is no longer a tab).
-                            ref.read(shellTabProvider.notifier).state = 2;
-                          },
-                          child: UserAvatar(
-                            displayName: meName,
-                            imageUrl: meAvatar,
-                            radius: 18,
-                          ),
+                        IconButton(
+                          icon: Icon(Icons.qr_code,
+                              color: lumioColors.fg1),
+                          onPressed: () => context.push('/qr'),
+                          tooltip: 'Add friend by QR',
                         ),
                       ],
                     ),
