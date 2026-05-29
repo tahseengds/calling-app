@@ -5,7 +5,9 @@ import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
+import '../../../core/network/dio_client.dart';
 import '../../../core/services/signaling_service.dart';
 import '../../../core/services/sync_service.dart';
 import '../../../core/storage/local_db.dart';
@@ -640,6 +642,68 @@ class ChatNotifier extends Notifier<ChatState> {
             MessageStatus.failed,
           );
     }
+  }
+
+  // ── Forward ─────────────────────────────────────────────────────────────────
+
+  /// Forwards [source] into THIS conversation. Text is re-sent verbatim; media
+  /// is downloaded from its URL and re-uploaded, since we don't keep the
+  /// server-side media id locally to reference directly. Call-log messages
+  /// aren't forwardable. Best-effort: failures are logged, not surfaced.
+  Future<void> forward(Message source) async {
+    if (source.type == MessageType.text) {
+      final content = source.content?.trim() ?? '';
+      if (content.isNotEmpty) await sendText(content);
+      return;
+    }
+    if (source.type == MessageType.callLog) return;
+
+    final media = source.media;
+    if (media == null || media.url.isEmpty) return;
+    try {
+      final dir = await getTemporaryDirectory();
+      final dest = '${dir.path}/fwd_${_uuid.v4()}${_forwardExt(source)}';
+      await ref.read(dioProvider).download(media.url, dest);
+      await sendMedia(
+        File(dest),
+        source.type,
+        durationSeconds: media.durationSeconds,
+      );
+    } catch (e, st) {
+      debugPrint('[chat] forward failed for ${source.id}: $e\n$st');
+    }
+  }
+
+  /// Best-effort file extension for a forwarded media download — prefers the
+  /// MIME type, then the URL's extension, then a per-type default.
+  String _forwardExt(Message source) {
+    final mime = source.media?.mimeType ?? '';
+    if (mime.contains('png')) return '.png';
+    if (mime.contains('gif')) return '.gif';
+    if (mime.contains('webp')) return '.webp';
+    if (mime.contains('jpeg') || mime.contains('jpg')) return '.jpg';
+    if (mime.contains('mp4')) return '.mp4';
+    if (mime.contains('quicktime') || mime.contains('mov')) return '.mov';
+    if (mime.contains('mpeg') || mime.contains('mp3')) return '.mp3';
+    if (mime.contains('aac') || mime.contains('m4a')) return '.m4a';
+    if (mime.contains('wav')) return '.wav';
+    if (mime.contains('pdf')) return '.pdf';
+
+    final url = source.media?.url ?? '';
+    final q = url.indexOf('?');
+    final clean = q == -1 ? url : url.substring(0, q);
+    final slash = clean.lastIndexOf('/');
+    final dot = clean.lastIndexOf('.');
+    if (dot > slash && dot < clean.length - 1 && clean.length - dot <= 6) {
+      return clean.substring(dot);
+    }
+    return switch (source.type) {
+      MessageType.image => '.jpg',
+      MessageType.video => '.mp4',
+      MessageType.audio => '.m4a',
+      MessageType.file => '.bin',
+      _ => '.bin',
+    };
   }
 
   // ── Delete ────────────────────────────────────────────────────────────────

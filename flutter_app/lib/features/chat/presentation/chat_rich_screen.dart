@@ -34,6 +34,7 @@ import '../../../features/calling/domain/call_state.dart'
     show CallType, PeerUser;
 import '../../../features/calling/presentation/widgets/permission_denied_screen.dart';
 import '../../../features/chat/domain/chat_notifier.dart';
+import '../../../features/chat/domain/conversation_list_notifier.dart';
 import '../../../features/contacts/domain/contacts_notifier.dart';
 import 'contact_profile_screen.dart';
 import 'media_gallery_screen.dart';
@@ -72,7 +73,7 @@ class _T {
 // ─── ChatRichScreen ───────────────────────────────────────────────────────────
 
 /// Overflow-menu actions in the chat app bar.
-enum _ChatMenuAction { block, remove }
+enum _ChatMenuAction { search, block, remove }
 
 class ChatRichScreen extends ConsumerStatefulWidget {
   final String conversationId;
@@ -121,6 +122,21 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
   /// Cached so dispose() can clear the active-conversation flag without reading
   /// a provider through `ref` after the widget has been deactivated.
   StateController<String?>? _activeConversation;
+
+  // ── In-chat search ──────────────────────────────────────────────────────────
+  /// Whether the search bar (over this conversation) is showing.
+  bool _searchMode = false;
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+
+  // ── Jump-to-message (reply tap / search result) ──────────────────────────────
+  /// One stable GlobalKey per message id so we can scroll a specific bubble
+  /// into view with Scrollable.ensureVisible.
+  final Map<String, GlobalKey> _msgKeys = {};
+
+  /// The message briefly highlighted after a jump, cleared by [_highlightTimer].
+  String? _highlightedMessageId;
+  Timer? _highlightTimer;
 
   /// Resolve the other user's display name. Prefers live data from the chat
   /// state, falls back to the contactName the caller passed (e.g. from
@@ -231,10 +247,63 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
       active.state = null;
     }
     _clockTicker?.cancel();
+    _highlightTimer?.cancel();
     _inputCtrl.dispose();
+    _searchCtrl.dispose();
     _scrollCtrl.dispose();
     _inputFocus.dispose();
     super.dispose();
+  }
+
+  // ── Jump to a message (reply tap / search result) ─────────────────────────────
+
+  /// Scrolls [messageId] into view and flashes a highlight. Off-screen targets
+  /// are reached by scrolling progressively toward older history (the list is
+  /// reversed, so that's increasing offset) until the row gets built. Targets
+  /// outside the loaded window simply can't be reached and we give up quietly.
+  Future<void> _jumpToMessage(String messageId) async {
+    final startOffset = _scrollCtrl.hasClients ? _scrollCtrl.offset : 0.0;
+    for (var attempt = 0; attempt < 8; attempt++) {
+      final ctx = _msgKeys[messageId]?.currentContext;
+      if (ctx != null) {
+        await Scrollable.ensureVisible(
+          ctx,
+          alignment: 0.4,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+        );
+        _flashHighlight(messageId);
+        return;
+      }
+      if (!_scrollCtrl.hasClients) return;
+      final pos = _scrollCtrl.position;
+      final next = (_scrollCtrl.offset + pos.viewportDimension * 0.85)
+          .clamp(0.0, pos.maxScrollExtent);
+      if (next <= _scrollCtrl.offset) break; // can't scroll any further up
+      await _scrollCtrl.animateTo(
+        next,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+      );
+      await WidgetsBinding.instance.endOfFrame;
+    }
+    // Couldn't locate it (e.g. media grouped into an album, or outside the
+    // loaded window) — return the user to where they started.
+    if (_scrollCtrl.hasClients) {
+      await _scrollCtrl.animateTo(
+        startOffset.clamp(0.0, _scrollCtrl.position.maxScrollExtent),
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
+  void _flashHighlight(String messageId) {
+    _highlightTimer?.cancel();
+    setState(() => _highlightedMessageId = messageId);
+    _highlightTimer = Timer(const Duration(milliseconds: 1600), () {
+      if (mounted) setState(() => _highlightedMessageId = null);
+    });
   }
 
   void _enterReplyMode(Message msg) {
@@ -490,6 +559,14 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
         setState(() => _hasNewBelow = true);
       }
     });
+
+    if (_searchMode) {
+      return Scaffold(
+        backgroundColor: theme.scaffoldBackgroundColor,
+        appBar: _buildSearchAppBar(lumioColors, theme),
+        body: _buildSearchResults(chatState.messages, lumioColors),
+      );
+    }
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -876,6 +953,12 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
           enabled: other != null,
           onSelected: (action) {
             switch (action) {
+              case _ChatMenuAction.search:
+                setState(() {
+                  _searchMode = true;
+                  _searchCtrl.clear();
+                  _searchQuery = '';
+                });
               case _ChatMenuAction.block:
                 _confirmBlockContact(other!);
               case _ChatMenuAction.remove:
@@ -883,6 +966,16 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
             }
           },
           itemBuilder: (_) => [
+            PopupMenuItem(
+              value: _ChatMenuAction.search,
+              child: Row(
+                children: [
+                  Icon(LucideIcons.search, size: 18, color: colors.fg1),
+                  const SizedBox(width: 12),
+                  const Text('Search'),
+                ],
+              ),
+            ),
             PopupMenuItem(
               value: _ChatMenuAction.block,
               child: Row(
@@ -908,6 +1001,118 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
         const SizedBox(width: 4),
       ],
       shape: Border(bottom: BorderSide(color: colors.hairline)),
+    );
+  }
+
+  // ── In-chat search ────────────────────────────────────────────────────────
+
+  PreferredSizeWidget _buildSearchAppBar(LumioColors colors, ThemeData theme) {
+    return AppBar(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      elevation: 0,
+      leadingWidth: 48,
+      leading: IconButton(
+        icon: Icon(LumioIcons.back, color: colors.fg1),
+        tooltip: 'Close search',
+        onPressed: () => setState(() {
+          _searchMode = false;
+          _searchCtrl.clear();
+          _searchQuery = '';
+        }),
+      ),
+      titleSpacing: 0,
+      title: TextField(
+        controller: _searchCtrl,
+        autofocus: true,
+        style: AppTextStyles.body(color: colors.fg1),
+        cursorColor: AppColors.primary,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: 'Search this chat',
+          hintStyle: AppTextStyles.body(color: colors.fg3),
+          border: InputBorder.none,
+        ),
+        onChanged: (v) => setState(() => _searchQuery = v.trim()),
+      ),
+      actions: [
+        if (_searchQuery.isNotEmpty)
+          IconButton(
+            icon: Icon(LumioIcons.close, color: colors.fg2, size: 20),
+            tooltip: 'Clear',
+            onPressed: () => setState(() {
+              _searchCtrl.clear();
+              _searchQuery = '';
+            }),
+          ),
+      ],
+      shape: Border(bottom: BorderSide(color: colors.hairline)),
+    );
+  }
+
+  /// Case-insensitive matches over the loaded message window — text bodies and
+  /// media captions. Newest first.
+  List<Message> _searchMatches(List<Message> messages) {
+    final q = _searchQuery.toLowerCase();
+    if (q.isEmpty) return const [];
+    final out = messages
+        .where((m) =>
+            !m.isDeleted &&
+            m.type != MessageType.callLog &&
+            (m.content?.toLowerCase().contains(q) ?? false))
+        .toList();
+    out.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return out;
+  }
+
+  Widget _buildSearchResults(List<Message> messages, LumioColors colors) {
+    if (_searchQuery.isEmpty) {
+      return Center(
+        child: Text(
+          'Type to search this conversation',
+          style: AppTextStyles.secondary(color: colors.fg2),
+        ),
+      );
+    }
+    final matches = _searchMatches(messages);
+    if (matches.isEmpty) {
+      return Center(
+        child: Text(
+          'No messages found',
+          style: AppTextStyles.secondary(color: colors.fg2),
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: matches.length,
+      separatorBuilder: (_, _) =>
+          Divider(height: 1, indent: 16, color: colors.hairline),
+      itemBuilder: (context, i) {
+        final m = matches[i];
+        final mine = m.senderId == _currentUserId;
+        return ListTile(
+          title: Text(
+            m.content ?? '',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.body(color: colors.fg1),
+          ),
+          subtitle: Text(
+            '${mine ? 'You' : 'Them'} · ${_relativeLastSeen(m.createdAt)}',
+            style: AppTextStyles.caption(color: colors.fg3),
+          ),
+          onTap: () {
+            setState(() {
+              _searchMode = false;
+              _searchCtrl.clear();
+              _searchQuery = '';
+            });
+            WidgetsBinding.instance.addPostFrameCallback(
+              (_) => _jumpToMessage(m.id),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1122,13 +1327,33 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
               onShowContext: (msg, mine, topOffset) =>
                   _showContextMenu(context, msg, mine, topOffset),
               onSwipeReply: () => _enterReplyMode(item.msg!),
+              onJumpToOriginal: _jumpToMessage,
               onToggleReaction: (id, emoji) => ref
                   .read(chatProvider(widget.conversationId).notifier)
                   .toggleReaction(id, emoji),
             ),
         };
-        // Stable key so inserting a new message reuses existing row elements
-        // instead of rebuilding the whole visible list.
+        // Message rows get a stable GlobalKey (so we can scroll a specific
+        // bubble into view) plus a transient highlight after a jump. Other
+        // row kinds keep a lightweight ValueKey for element reuse.
+        if (item.kind == _ItemKind.message) {
+          final id = item.msg!.id;
+          final gkey = _msgKeys.putIfAbsent(id, () => GlobalKey());
+          final highlighted = _highlightedMessageId == id;
+          return KeyedSubtree(
+            key: gkey,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              decoration: BoxDecoration(
+                color: highlighted
+                    ? AppColors.primary.withValues(alpha: 0.12)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+              ),
+              child: child,
+            ),
+          );
+        }
         return KeyedSubtree(key: ValueKey(_listItemKey(item)), child: child);
       },
     );
@@ -1162,6 +1387,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
           topOffset: topOffset,
           onReply: () => _enterReplyMode(msg),
           onCopy: () => _copyMessage(hostContext, msg),
+          onForward: () => _forwardMessage(msg),
           onDelete: () {
             ref
                 .read(chatProvider(widget.conversationId).notifier)
@@ -1187,6 +1413,30 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
         );
       },
       transitionDuration: const Duration(milliseconds: 240),
+    );
+  }
+
+  /// Opens a sheet to pick another conversation, then forwards [source] there.
+  void _forwardMessage(Message source) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Theme.of(context).cardTheme.color,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(AppRadius.xxl)),
+      ),
+      builder: (sheetContext) => _ForwardSheet(
+        currentConversationId: widget.conversationId,
+        onPick: (targetId, targetName) async {
+          Navigator.of(sheetContext).pop();
+          await ref.read(chatProvider(targetId).notifier).forward(source);
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Forwarded to $targetName')),
+          );
+        },
+      ),
     );
   }
 
@@ -1902,6 +2152,7 @@ class _MessageRow extends StatelessWidget {
     required this.onShowContext,
     required this.onSwipeReply,
     required this.onToggleReaction,
+    this.onJumpToOriginal,
     this.resolvedReplyTo,
   });
 
@@ -1915,6 +2166,9 @@ class _MessageRow extends StatelessWidget {
   final void Function(Message msg, bool mine, double topOffset) onShowContext;
   final VoidCallback                          onSwipeReply;
   final void Function(String messageId, String emoji) onToggleReaction;
+
+  /// Jump to the message this one is replying to (tap on the reply preview).
+  final void Function(String messageId)? onJumpToOriginal;
 
   /// Parent-computed reply preview. Used instead of [msg.replyTo] when the
   /// server only sent us a reply_to_id — the parent looks the original up
@@ -1975,6 +2229,10 @@ class _MessageRow extends StatelessWidget {
                             replyTo: _replyTo,
                             colors:  colors,
                             conversationId: conversationId,
+                            onReplyTap: (msg.replyToId != null &&
+                                    onJumpToOriginal != null)
+                                ? () => onJumpToOriginal!(msg.replyToId!)
+                                : null,
                           ),
                   );
                 }
@@ -2367,6 +2625,7 @@ class _Bubble extends StatelessWidget {
     required this.colors,
     this.replyTo,
     this.conversationId,
+    this.onReplyTap,
   });
 
   final bool        mine;
@@ -2375,6 +2634,8 @@ class _Bubble extends StatelessWidget {
   final ReplyPreview? replyTo;
   // When set, media bubbles can show live upload progress + a cancel button.
   final String?     conversationId;
+  /// Tapping the reply preview jumps to the original message.
+  final VoidCallback? onReplyTap;
 
   bool get _isFailed => msg.status == MessageStatus.failed;
   bool get _isAudio => msg.type == MessageType.audio;
@@ -2463,6 +2724,7 @@ class _Bubble extends StatelessWidget {
               content:    replyTo!.text,
               mine:       mine,
               colors:     colors,
+              onTap:      onReplyTap,
             ),
             const SizedBox(height: 8),
           ],
@@ -2947,12 +3209,14 @@ class _ReplyPreview extends StatelessWidget {
     required this.content,
     required this.mine,
     required this.colors,
+    this.onTap,
   });
 
   final String senderName;
   final String content;
   final bool mine;
   final LumioColors colors;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -2972,7 +3236,7 @@ class _ReplyPreview extends StatelessWidget {
 
     const radius = 14.0;
 
-    return Container(
+    final preview = Container(
       width: double.infinity,
       decoration: BoxDecoration(
         color: bg,
@@ -3034,6 +3298,13 @@ class _ReplyPreview extends StatelessWidget {
           ],
         ),
       ),
+    );
+
+    if (onTap == null) return preview;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: preview,
     );
   }
 }
@@ -4045,6 +4316,99 @@ class _AttachListItem extends StatelessWidget {
 
 // ─── Floating Context Menu ───────────────────────────────────────────────────
 
+/// Bottom sheet listing other conversations to forward a message into.
+class _ForwardSheet extends ConsumerWidget {
+  const _ForwardSheet({
+    required this.currentConversationId,
+    required this.onPick,
+  });
+
+  final String currentConversationId;
+  final void Function(String conversationId, String name) onPick;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.lumioColors;
+    final convosAsync = ref.watch(conversationListProvider);
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _SheetHandle(colors: colors),
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 8, left: 4),
+                child: Text(
+                  'FORWARD TO',
+                  style: AppTextStyles.caption(color: colors.fg2).copyWith(
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+            ),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.5,
+              ),
+              child: convosAsync.when(
+                loading: () => const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 32),
+                  child: CircularProgressIndicator(),
+                ),
+                error: (_, _) => Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 24),
+                  child: Text("Couldn't load chats",
+                      style: AppTextStyles.secondary(color: colors.fg2)),
+                ),
+                data: (convos) {
+                  final targets = convos
+                      .where((c) => c.id != currentConversationId)
+                      .toList();
+                  if (targets.isEmpty) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24),
+                      child: Text('No other chats to forward to',
+                          style: AppTextStyles.secondary(color: colors.fg2)),
+                    );
+                  }
+                  return ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: targets.length,
+                    itemBuilder: (context, i) {
+                      final c = targets[i];
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: UserAvatar(
+                          displayName: c.otherUser.name,
+                          imageUrl: c.otherUser.avatarUrl,
+                          radius: 20,
+                        ),
+                        title: Text(
+                          c.otherUser.name,
+                          style: AppTextStyles.body(color: colors.fg1),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        onTap: () => onPick(c.id, c.otherUser.name),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ContextMenuOverlay extends StatelessWidget {
   final Message msg;
   final bool mine;
@@ -4052,6 +4416,7 @@ class _ContextMenuOverlay extends StatelessWidget {
   final ThemeData theme;
   final VoidCallback onReply;
   final VoidCallback onCopy;
+  final VoidCallback onForward;
   final VoidCallback onDelete;
   final void Function(String emoji) onReact;
   final double topOffset;
@@ -4063,6 +4428,7 @@ class _ContextMenuOverlay extends StatelessWidget {
     required this.theme,
     required this.onReply,
     required this.onCopy,
+    required this.onForward,
     required this.onDelete,
     required this.onReact,
     required this.topOffset,
@@ -4188,6 +4554,16 @@ class _ContextMenuOverlay extends StatelessWidget {
                       onTap: () {
                         Navigator.of(context).pop();
                         onCopy();
+                      },
+                    ),
+                    _ContextMenuAction(
+                      icon: LucideIcons.share2,
+                      label: 'Forward',
+                      color: fg,
+                      border: border,
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        onForward();
                       },
                     ),
                     if (mine)
