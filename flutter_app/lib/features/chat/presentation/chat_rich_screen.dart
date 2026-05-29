@@ -1271,18 +1271,25 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
       builder: (ctx) => SimpleDialog(
         title: const Text('Disappearing messages'),
         children: [
-          for (final entry in options.entries)
-            RadioListTile<int?>(
-              value: entry.value,
-              groupValue: current,
-              title: Text(entry.key),
-              onChanged: (v) {
-                Navigator.pop(ctx);
-                ref
-                    .read(chatProvider(widget.conversationId).notifier)
-                    .setDisappearing(v);
-              },
+          RadioGroup<int?>(
+            groupValue: current,
+            onChanged: (v) {
+              Navigator.pop(ctx);
+              ref
+                  .read(chatProvider(widget.conversationId).notifier)
+                  .setDisappearing(v);
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final entry in options.entries)
+                  RadioListTile<int?>(
+                    value: entry.value,
+                    title: Text(entry.key),
+                  ),
+              ],
             ),
+          ),
         ],
       ),
     );
