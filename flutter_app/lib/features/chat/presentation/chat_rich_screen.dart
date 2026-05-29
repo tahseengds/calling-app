@@ -5,6 +5,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -164,6 +165,39 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
       _inputFocus.unfocus(); // hide keyboard so the panel has room
     } else {
       _inputFocus.requestFocus();
+    }
+  }
+
+  /// Handle a Gboard sticker / GIF / pasted image inserted via the keyboard's
+  /// rich-content API: persist the bytes to a temp file and send it through the
+  /// normal media pipeline (GIFs animate; stickers send as images).
+  Future<void> _sendInsertedContent(String mimeType, Uint8List data) async {
+    try {
+      final ext = mimeType.contains('gif')
+          ? 'gif'
+          : mimeType.contains('png')
+              ? 'png'
+              : mimeType.contains('webp')
+                  ? 'webp'
+                  : 'jpg';
+      final dir = await getTemporaryDirectory();
+      final file = File(
+        '${dir.path}/inserted_${DateTime.now().millisecondsSinceEpoch}.$ext',
+      );
+      await file.writeAsBytes(data);
+      if (!mounted) return;
+      ref.read(chatProvider(widget.conversationId).notifier).sendMedia(
+            file,
+            MessageType.image,
+            replyToId: _replyingTo?.id,
+          );
+      if (_replyingTo != null) setState(() => _replyingTo = null);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Couldn't send that sticker")),
+        );
+      }
     }
   }
 
@@ -526,6 +560,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
             onRecordAudio: _sendAudioMessage,
             onAttach: () => _showAttachmentSheet(context),
             onToggleEmoji: _toggleEmojiPicker,
+            onContentInserted: _sendInsertedContent,
             onChanged: () => ref
                 .read(chatProvider(widget.conversationId).notifier)
                 .onUserTyping(),
@@ -3071,6 +3106,7 @@ class _ChatInputBar extends StatefulWidget {
     required this.onRecordAudio,
     required this.onAttach,
     required this.onToggleEmoji,
+    required this.onContentInserted,
     required this.lumioColors,
     required this.theme,
     this.onChanged,
@@ -3086,6 +3122,9 @@ class _ChatInputBar extends StatefulWidget {
   final VoidCallback onAttach;
   /// Toggles the emoji picker panel (owned by the chat screen).
   final VoidCallback onToggleEmoji;
+  /// Fired when the keyboard inserts rich content — a Gboard sticker, GIF, or
+  /// pasted image. The bytes are handed up to be sent as a media message.
+  final void Function(String mimeType, Uint8List data) onContentInserted;
   final LumioColors  lumioColors;
   final ThemeData    theme;
 
@@ -3371,6 +3410,21 @@ class _ChatInputBarState extends State<_ChatInputBar>
                 minLines:            1,
                 maxLines:            5,
                 textInputAction:     TextInputAction.newline,
+                // Accept Gboard stickers / GIFs / pasted images.
+                contentInsertionConfiguration: ContentInsertionConfiguration(
+                  allowedMimeTypes: const [
+                    'image/png',
+                    'image/jpeg',
+                    'image/gif',
+                    'image/webp',
+                  ],
+                  onContentInserted: (content) {
+                    final data = content.data;
+                    if (data != null) {
+                      widget.onContentInserted(content.mimeType, data);
+                    }
+                  },
+                ),
                 decoration: InputDecoration(
                   hintText:       'Message…',
                   hintStyle:      AppTextStyles.body(color: c.fg2),
