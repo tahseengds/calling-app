@@ -2199,7 +2199,11 @@ class _Bubble extends StatelessWidget {
         _isEmojiOnly(msg.content ?? '')) {
       final emoji = msg.content!.trim();
       final n = _emojiCharRegex.allMatches(emoji).length;
-      final double size = n <= 1 ? 52 : (n <= 3 ? 40 : 30);
+      // A single emoji renders at double the normal text size; a few scale
+      // down from there so they still read as "jumbo" without overflowing.
+      const base = AppTextStyles.sizeBody; // 16
+      final double size =
+          n <= 1 ? base * 2 : (n <= 3 ? base * 1.6 : base * 1.3);
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
         child: Text(emoji, style: TextStyle(fontSize: size, height: 1.15)),

@@ -165,6 +165,34 @@ class FcmService : FirebaseMessagingService() {
             messageId.hashCode().takeIf { it != 0 } ?: 1
         }
         nm.notify(notifId, notif)
+        postMessagesSummary(nm)
+    }
+
+    /**
+     * Group-summary notification so multiple chats bundle under one
+     * "New messages" header instead of stacking loose. Re-posting with the
+     * same id refreshes it; Android removes it once its last child is cleared.
+     */
+    private fun postMessagesSummary(nm: NotificationManager) {
+        val count = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            nm.activeNotifications.count {
+                it.notification.group == MESSAGES_GROUP &&
+                    it.id != MESSAGES_SUMMARY_ID
+            }
+        } else {
+            0
+        }
+        val text = if (count > 1) "$count conversations" else "New messages"
+        val summary = NotificationCompat.Builder(this, MESSAGES_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_notification)
+            .setContentTitle("New messages")
+            .setContentText(text)
+            .setStyle(NotificationCompat.InboxStyle().setSummaryText(text))
+            .setGroup(MESSAGES_GROUP)
+            .setGroupSummary(true)
+            .setAutoCancel(true)
+            .build()
+        nm.notify(MESSAGES_SUMMARY_ID, summary)
     }
 
     /**
@@ -228,5 +256,7 @@ class FcmService : FirebaseMessagingService() {
         private const val KEY_FCM_TOKEN = "fcm_token"
         private const val MESSAGES_CHANNEL_ID = "messages"
         private const val MESSAGES_GROUP = "lumin_messages"
+        // Negative so it never collides with a per-conversation convNotifId.
+        private const val MESSAGES_SUMMARY_ID = -1000
     }
 }

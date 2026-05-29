@@ -10,6 +10,9 @@ const kChannelCalls = 'calls';
 // (foreground) notifications and the native FcmService (background).
 const _kNotifIcon = '@drawable/ic_stat_notification';
 const _kMessagesGroup = 'lumin_messages';
+// Group-summary notification id. Negative so it never collides with a
+// per-conversation id (conversationNotificationId only returns 1..0x3FFFFFF).
+const _kMessagesSummaryId = -1000;
 
 /// The conversation the user is currently viewing (null when none). New
 /// messages for this conversation are NOT turned into notifications — the open
@@ -108,6 +111,27 @@ class NotificationService {
       body: preview,
       notificationDetails: const NotificationDetails(android: androidDetails),
       payload: conversationId,
+    );
+    await _showMessagesSummary();
+  }
+
+  /// Posts (or refreshes) the group-summary notification so multiple chats'
+  /// notifications bundle under one "New messages" header instead of stacking
+  /// loose. Re-posting with the same id just updates it.
+  Future<void> _showMessagesSummary() async {
+    const summaryDetails = AndroidNotificationDetails(
+      kChannelMessages,
+      'Messages',
+      channelDescription: 'New message notifications',
+      icon: _kNotifIcon,
+      groupKey: _kMessagesGroup,
+      setAsGroupSummary: true,
+    );
+    await _plugin.show(
+      id: _kMessagesSummaryId,
+      title: 'New messages',
+      body: '',
+      notificationDetails: const NotificationDetails(android: summaryDetails),
     );
   }
 
