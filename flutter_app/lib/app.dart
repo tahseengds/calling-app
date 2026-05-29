@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'core/services/analytics_service.dart';
 import 'core/services/deep_link_service.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/domain/auth_notifier.dart';
@@ -61,6 +62,8 @@ final _routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/splash',
     refreshListenable: refresh,
+    // Automatic screen_view analytics on every route change.
+    observers: [ref.read(analyticsServiceProvider).navigatorObserver],
     redirect: (context, state) {
       final loc = state.matchedLocation;
       final authState = ref.read(authNotifierProvider);

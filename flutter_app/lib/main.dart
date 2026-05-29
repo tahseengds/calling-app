@@ -1,12 +1,16 @@
 // Replace android/app/google-services.json with the file from Firebase Console
 // when enabling push notifications (FCM). A placeholder is committed for builds.
 
+import 'dart:ui';
+
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
+import 'core/services/analytics_service.dart';
 import 'core/services/native_call_bridge.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/pending_deep_link.dart';
@@ -39,12 +43,26 @@ Future<void> main() async {
       await Firebase.initializeApp();
       FirebaseMessaging.onBackgroundMessage(
           _firebaseMessagingBackgroundHandler);
+
+      // ── Crash + error reporting ───────────────────────────────────────────
+      // Route every uncaught Flutter error and async (platform) error into
+      // Crashlytics so any in-app issue is tracked automatically.
+      FlutterError.onError = (details) {
+        FlutterError.presentError(details);
+        FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+      };
+      PlatformDispatcher.instance.onError = (error, stack) {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+        return true;
+      };
+      // Collection follows the platform default (on in release builds).
     } catch (e) {
       debugPrint('[startup] Firebase.initializeApp failed: $e');
       // Continue without Firebase — the app can still show the UI.
     }
 
     container = ProviderContainer();
+    container.read(analyticsServiceProvider).logEvent('app_open');
     final notifications = container.read(notificationServiceProvider);
     // Route taps on the local notifications we show ourselves (foreground FCM
     // messages) into the same pendingDeepLink path the cold-start FCM handler
