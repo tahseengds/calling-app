@@ -22,6 +22,13 @@ class AppTextStyles {
   static const double trackingTight = -0.01;
   static const double trackingBody = 0.0;
 
+  /// Emoji glyph fallback. Inter has no emoji, and many devices' system fonts
+  /// lack the newest Unicode emoji (they render as ▯ "no glyph"). Bundling
+  /// Noto Color Emoji and listing it as a fallback makes ALL emoji render
+  /// consistently. Requires assets/fonts/NotoColorEmoji.ttf (declared in
+  /// pubspec). Applied to every style below via copyWith.
+  static const List<String> emojiFallback = ['NotoColorEmoji'];
+
   // Base Inter style builder
   static TextStyle display({required Color color}) => GoogleFonts.inter(
         fontSize: sizeDisplay,
@@ -29,7 +36,7 @@ class AppTextStyles {
         height: leadingTight,
         letterSpacing: trackingTight,
         color: color,
-      );
+      ).copyWith(fontFamilyFallback: emojiFallback);
 
   static TextStyle h1({required Color color}) => GoogleFonts.inter(
         fontSize: sizeH1,
@@ -37,14 +44,14 @@ class AppTextStyles {
         height: leadingTight,
         letterSpacing: trackingTight,
         color: color,
-      );
+      ).copyWith(fontFamilyFallback: emojiFallback);
 
   static TextStyle h2({required Color color}) => GoogleFonts.inter(
         fontSize: sizeH2,
         fontWeight: weightSemibold,
         height: leadingTight,
         color: color,
-      );
+      ).copyWith(fontFamilyFallback: emojiFallback);
 
   static TextStyle body({required Color color}) => GoogleFonts.inter(
         fontSize: sizeBody,
@@ -52,7 +59,7 @@ class AppTextStyles {
         height: leadingBody,
         letterSpacing: trackingBody,
         color: color,
-      );
+      ).copyWith(fontFamilyFallback: emojiFallback);
 
   static TextStyle bodyMedium({required Color color}) => GoogleFonts.inter(
         fontSize: sizeBody,
@@ -60,7 +67,7 @@ class AppTextStyles {
         height: leadingBody,
         letterSpacing: trackingBody,
         color: color,
-      );
+      ).copyWith(fontFamilyFallback: emojiFallback);
 
   static TextStyle bodySemibold({required Color color}) => GoogleFonts.inter(
         fontSize: sizeBody,
@@ -68,40 +75,40 @@ class AppTextStyles {
         height: leadingBody,
         letterSpacing: trackingBody,
         color: color,
-      );
+      ).copyWith(fontFamilyFallback: emojiFallback);
 
   static TextStyle secondary({required Color color}) => GoogleFonts.inter(
         fontSize: sizeSecondary,
         fontWeight: weightRegular,
         height: leadingBody,
         color: color,
-      );
+      ).copyWith(fontFamilyFallback: emojiFallback);
 
   static TextStyle secondaryMedium({required Color color}) => GoogleFonts.inter(
         fontSize: sizeSecondary,
         fontWeight: weightMedium,
         height: leadingBody,
         color: color,
-      );
+      ).copyWith(fontFamilyFallback: emojiFallback);
 
   static TextStyle secondarySemibold({required Color color}) => GoogleFonts.inter(
         fontSize: sizeSecondary,
         fontWeight: weightSemibold,
         height: leadingBody,
         color: color,
-      );
+      ).copyWith(fontFamilyFallback: emojiFallback);
 
   static TextStyle caption({required Color color}) => GoogleFonts.inter(
         fontSize: sizeCaption,
         fontWeight: weightMedium,
         height: leadingTight,
         color: color,
-      );
+      ).copyWith(fontFamilyFallback: emojiFallback);
 
   static TextStyle captionSemibold({required Color color}) => GoogleFonts.inter(
         fontSize: sizeCaption,
         fontWeight: weightSemibold,
         height: leadingTight,
         color: color,
-      );
+      ).copyWith(fontFamilyFallback: emojiFallback);
 }

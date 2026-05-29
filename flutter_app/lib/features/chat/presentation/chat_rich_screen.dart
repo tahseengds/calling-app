@@ -2206,7 +2206,14 @@ class _Bubble extends StatelessWidget {
           n <= 1 ? base * 2 : (n <= 3 ? base * 1.6 : base * 1.3);
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
-        child: Text(emoji, style: TextStyle(fontSize: size, height: 1.15)),
+        child: Text(
+          emoji,
+          style: TextStyle(
+            fontSize: size,
+            height: 1.15,
+            fontFamilyFallback: AppTextStyles.emojiFallback,
+          ),
+        ),
       );
     }
 
@@ -3392,13 +3399,12 @@ class _ChatInputBarState extends State<_ChatInputBar>
     );
   }
 
-  Widget _buildIdleMicButton(LumioColors c) {
-    // RawGestureDetector with a short-duration long-press so hold-to-record
-    // engages quickly. The default GestureDetector long-press is ~500ms, which
-    // (on top of recorder init) is what made starting a voice note feel laggy.
-    return RawGestureDetector(
-      key: _micKey,
-      gestures: {
+  /// Shared mic gestures. Used by BOTH the idle and recording-bar mic buttons
+  /// via the same widget type + [_micKey], so when recording starts and the bar
+  /// swaps, the GlobalKey reparents the SAME element and the in-flight
+  /// long-press recognizer survives — that's what keeps slide-to-cancel and
+  /// release-to-send working after the UI switches.
+  Map<Type, GestureRecognizerFactory> _micGestures() => {
         TapGestureRecognizer:
             GestureRecognizerFactoryWithHandlers<TapGestureRecognizer>(
           () => TapGestureRecognizer(),
@@ -3416,7 +3422,15 @@ class _ChatInputBarState extends State<_ChatInputBar>
             r.onLongPressCancel = _hasText ? null : _endRecording;
           },
         ),
-      },
+      };
+
+  Widget _buildIdleMicButton(LumioColors c) {
+    // RawGestureDetector with a short-duration long-press so hold-to-record
+    // engages quickly. The default GestureDetector long-press is ~500ms, which
+    // (on top of recorder init) is what made starting a voice note feel laggy.
+    return RawGestureDetector(
+      key: _micKey,
+      gestures: _micGestures(),
       child: Material(
         color:           AppColors.primary,
         shape:           const CircleBorder(),
@@ -3482,12 +3496,9 @@ class _ChatInputBarState extends State<_ChatInputBar>
             right: 0,
             child: Transform.translate(
               offset: Offset(_dragOffset, 0),
-              child: GestureDetector(
+              child: RawGestureDetector(
                 key: _micKey,
-                onLongPressStart: (_) => _startRecording(),
-                onLongPressMoveUpdate: _updateRecording,
-                onLongPressEnd: (_) => _endRecording(),
-                onLongPressCancel: _endRecording,
+                gestures: _micGestures(),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 160),
                   width: _kRecBtn,

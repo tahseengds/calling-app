@@ -120,6 +120,15 @@ flutter:
     - assets/
     - assets/sounds/notifications/
 
+  # Emoji glyph fallback so the newest Unicode emoji render everywhere instead
+  # of as ▯. REQUIRES assets/fonts/NotoColorEmoji.ttf to exist before building
+  # (see README / download command), otherwise the build fails with a missing
+  # asset. ~10 MB.
+  fonts:
+    - family: NotoColorEmoji
+      fonts:
+        - asset: assets/fonts/NotoColorEmoji.ttf
+
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: false
