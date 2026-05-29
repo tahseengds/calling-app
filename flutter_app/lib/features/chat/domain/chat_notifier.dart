@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../../core/services/signaling_service.dart';
@@ -68,6 +69,10 @@ class ChatNotifier extends Notifier<ChatState> {
   StreamSubscription<TypingEvent>? _typingSub;
   StreamSubscription<PresenceEvent>? _presenceSub;
   Timer? _typingStopTimer;
+  // Watchdog that clears the peer's "typing…" indicator if their typing:stop
+  // event never arrives (app backgrounded/killed mid-type). Without it the
+  // three dots can spin forever.
+  Timer? _typingClearTimer;
   bool _isTyping = false;
 
   @override
@@ -81,6 +86,7 @@ class ChatNotifier extends Notifier<ChatState> {
       _typingSub?.cancel();
       _presenceSub?.cancel();
       _typingStopTimer?.cancel();
+      _typingClearTimer?.cancel();
     });
 
     _init();
@@ -196,6 +202,13 @@ class ChatNotifier extends Notifier<ChatState> {
     _typingSub = signaling.onTyping.listen((event) {
       if (event.conversationId != _conversationId) return;
       state = state.copyWith(otherUserTyping: event.isTyping);
+      _typingClearTimer?.cancel();
+      if (event.isTyping) {
+        // Self-heal if the matching typing:stop is lost.
+        _typingClearTimer = Timer(const Duration(seconds: 6), () {
+          state = state.copyWith(otherUserTyping: false);
+        });
+      }
     });
 
     // Live presence/last-seen for the chat header.
@@ -219,6 +232,7 @@ class ChatNotifier extends Notifier<ChatState> {
   /// has [emoji] on the message, this removes it; otherwise it adds it.
   /// Updates Drift optimistically and rolls back on a request failure.
   Future<void> toggleReaction(String messageId, String emoji) async {
+    HapticFeedback.selectionClick();
     final dao = ref.read(messageLocalDaoProvider);
     final me = _currentUserId;
     if (me.isEmpty) return;

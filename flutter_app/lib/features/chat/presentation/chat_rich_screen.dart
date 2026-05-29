@@ -88,6 +88,15 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
 
   Message? _replyingTo;
 
+  /// Whether the list is scrolled to the newest message (offset ~0, since the
+  /// list is reversed). Drives the scroll-to-bottom button and decides whether
+  /// an incoming message should auto-scroll or just flag "new messages below".
+  bool _atBottom = true;
+
+  /// A message arrived while the user was reading older history — surfaces a
+  /// "new messages" hint on the scroll-to-bottom button.
+  bool _hasNewBelow = false;
+
   /// Refreshes relative timestamps ("Just now", "2m ago", app-bar "last seen…")
   /// while the screen is open. Without this they freeze at the value they had
   /// when the row was first built. 30 s strikes a balance: the "Just now" →
@@ -118,9 +127,22 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    _scrollCtrl.addListener(_onScroll);
     _clockTicker = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() {});
     });
+  }
+
+  /// Track whether we're parked at the newest message (reversed list → offset
+  /// near 0). Clears the "new messages" flag once the user reaches the bottom.
+  void _onScroll() {
+    final atBottom = !_scrollCtrl.hasClients || _scrollCtrl.offset <= 120;
+    if (atBottom != _atBottom || (atBottom && _hasNewBelow)) {
+      setState(() {
+        _atBottom = atBottom;
+        if (atBottom) _hasNewBelow = false;
+      });
+    }
   }
 
   @override
@@ -349,10 +371,18 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
     final theme       = Theme.of(context);
     final other       = chatState.otherUser;
 
-    // Auto-scroll to bottom when a new message arrives.
+    // New message arrived. Only yank the view to the bottom if the user is
+    // already there (or they just sent it themselves) — otherwise leave them
+    // where they're reading and surface a "new messages" affordance instead.
     ref.listen(chatProvider(widget.conversationId), (prev, next) {
-      if ((prev?.messages.length ?? 0) < next.messages.length) {
+      final prevCount = prev?.messages.length ?? 0;
+      if (next.messages.length <= prevCount) return;
+      final newest = next.messages.isNotEmpty ? next.messages.last : null;
+      final mine = newest != null && newest.senderId == _currentUserId;
+      if (_atBottom || mine) {
         WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+      } else if (!_hasNewBelow) {
+        setState(() => _hasNewBelow = true);
       }
     });
 
@@ -362,19 +392,37 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
       body: Column(
         children: [
           Expanded(
-            child: chatState.messages.isEmpty && !chatState.otherUserTyping
-                ? Center(
-                    child: Text(
-                      'No messages yet',
-                      style: AppTextStyles.body(color: lumioColors.fg2),
+            child: Stack(
+              children: [
+                chatState.messages.isEmpty && !chatState.otherUserTyping
+                    ? Center(
+                        child: Text(
+                          'No messages yet',
+                          style: AppTextStyles.body(color: lumioColors.fg2),
+                        ),
+                      )
+                    : _buildMessageList(
+                        chatState.messages,
+                        chatState.otherUserTyping,
+                        lumioColors,
+                        other,
+                      ),
+                // Jump-to-latest button — only while scrolled up.
+                if (!_atBottom)
+                  Positioned(
+                    right: 12,
+                    bottom: 12,
+                    child: _ScrollToBottomButton(
+                      hasNew: _hasNewBelow,
+                      colors: lumioColors,
+                      onTap: () {
+                        setState(() => _hasNewBelow = false);
+                        _scrollToBottom();
+                      },
                     ),
-                  )
-                : _buildMessageList(
-                    chatState.messages,
-                    chatState.otherUserTyping,
-                    lumioColors,
-                    other,
                   ),
+              ],
+            ),
           ),
           if (_replyingTo != null)
             _buildReplyPreviewBar(lumioColors, theme, other),
@@ -1158,6 +1206,58 @@ class _MediaThumb extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+// ─── Scroll-to-latest button ────────────────────────────────────────────────
+
+class _ScrollToBottomButton extends StatelessWidget {
+  const _ScrollToBottomButton({
+    required this.hasNew,
+    required this.colors,
+    required this.onTap,
+  });
+
+  final bool hasNew;
+  final LumioColors colors;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Theme.of(context).cardColor,
+      shape: const CircleBorder(),
+      elevation: 3,
+      shadowColor: Colors.black26,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Icon(Icons.keyboard_arrow_down_rounded,
+                  color: colors.fg1, size: 26),
+              if (hasNew)
+                Positioned(
+                  top: 7,
+                  right: 7,
+                  child: Container(
+                    width: 10,
+                    height: 10,
+                    decoration: const BoxDecoration(
+                      color: AppColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
