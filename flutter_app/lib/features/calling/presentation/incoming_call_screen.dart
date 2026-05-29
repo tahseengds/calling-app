@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +12,7 @@ import '../../../shared/widgets/avatar.dart';
 import '../../../shared/widgets/lumio_icons.dart';
 import '../../chat/data/conversation_repository.dart';
 import '../../chat/domain/chat_notifier.dart';
+import '../data/ringtone_player.dart';
 import '../domain/call_notifier.dart';
 import '../domain/call_state.dart';
 
@@ -26,6 +29,12 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
   late AnimationController _ring1;
   late AnimationController _ring2;
   late AnimationController _bob;
+
+  // Receiver-side ringtone (loudspeaker) + a repeating buzz, started while the
+  // call is ringing and stopped the moment it's answered/declined/ended.
+  final RingtonePlayer _ringtone = RingtonePlayer();
+  Timer? _vibrateTimer;
+  bool _ringStopped = false;
 
   @override
   void initState() {
@@ -50,12 +59,27 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
       duration: const Duration(milliseconds: 1000),
     )..repeat(reverse: true);
 
-    // Vibrate pattern for ringtone
+    // Ring out loud + vibrate on the classic cadence until the call is handled.
+    _ringtone.start();
     HapticFeedback.heavyImpact();
+    _vibrateTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) {
+      HapticFeedback.heavyImpact();
+    });
+  }
+
+  /// Stop the ringtone + vibration. Idempotent — called both when the call
+  /// phase leaves "ringing" (accepted/declined/ended) and on dispose.
+  void _stopRinging() {
+    if (_ringStopped) return;
+    _ringStopped = true;
+    _vibrateTimer?.cancel();
+    _ringtone.stop();
   }
 
   @override
   void dispose() {
+    _stopRinging();
+    _ringtone.dispose();
     _ring1.dispose();
     _ring2.dispose();
     _bob.dispose();
@@ -104,6 +128,12 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
 
     // Navigate away when the call phase changes out of incomingRinging
     ref.listen<CallSession?>(callSessionProvider, (prev, next) {
+      // Any transition out of "ringing" means the call was answered, declined,
+      // or ended — kill the ringtone/vibration immediately rather than waiting
+      // for the screen to finish popping.
+      if (next == null || next.phase != CallPhase.incomingRinging) {
+        _stopRinging();
+      }
       if (!context.mounted) {
         return;
       }
@@ -156,7 +186,7 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
           if (showSelfView) ...[
             Positioned.fill(
               child: RTCVideoView(
-                webrtc!.localRenderer,
+                webrtc.localRenderer,
                 mirror: true,
                 objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
               ),

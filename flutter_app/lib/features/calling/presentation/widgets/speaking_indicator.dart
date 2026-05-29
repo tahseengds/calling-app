@@ -41,7 +41,7 @@ class SpeakingPulse extends StatelessWidget {
             tween: Tween<double>(end: norm),
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOut,
-            builder: (_, v, __) {
+            builder: (_, v, _) {
               final ringSize = size + (size * 0.16 * v);
               return Container(
                 width: ringSize,

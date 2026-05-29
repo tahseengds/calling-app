@@ -157,7 +157,7 @@ class _OutgoingCallScreenState extends ConsumerState<OutgoingCallScreen>
           if (showSelfView) ...[
             Positioned.fill(
               child: RTCVideoView(
-                webrtc!.localRenderer,
+                webrtc.localRenderer,
                 mirror: true,
                 objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
               ),

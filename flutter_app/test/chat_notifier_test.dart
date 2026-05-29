@@ -71,7 +71,10 @@ class _FakeSignalingService extends SignalingService {
   @override
   void connect(String token) {}
   @override
-  void emitTyping({required bool isTyping, required String conversationId}) {}
+  void emitTyping(
+      {required bool isTyping,
+      required String conversationId,
+      required String toUserId}) {}
   @override
   void disconnect() {}
 
