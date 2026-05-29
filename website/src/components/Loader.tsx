@@ -39,9 +39,16 @@ export function Loader() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
           >
-            <span className="relative flex h-10 w-10 items-center justify-center">
+            <span className="relative flex h-11 w-11 items-center justify-center">
               <span className="absolute inset-0 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-glow blur-md opacity-70 animate-pulse-glow" />
-              <span className="relative h-10 w-10 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-glow" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/logo.png"
+                alt="Lumio logo"
+                width={44}
+                height={44}
+                className="relative h-11 w-11 rounded-2xl"
+              />
             </span>
             <span className="font-display text-3xl font-semibold tracking-tightest text-white">
               Lumio

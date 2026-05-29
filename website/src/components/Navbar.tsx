@@ -30,7 +30,14 @@ export function Navbar() {
         )}
       >
         <a href="#top" className="flex items-center gap-2.5">
-          <span className="h-6 w-6 rounded-lg bg-gradient-to-br from-brand-400 to-brand-glow shadow-glow-sm" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo.png"
+            alt={`${site.name} logo`}
+            width={28}
+            height={28}
+            className="h-7 w-7 rounded-lg shadow-glow-sm"
+          />
           <span className="font-display text-[15px] font-bold tracking-tight text-white/90">
             {site.name}
           </span>
