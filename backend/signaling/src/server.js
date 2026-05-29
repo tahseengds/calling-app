@@ -8,6 +8,7 @@ const { registerCallHandlers } = require('./callHandler');
 const { registerPresenceHandlers, broadcastPresence } = require('./presenceHandler');
 const { registerTypingHandlers } = require('./typingHandler');
 const { registerMessageBridge, registerMessageHandlers } = require('./messageHandler');
+const { updateLastSeen } = require('./db');
 const logger = require('./logger');
 
 // ── HTTP server ───────────────────────────────────────────────────────────────
@@ -108,12 +109,18 @@ io.on('connection', async (socket) => {
       // Ignore — listener removal is best-effort.
     }
     try {
+      const lastSeen = new Date().toISOString();
       await redisClient.del(`socket_sessions:${userId}`);
       // Keep last-seen in presence for 24 h so chat lists can show "last seen X"
       await redisClient.set(
         `user_presence:${userId}`,
-        JSON.stringify({ status: 'offline', lastSeen: new Date().toISOString() }),
+        JSON.stringify({ status: 'offline', lastSeen }),
         'EX', 86400
+      );
+      // Persist to Postgres so "last seen X" survives past the 24h Redis TTL.
+      // Best-effort: a DB hiccup must not break the disconnect path.
+      updateLastSeen(userId, lastSeen).catch((err) =>
+        logger.error({ event: 'last_seen_persist_error', userId, error: err.message })
       );
       await broadcastPresence(io, userId, 'offline');
     } catch (err) {

@@ -188,9 +188,15 @@ class ChatNotifier extends Notifier<ChatState> {
     // Real-time events.
     _subscribeToSignaling();
 
-    // Wire up reconnect → sync.
+    // Wire up reconnect → sync. Also re-request presence so the header's
+    // online/last-seen self-heals if the socket wasn't connected when _init
+    // first asked (otherwise the chat is stuck on the stale cached value).
     ref.read(signalingServiceProvider).onReconnect = () {
       ref.read(syncServiceProvider).syncAll(_conversationId);
+      final otherId = state.otherUser?.id;
+      if (otherId != null) {
+        ref.read(signalingServiceProvider).requestPresence([otherId]);
+      }
     };
   }
 

@@ -9,6 +9,7 @@ Channel name constants are the contract between:
 Do NOT rename these constants without updating all three consumers.
 """
 import json
+from datetime import datetime, timezone
 
 import redis.asyncio as aioredis
 
@@ -44,35 +45,70 @@ def user_events_channel(user_id: str) -> str:
 # /disconnect/status-change. REST responses read those same keys so a freshly
 # opened list shows the correct online state before the socket delivers updates.
 
+def _parse_last_seen(raw: str | None) -> datetime | None:
+    """Parse the ISO-8601 `lastSeen` the signaling server writes to Redis.
+
+    The Node side emits `new Date().toISOString()` (always UTC, 'Z'-suffixed).
+    `datetime.fromisoformat` on 3.11+ handles the 'Z', but normalize defensively
+    so older runtimes don't choke.
+    """
+    if not raw:
+        return None
+    try:
+        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+
+
 async def get_presence_map(
     redis: aioredis.Redis, user_ids: list
-) -> dict[str, str]:
-    """Return {user_id_str: status} for the given ids; 'offline' when absent."""
+) -> dict[str, dict]:
+    """Return {user_id_str: {"status": str, "last_seen": datetime | None}}.
+
+    Reads the `user_presence:{id}` keys the Node signaling server maintains.
+    Status defaults to 'offline' and last_seen to None when a key is absent
+    (presence TTL expired or the user has never connected).
+    """
     ids = [str(u) for u in user_ids]
     if not ids:
         return {}
     keys = [f"user_presence:{i}" for i in ids]
     raws = await redis.mget(keys)
-    out: dict[str, str] = {}
+    out: dict[str, dict] = {}
     for i, raw in zip(ids, raws):
         status = "offline"
+        last_seen: datetime | None = None
         if raw:
             try:
                 data = json.loads(raw)
                 status = data.get("status", "offline") or "offline"
+                last_seen = _parse_last_seen(data.get("lastSeen"))
             except (ValueError, TypeError):
                 pass
-        out[i] = status
+        out[i] = {"status": status, "last_seen": last_seen}
     return out
 
 
 async def stamp_presence(redis: aioredis.Redis, users: list) -> None:
-    """Set `.presence` on a list of UserPublic objects from Redis (in place)."""
+    """Set `.presence` (and live `.last_seen`) on a list of UserPublic objects
+    from Redis, in place.
+
+    The DB `users.last_seen` column is only a coarse fallback — the signaling
+    server tracks the *real* last-seen in Redis on every connect/disconnect and
+    never writes it back to Postgres. So when Redis has a value we trust it over
+    the (often stale) DB column; otherwise we leave the DB value untouched.
+    """
     if not users:
         return
     pmap = await get_presence_map(redis, [u.id for u in users])
     for u in users:
-        u.presence = pmap.get(str(u.id), "offline")
+        info = pmap.get(str(u.id))
+        if not info:
+            u.presence = "offline"
+            continue
+        u.presence = info["status"]
+        if info["last_seen"] is not None:
+            u.last_seen = info["last_seen"]
 
 
 # ── FCM queue stream name ─────────────────────────────────────────────────────

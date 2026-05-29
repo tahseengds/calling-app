@@ -35,6 +35,18 @@ async function getContactUserIds(userId) {
 }
 
 /**
+ * Persist a user's last-seen timestamp to Postgres. Redis holds the live value
+ * (with a 24h TTL); writing it through on disconnect makes "last seen X" durable
+ * past that TTL so the REST API can still return an accurate time days later.
+ */
+async function updateLastSeen(userId, lastSeen) {
+  await pool.query(
+    'UPDATE users SET last_seen = $2 WHERE id = $1',
+    [userId, lastSeen]
+  );
+}
+
+/**
  * Insert a call_records row. ON CONFLICT DO NOTHING so the first hangup wins
  * and a duplicate hangup event is harmless.
  */
@@ -65,5 +77,6 @@ module.exports = {
   getUserBrief,
   getFcmToken,
   getContactUserIds,
+  updateLastSeen,
   insertCallRecord,
 };
