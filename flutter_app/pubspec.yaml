@@ -120,14 +120,19 @@ flutter:
     - assets/
     - assets/sounds/notifications/
 
-  # Emoji glyph fallback so the newest Unicode emoji render everywhere instead
-  # of as ▯. REQUIRES assets/fonts/NotoColorEmoji.ttf to exist before building
-  # (see README / download command), otherwise the build fails with a missing
-  # asset. ~10 MB.
-  fonts:
-    - family: NotoColorEmoji
-      fonts:
-        - asset: assets/fonts/NotoColorEmoji.ttf
+  # ── OPTIONAL: bundled emoji font ──────────────────────────────────────────
+  # The code references a 'NotoColorEmoji' fontFamilyFallback so the newest
+  # Unicode emoji render everywhere instead of as ▯. It is OPT-IN so the build
+  # never fails on a missing file. To enable it:
+  #   1. download the font into flutter_app/assets/fonts/NotoColorEmoji.ttf
+  #        (small COLRv1 ~1.5MB:  noto-emoji/fonts/Noto-COLRv1.ttf
+  #         full bitmap ~10MB:    noto-emoji/fonts/NotoColorEmoji.ttf)
+  #   2. uncomment the block below, then `flutter pub get`.
+  # (Unregistered fallback is harmless — Flutter just skips it.)
+  # fonts:
+  #   - family: NotoColorEmoji
+  #     fonts:
+  #       - asset: assets/fonts/NotoColorEmoji.ttf
 
 flutter_launcher_icons:
   android: "launcher_icon"
