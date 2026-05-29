@@ -12,6 +12,7 @@ import '../../profile/ui/profile_screen.dart';
 import '../../calling/presentation/call_history_screen.dart';
 // Polished "Messages" home — rich card list backed by live conversation data.
 import '../../chat/presentation/chats_home_screen.dart';
+import '../../chat/domain/conversation_list_notifier.dart';
 
 final shellTabProvider = StateProvider<int>((_) => 0);
 
@@ -67,6 +68,13 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
   Widget build(BuildContext context) {
     final tabIndex = ref.watch(shellTabProvider);
 
+    // Total unread across conversations → badge on the Messages tab.
+    final chatsUnread = ref.watch(conversationListProvider).maybeWhen(
+          data: (convos) =>
+              convos.fold<int>(0, (sum, c) => sum + c.unreadCount),
+          orElse: () => 0,
+        );
+
     return Scaffold(
       body: IndexedStack(
         index: tabIndex,
@@ -78,6 +86,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
       ),
       bottomNavigationBar: _FlBottomNav(
         currentIndex: tabIndex,
+        chatsUnread: chatsUnread,
         onTap: (i) => ref.read(shellTabProvider.notifier).state = i,
       ),
     );
@@ -102,8 +111,13 @@ class _NavItem {
 class _FlBottomNav extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
+  final int chatsUnread;
 
-  const _FlBottomNav({required this.currentIndex, required this.onTap});
+  const _FlBottomNav({
+    required this.currentIndex,
+    required this.onTap,
+    this.chatsUnread = 0,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -131,6 +145,7 @@ class _FlBottomNav extends StatelessWidget {
                       isActive: i == currentIndex,
                       onTap: () => onTap(i),
                       isDark: isDark,
+                      badgeCount: i == 0 ? chatsUnread : 0,
                     ),
                   ),
               ],
@@ -147,12 +162,14 @@ class _NavButton extends StatelessWidget {
   final bool isActive;
   final VoidCallback onTap;
   final bool isDark;
+  final int badgeCount;
 
   const _NavButton({
     required this.item,
     required this.isActive,
     required this.onTap,
     required this.isDark,
+    this.badgeCount = 0,
   });
 
   @override
@@ -167,18 +184,54 @@ class _NavButton extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            decoration: BoxDecoration(
-              color: isActive ? AppColors.primaryPill : Colors.transparent,
-              borderRadius: BorderRadius.circular(999),
-            ),
-            child: Icon(
-              item.icon,
-              color: isActive ? activeColor : inactiveColor,
-              size: 22,
-            ),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                decoration: BoxDecoration(
+                  color: isActive ? AppColors.primaryPill : Colors.transparent,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Icon(
+                  item.icon,
+                  color: isActive ? activeColor : inactiveColor,
+                  size: 22,
+                ),
+              ),
+              if (badgeCount > 0)
+                Positioned(
+                  top: -4,
+                  right: -2,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 5, vertical: 1),
+                    constraints:
+                        const BoxConstraints(minWidth: 18, minHeight: 18),
+                    decoration: BoxDecoration(
+                      color: AppColors.danger,
+                      borderRadius: BorderRadius.circular(999),
+                      border: Border.all(
+                        color: isDark ? AppColors.darkBg : AppColors.lightBg,
+                        width: 2,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        badgeCount > 99 ? '99+' : '$badgeCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          height: 1.1,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(height: 2),
           Text(
