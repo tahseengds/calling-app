@@ -7,6 +7,24 @@ import '../../../../core/utils/call_utils.dart';
 import '../../domain/call_notifier.dart';
 import '../../domain/call_state.dart';
 
+// TODO(android-pip): Background Picture-in-Picture is NOT implemented yet.
+// This overlay only covers IN-APP navigation (chat / other screens). When the
+// user MINIMIZES the app during a video call, the call keeps running (active-
+// call foreground service) but there's no floating video window over other
+// apps / the home screen. Implementing it is native Android work:
+//   1. android/app/src/main/AndroidManifest.xml — on the MainActivity add
+//        android:supportsPictureInPicture="true"
+//        android:resizeableActivity="true"
+//        android:configChanges="...|screenSize|smallestScreenSize|screenLayout"
+//   2. MainActivity (Kotlin) — override onUserLeaveHint() and, only while a
+//      video call is connected, call enterPictureInPictureMode(...) with the
+//      remote-video aspect ratio; handle onPictureInPictureModeChanged().
+//   3. Render a video-only surface in PiP (a minimal route showing just the
+//      remote RTCVideoView) and a platform channel / `floating` plugin to
+//      drive enter/exit + pass the "is a video call connected?" flag.
+//   4. iOS has no general-app PiP for this; skip or use CallKit.
+// Verify on a real device (PiP can't be exercised in tests / most emulators).
+
 /// Global floating affordance that lets the user get back to an in-progress
 /// call after they've navigated away from the call screen:
 ///   • video calls  → a small draggable thumbnail of the other person's video
