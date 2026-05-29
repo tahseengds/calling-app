@@ -32,6 +32,15 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("debug")
+            // R8 code shrink + obfuscation and unused-resource stripping.
+            // Cuts dex + resources out of the release build; native .so size is
+            // handled separately by per-ABI splits / app bundle.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
         }
     }
 }
