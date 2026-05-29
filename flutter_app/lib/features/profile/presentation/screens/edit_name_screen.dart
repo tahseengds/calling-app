@@ -6,6 +6,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/dismiss_keyboard.dart';
+import '../../../../shared/widgets/error_snackbar.dart';
 import '../../../../shared/widgets/lumio_icons.dart';
 import '../../domain/profile_notifier.dart';
 
@@ -68,42 +69,12 @@ class _EditNameScreenState extends ConsumerState<EditNameScreen> {
     try {
       await ref.read(profileNotifierProvider.notifier).updateName(text);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(LumioIcons.check, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  'Name updated successfully',
-                  style: AppTextStyles.secondaryMedium(color: Colors.white),
-                ),
-              ],
-            ),
-            backgroundColor: AppColors.success,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-          ),
-        );
+        showSuccessSnackbar(context, 'Name updated successfully');
         context.pop();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Failed to update name. Please try again.',
-              style: AppTextStyles.secondaryMedium(color: Colors.white),
-            ),
-            backgroundColor: AppColors.danger,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-          ),
-        );
+        showErrorSnackbar(context, 'Failed to update name. Please try again.');
       }
     } finally {
       if (mounted) {
@@ -182,6 +153,13 @@ class _EditNameScreenState extends ConsumerState<EditNameScreen> {
                 autofocus: true,
                 style: AppTextStyles.body(color: colors.fg1),
                 textCapitalization: TextCapitalization.words,
+                autofillHints: const [AutofillHints.name],
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) {
+                  if (text.isNotEmpty && _errorText == null && text != _initialName) {
+                    _save();
+                  }
+                },
                 decoration: InputDecoration(
                   hintText: 'Display name',
                   hintStyle: AppTextStyles.body(color: colors.fg3),

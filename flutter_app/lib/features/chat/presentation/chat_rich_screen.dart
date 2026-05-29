@@ -32,6 +32,7 @@ import '../../../features/chat/domain/chat_notifier.dart';
 import '../../../shared/models/message.dart';
 import '../../../shared/models/user.dart' as user_model;
 import '../../../shared/widgets/avatar.dart';
+import '../../../shared/widgets/error_snackbar.dart';
 import '../../../shared/widgets/lumio_icons.dart';
 
 // ─── Design tokens (from HTML spec) ──────────────────────────────────────────
@@ -48,9 +49,9 @@ class _T {
   static const Color failedBubbleBg     = Color(0x2EFF6B6B); // 18 % opacity
   static const Color failedBubbleBorder = Color(0xFFFF6B6B);
 
-  // Bubble: reply-preview inner block
-  static const Color replyPreviewBg     = Color(0x24FFFFFF); // 14 % white
-  static const Color replyPreviewBorder = Colors.white;
+  // (Reply-preview colours used to live here as replyPreviewBg/Border,
+  // but the rewrite to a Row+IntrinsicHeight layout consumes its colours
+  // inline — see _ReplyPreview.build. Removed to keep _T tight.)
 
   // Typing-dot size
   static const double dotSize = 7.0;
@@ -138,6 +139,24 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
 
   void _cancelReply() {
     setState(() => _replyingTo = null);
+  }
+
+  /// Copy a message's textual content (or caption) to the clipboard.
+  /// Image/video bubbles use their caption; pure-media bubbles with no
+  /// caption have nothing to copy — we tell the user instead of silently
+  /// putting an empty string on the clipboard.
+  Future<void> _copyMessage(BuildContext hostContext, Message msg) async {
+    final text = msg.content?.trim() ?? '';
+    if (text.isEmpty) {
+      if (hostContext.mounted) {
+        showErrorSnackbar(hostContext, 'Nothing to copy.');
+      }
+      return;
+    }
+    await Clipboard.setData(ClipboardData(text: text));
+    if (hostContext.mounted) {
+      showSuccessSnackbar(hostContext, 'Copied to clipboard');
+    }
   }
 
   /// Permission-gated outgoing call. Mirrors the helpers in chat_screen and
@@ -263,9 +282,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
     final cam = await Permission.camera.request();
     if (!cam.isGranted) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Camera permission is required.')),
-      );
+      showErrorSnackbar(context, 'Camera permission is required.');
       return;
     }
     final picker = ImagePicker();
@@ -358,9 +375,39 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
           Expanded(
             child: chatState.messages.isEmpty && !chatState.otherUserTyping
                 ? Center(
-                    child: Text(
-                      'No messages yet',
-                      style: AppTextStyles.body(color: lumioColors.fg2),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 96,
+                            height: 96,
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.08),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              LumioIcons.message,
+                              size: 40,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Say hi to ${_otherName(other)}',
+                            textAlign: TextAlign.center,
+                            style: AppTextStyles.bodySemibold(
+                                color: lumioColors.fg1),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Start the conversation — your first message will appear here.',
+                            textAlign: TextAlign.center,
+                            style: AppTextStyles.caption(color: lumioColors.fg2),
+                          ),
+                        ],
+                      ),
                     ),
                   )
                 : _buildMessageList(
@@ -397,6 +444,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
         MessageType.video => Icons.play_circle_outline_rounded,
         MessageType.audio => Icons.mic_none_rounded,
         MessageType.file => Icons.insert_drive_file_outlined,
+        MessageType.callLog => LumioIcons.phone,
         MessageType.text => null,
       };
 
@@ -414,6 +462,60 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
     return null;
   }
 
+  /// Synthesize a [ReplyPreview] for [msg] when the server only sent us a
+  /// `reply_to_id` (no inline preview). Looks the original up in the
+  /// currently-loaded messages by ID. Falls back to a sensible placeholder
+  /// for media replies and for messages outside the loaded window.
+  ///
+  /// Returns `msg.replyTo` unchanged when it's already populated (forward
+  /// compat — if the backend ever starts inlining the preview, that wins).
+  ReplyPreview? _resolveReplyPreview({
+    required Message msg,
+    required Map<String, Message> messagesById,
+    required String myId,
+    required String otherName,
+  }) {
+    if (msg.replyTo != null) return msg.replyTo;
+    final id = msg.replyToId;
+    if (id == null || id.isEmpty) return null;
+
+    final original = messagesById[id];
+    if (original == null) {
+      // Replied-to message isn't in the loaded window (probably older than
+      // pagination cutoff). Still render the reply block so the user knows
+      // this message is a reply; just say "Original message" instead of
+      // leaving it visually identical to a regular bubble.
+      return const ReplyPreview(
+        senderName: 'Original message',
+        text: '',
+      );
+    }
+
+    final senderName =
+        original.senderId == myId ? 'You' : otherName;
+
+    String text;
+    if (original.isDeleted) {
+      text = 'Deleted message';
+    } else {
+      final caption = original.content?.trim();
+      if (caption != null && caption.isNotEmpty) {
+        text = caption;
+      } else {
+        text = switch (original.type) {
+          MessageType.image => 'Photo',
+          MessageType.video => 'Video',
+          MessageType.audio => 'Voice note',
+          MessageType.file => 'File',
+          MessageType.callLog => 'Call',
+          MessageType.text => '',
+        };
+      }
+    }
+
+    return ReplyPreview(senderName: senderName, text: text);
+  }
+
   /// Human label for the body line of the reply preview bar. Caption wins
   /// when present (e.g. "Sunset!" on a photo); otherwise we fall back to the
   /// media type so the user at least sees *what kind* of message they're
@@ -426,15 +528,15 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
       MessageType.video => 'Video',
       MessageType.audio => 'Voice note',
       MessageType.file => 'File',
+      MessageType.callLog => 'Call',
       MessageType.text => '',
     };
   }
 
   Widget _buildReplyPreviewBar(
       LumioColors c, ThemeData t, user_model.User? other) {
-    final isDark = t.brightness == Brightness.dark;
-    final bg = isDark ? const Color(0xFF222B42) : const Color(0xFFF8FAFE);
-    final border = isDark ? const Color(0xFF37425E) : const Color(0xFFE3E7F0);
+    final bg = c.surfaceLo;
+    final border = c.hairline;
 
     final replySender =
         _replyingTo!.senderId == _currentUserId ? 'You' : _otherName(other);
@@ -634,6 +736,22 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
     }
 
     final myId = _currentUserId;
+    final otherName = _otherName(other);
+
+    // ── Reply-preview index ────────────────────────────────────────────────
+    // The backend sends reply_to_id but doesn't inline the original message
+    // contents — so messages arrive with replyToId set and replyTo == null,
+    // and the bubble has nothing to render in the swipe-reply block.
+    //
+    // Build an in-memory id → Message lookup once per render, then
+    // synthesize a ReplyPreview from the local cache for any message whose
+    // replyTo is unpopulated. The original is almost always still in the
+    // visible window (chat pagination keeps recent history); for the rare
+    // case where it isn't, we fall back to "Original message" so the user
+    // still gets a visual cue that this is a reply.
+    final messagesById = <String, Message>{
+      for (final m in messages) m.id: m,
+    };
 
     // Render reversed: ListView's index 0 sits at the visual bottom of the
     // viewport, so the newest message is on screen the moment the chat opens
@@ -663,6 +781,12 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
               myUserId:       myId,
               colors:         colors,
               conversationId: widget.conversationId,
+              resolvedReplyTo: _resolveReplyPreview(
+                msg: item.msg!,
+                messagesById: messagesById,
+                myId: myId,
+                otherName: otherName,
+              ),
               onRetry: (id) => ref
                   .read(chatProvider(widget.conversationId).notifier)
                   .retryMessage(id),
@@ -686,6 +810,9 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
   void _showContextMenu(BuildContext context, Message msg, bool mine, double topOffset) {
     final c = context.lumioColors;
     final t = Theme.of(context);
+    // Capture the chat-screen context so onCopy can show a snackbar after
+    // the menu dialog has popped (the inner dialog context is gone by then).
+    final hostContext = context;
 
     showGeneralDialog(
       context: context,
@@ -696,6 +823,8 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
           colors: c,
           theme: t,
           topOffset: topOffset,
+          onReply: () => _enterReplyMode(msg),
+          onCopy: () => _copyMessage(hostContext, msg),
           onDelete: () {
             ref
                 .read(chatProvider(widget.conversationId).notifier)
@@ -1044,6 +1173,7 @@ class _MessageRow extends StatelessWidget {
     required this.onShowContext,
     required this.onSwipeReply,
     required this.onToggleReaction,
+    this.resolvedReplyTo,
   });
 
   final Message     msg;
@@ -1057,12 +1187,23 @@ class _MessageRow extends StatelessWidget {
   final VoidCallback                          onSwipeReply;
   final void Function(String messageId, String emoji) onToggleReaction;
 
+  /// Parent-computed reply preview. Used instead of [msg.replyTo] when the
+  /// server only sent us a reply_to_id — the parent looks the original up
+  /// in the loaded messages and synthesizes a [ReplyPreview] from it.
+  final ReplyPreview? resolvedReplyTo;
+
   bool get _isDeleted => msg.isDeleted;
-  ReplyPreview? get _replyTo => msg.replyTo;
+  ReplyPreview? get _replyTo => resolvedReplyTo ?? msg.replyTo;
   bool get _isFailed => msg.status == MessageStatus.failed;
 
   @override
   Widget build(BuildContext context) {
+    // Call-log messages render as a centered inline pill (like WhatsApp /
+    // iMessage call logs) — no swipe-to-reply, no reactions, no context
+    // menu. Just an icon, a label, the timestamp.
+    if (msg.type == MessageType.callLog) {
+      return _CallLogRow(msg: msg, mine: mine, colors: colors);
+    }
     return _SwipeToReplyWrapper(
       onSwipe: onSwipeReply,
       child: Align(
@@ -1071,7 +1212,12 @@ class _MessageRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.78,
+            // 78 % of the viewport on phones; cap at 560 dp on tablets so a
+            // bubble doesn't stretch across the whole screen.
+            maxWidth: math.min(
+              MediaQuery.of(context).size.width * 0.78,
+              560,
+            ),
           ),
           child: Column(
             crossAxisAlignment:
@@ -1192,6 +1338,132 @@ class _MessageRow extends StatelessWidget {
   }
 }
 
+// ─── Call-log inline row ─────────────────────────────────────────────────────
+//
+// Rendered for messages of type [MessageType.callLog]. Each call's
+// outcome (answered / missed / declined / etc.) is recorded in
+// `msg.content` as a JSON blob (see backend/signaling/src/callLogMessage.js
+// and CallLogMeta in shared/models/message.dart). The caller is always
+// the sender, so direction is derived from `mine`:
+//   mine == true  → "Outgoing call · 2:34"
+//   mine == false → "Incoming call" (for missed) / "Call · 2:34" (answered)
+//
+// We don't use the bubble layout — call logs sit centered in the column
+// like a date separator, so they stand apart from regular chat.
+
+class _CallLogRow extends StatelessWidget {
+  const _CallLogRow({
+    required this.msg,
+    required this.mine,
+    required this.colors,
+  });
+
+  final Message msg;
+  final bool mine;
+  final LumioColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final meta = msg.callLog;
+    final isMissed = meta?.isMissed ?? true;
+    final isDeclined = meta?.isDeclined ?? false;
+    final isAnswered = meta?.isAnswered ?? false;
+    final isVideo = meta?.isVideo ?? false;
+    final duration = meta?.durationSeconds ?? 0;
+
+    // Iconography:
+    //  • missed → red arrow-down-left (incoming-missed shape)
+    //  • outgoing answered → blue arrow-up-right
+    //  • incoming answered → green arrow-down-left
+    //  • declined → grey crossed-out phone
+    //  • video calls swap the phone glyph for a video glyph
+    final IconData icon;
+    final Color iconColor;
+    if (isMissed) {
+      icon = isVideo ? Icons.videocam_off_outlined : LumioIcons.arrowDownLeft;
+      iconColor = AppColors.danger;
+    } else if (isDeclined) {
+      icon = isVideo ? Icons.videocam_off_outlined : LumioIcons.phoneOff;
+      iconColor = colors.fg3;
+    } else if (isAnswered && mine) {
+      icon = isVideo ? LumioIcons.video : LumioIcons.arrowUpRight;
+      iconColor = colors.fg2;
+    } else if (isAnswered) {
+      icon = isVideo ? LumioIcons.video : LumioIcons.arrowDownLeft;
+      iconColor = AppColors.success;
+    } else {
+      icon = isVideo ? LumioIcons.video : LumioIcons.phone;
+      iconColor = colors.fg2;
+    }
+
+    // Title line: matches the user's mental model first ("Missed call",
+    // "Outgoing call"), then the duration as a secondary fact.
+    final String title;
+    if (isMissed) {
+      title = mine ? 'Cancelled call' : 'Missed call';
+    } else if (isDeclined) {
+      title = mine ? 'Call declined' : 'Declined call';
+    } else if (isAnswered) {
+      title = mine ? 'Outgoing call' : 'Incoming call';
+    } else {
+      title = 'Call';
+    }
+
+    final timestamp = DateFormat('h:mm a').format(msg.createdAt.toLocal());
+    final durationLabel = isAnswered && duration > 0
+        ? ' · ${_formatDuration(duration)}'
+        : '';
+    final kindSuffix = isVideo ? ' (video)' : '';
+    final subtitle = '$timestamp$durationLabel$kindSuffix';
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+      child: Center(
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: colors.surfaceLo,
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            border: Border.all(color: colors.hairline),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(icon, size: 14, color: iconColor),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.captionSemibold(color: colors.fg1)
+                      .copyWith(fontSize: 13),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                subtitle,
+                style: AppTextStyles.caption(color: colors.fg2)
+                    .copyWith(fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _formatDuration(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    if (m == 0) return '${s}s';
+    if (s == 0) return '${m}m';
+    return '${m}m ${s}s';
+  }
+}
+
 // ─── Reply-bar thumbnail ─────────────────────────────────────────────────────
 // 40×40 square shown on the right of the swipe-to-reply preview bar so the
 // composer can see *which* photo/video they're replying to, not just "Photo".
@@ -1280,39 +1552,38 @@ class _ReactionChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = mine
         ? AppColors.primary.withValues(alpha: 0.18)
-        : (isDark ? const Color(0xFF222B42) : Colors.white);
-    final border = mine
+        : (Theme.of(context).cardTheme.color ?? Theme.of(context).cardColor);
+    final borderColor = mine
         ? AppColors.primary.withValues(alpha: 0.55)
         : colors.hairline;
     final countColor = mine ? AppColors.primary : colors.fg2;
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: bg,
-          border: Border.all(color: border),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(emoji, style: const TextStyle(fontSize: 14)),
-            if (count > 1) ...[
-              const SizedBox(width: 4),
-              Text(
-                '$count',
-                style: AppTextStyles.caption(color: countColor).copyWith(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+    return Material(
+      color: bg,
+      shape: StadiumBorder(side: BorderSide(color: borderColor)),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 14)),
+              if (count > 1) ...[
+                const SizedBox(width: 4),
+                Text(
+                  '$count',
+                  style: AppTextStyles.caption(color: countColor).copyWith(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -1844,7 +2115,7 @@ class _DeletedBubble extends StatelessWidget {
   }
 }
 
-// Reply preview block shown inside a sent bubble
+// Reply preview block shown inside a chat bubble
 class _ReplyPreview extends StatelessWidget {
   const _ReplyPreview({
     required this.senderName,
@@ -1853,44 +2124,90 @@ class _ReplyPreview extends StatelessWidget {
     required this.colors,
   });
 
-  final String      senderName;
-  final String      content;
-  final bool        mine;
+  final String senderName;
+  final String content;
+  final bool mine;
   final LumioColors colors;
 
   @override
   Widget build(BuildContext context) {
+    final Color bg = mine
+        ? Colors.white.withValues(alpha: 0.14)
+        : colors.surfaceLo;
+
+    final Color barColor =
+        mine ? Colors.white.withValues(alpha: 0.95) : AppColors.primary;
+
+    final Color nameColor =
+        mine ? Colors.white : AppColors.primary;
+
+    final Color textColor = mine
+        ? Colors.white.withValues(alpha: 0.82)
+        : colors.fg2;
+
+    const radius = 14.0;
+
     return Container(
-      padding: const EdgeInsets.all(10),
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: mine ? _T.replyPreviewBg : colors.surfaceLo,
-        borderRadius: BorderRadius.circular(12),
-        border: Border(
-          left: BorderSide(
-            color: mine ? _T.replyPreviewBorder : AppColors.primary,
-            width: 3,
-          ),
-        ),
+        color: bg,
+        borderRadius: BorderRadius.circular(radius),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            senderName,
-            style: AppTextStyles.caption(
-              color: mine ? Colors.white.withValues(alpha: 0.9) : AppColors.primary,
-            ).copyWith(fontWeight: FontWeight.w600, fontSize: 12),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            content,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.caption(
-              color: mine ? Colors.white.withValues(alpha: 0.8) : colors.fg2,
-            ).copyWith(fontSize: 13),
-          ),
-        ],
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Accent bar
+            Container(
+              width: 4,
+              color: barColor,
+            ),
+
+            // Content
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 9,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      senderName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.captionSemibold(
+                        color: nameColor,
+                      ).copyWith(
+                        fontSize: 12,
+                        height: 1.15,
+                      ),
+                    ),
+
+                    if (content.trim().isNotEmpty) ...[
+                      const SizedBox(height: 3),
+
+                      Text(
+                        content,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.caption(
+                          color: textColor,
+                        ).copyWith(
+                          fontSize: 13,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2231,11 +2548,8 @@ class _ChatInputBarState extends State<_ChatInputBar>
       // Previously silent — left the user wondering why the long-press did
       // nothing. Surface a snackbar so the failure mode is visible.
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Microphone access is required to record a voice note.'),
-          ),
-        );
+        showErrorSnackbar(
+            context, 'Microphone access is required to record a voice note.');
       }
       return;
     }
@@ -2257,11 +2571,7 @@ class _ChatInputBarState extends State<_ChatInputBar>
       debugPrint('[chat] recorder startup failed: $e');
       _currentRecordingPath = null;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not start the recorder. Try again.'),
-          ),
-        );
+        showErrorSnackbar(context, 'Could not start the recorder. Try again.');
       }
       return;
     }
@@ -2466,11 +2776,11 @@ class _ChatInputBarState extends State<_ChatInputBar>
   }
 
   Widget _buildRecordingBar(LumioColors c, ThemeData t) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF222B42) : Colors.white; // rgb(34, 43, 66) : rgb(255, 255, 255)
-    final fgColor = isDark ? const Color(0xFFF2F4F8) : const Color(0xFF1A2235); // fg1
-    final hintColor = isDark ? const Color(0xFF9AA3B8) : const Color(0xFF6B7488); // fg2
-    
+    final isDark = t.brightness == Brightness.dark;
+    final bgColor = t.cardTheme.color ?? t.cardColor;
+    final fgColor = c.fg1;
+    final hintColor = c.fg2;
+
     return SizedBox(
       key: const ValueKey('recording'),
       height: _kRecBtn,
@@ -2775,52 +3085,57 @@ class _AttachListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: c.surfaceLo,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: c.hairline),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.133),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Center(
-                child: Icon(icon, color: color, size: 26),
-              ),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title,
-                    style: AppTextStyles.bodySemibold(color: c.fg1).copyWith(
-                      fontSize: 17,
-                    ),
+    final radius = BorderRadius.circular(18);
+    return Material(
+      color: c.surfaceLo,
+      borderRadius: radius,
+      child: InkWell(
+        borderRadius: radius,
+        onTap: onTap,
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            border: Border.all(color: c.hairline),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.133),
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: AppTextStyles.caption(color: c.fg2).copyWith(
-                      fontSize: 13,
-                    ),
+                  child: Center(
+                    child: Icon(icon, color: color, size: 26),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        title,
+                        style: AppTextStyles.bodySemibold(color: c.fg1)
+                            .copyWith(fontSize: 17),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: AppTextStyles.caption(color: c.fg2)
+                            .copyWith(fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right_rounded, color: c.fg2, size: 24),
+              ],
             ),
-            Icon(Icons.chevron_right_rounded, color: c.fg2, size: 24),
-          ],
+          ),
         ),
       ),
     );
@@ -2834,6 +3149,8 @@ class _ContextMenuOverlay extends StatelessWidget {
   final bool mine;
   final LumioColors colors;
   final ThemeData theme;
+  final VoidCallback onReply;
+  final VoidCallback onCopy;
   final VoidCallback onDelete;
   final void Function(String emoji) onReact;
   final double topOffset;
@@ -2843,6 +3160,8 @@ class _ContextMenuOverlay extends StatelessWidget {
     required this.mine,
     required this.colors,
     required this.theme,
+    required this.onReply,
+    required this.onCopy,
     required this.onDelete,
     required this.onReact,
     required this.topOffset,
@@ -2850,12 +3169,9 @@ class _ContextMenuOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = theme.brightness == Brightness.dark;
-    
-    // Tokens derived from HTML spec
-    final menuBg = isDark ? const Color(0xFF222B42) : Colors.white; 
-    final fg = isDark ? const Color(0xFFF2F4F8) : const Color(0xFF1A2235);
-    final border = isDark ? const Color(0xFF37425E) : const Color(0xFFE3E7F0);
+    final menuBg = theme.cardTheme.color ?? theme.cardColor;
+    final fg = colors.fg1;
+    final border = colors.hairline;
 
     // Calculate a safe top position so it doesn't overflow screen
     final screenH = MediaQuery.of(context).size.height;
@@ -2923,10 +3239,10 @@ class _ContextMenuOverlay extends StatelessWidget {
                         width: 34, height: 34,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: isDark ? const Color(0xFF1F273C) : const Color(0xFFF8FAFE),
+                          color: colors.surfaceLo,
                           border: Border.all(color: border),
                         ),
-                        child: Icon(Icons.add, color: isDark ? const Color(0xFF9AA3B8) : const Color(0xFF6B7488), size: 20),
+                        child: Icon(Icons.add, color: colors.fg2, size: 20),
                       ),
                     ),
                   ],
@@ -2953,32 +3269,31 @@ class _ContextMenuOverlay extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _ContextMenuAction(
-                      icon: Icons.reply_rounded, 
-                      label: 'Reply', 
-                      color: fg, 
-                      border: border, 
-                      onTap: () => Navigator.of(context).pop(),
+                      icon: Icons.reply_rounded,
+                      label: 'Reply',
+                      color: fg,
+                      border: border,
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        onReply();
+                      },
                     ),
                     _ContextMenuAction(
-                      icon: Icons.copy_rounded, 
-                      label: 'Copy', 
-                      color: fg, 
-                      border: border, 
-                      onTap: () => Navigator.of(context).pop(),
-                    ),
-                    _ContextMenuAction(
-                      icon: Icons.shortcut_rounded, 
-                      label: 'Forward', 
-                      color: fg, 
-                      border: border, 
-                      onTap: () => Navigator.of(context).pop(),
+                      icon: Icons.copy_rounded,
+                      label: 'Copy',
+                      color: fg,
+                      border: border,
+                      onTap: () {
+                        Navigator.of(context).pop();
+                        onCopy();
+                      },
                     ),
                     if (mine)
                       _ContextMenuAction(
-                        icon: Icons.delete_outline_rounded, 
-                        label: 'Delete', 
-                        color: AppColors.danger, 
-                        border: Colors.transparent, 
+                        icon: Icons.delete_outline_rounded,
+                        label: 'Delete',
+                        color: AppColors.danger,
+                        border: Colors.transparent,
                         onTap: () {
                           Navigator.of(context).pop();
                           onDelete();

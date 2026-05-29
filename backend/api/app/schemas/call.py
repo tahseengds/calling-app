@@ -44,6 +44,28 @@ class CallHistoryPage(BaseModel):
     next_cursor: str | None
 
 
+class CallLogReplayRequest(BaseModel):
+    """
+    Client-side reconciliation of a call that ended without a hangup signal
+    reaching the Node signaling service — e.g. the caller was force-killed
+    mid-call, or the OS audio session was interrupted.
+
+    Posted via POST /api/calls/log on next app launch (see Flutter's
+    CallRepository.syncInterruptedCalls + stashInterruptedCall). Idempotent
+    on call_id — the backend already may have recorded the call from another
+    path (Node's hangup handler), so this insert uses ON CONFLICT DO NOTHING.
+    """
+    call_id: UUID
+    peer_user_id: UUID
+    call_type: CallTypeLiteral
+    direction: CallDirectionLiteral
+    started_at: datetime
+    connected_at: datetime | None
+    ended_at: datetime
+    duration_seconds: int
+    reason: str  # interrupted | forceKilled | failed | blocked
+
+
 # ── Cursor helpers — created_at|id encoded base64 ────────────────────────────
 
 def encode_cursor(ts: datetime, call_id: UUID) -> str:

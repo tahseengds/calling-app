@@ -166,6 +166,13 @@ Future<void> _consumeInitialNativeCallData(
       case NativeCallEventKind.decline:
         await notifier.handleIncomingCallFromKilledState(initial.payload);
         notifier.declineCall();
+      case NativeCallEventKind.hangup:
+        // FIX 7 cold-start: the user tapped Hang Up on the persistent
+        // in-call notification while the engine was dead. The peer/Node
+        // already saw the call end (or will via its own hangup signal),
+        // so nothing for us to send — just don't try to resurrect the
+        // call session on app open.
+        break;
     }
   } catch (e) {
     debugPrint('[prompt-15 cold-start] failed: $e');

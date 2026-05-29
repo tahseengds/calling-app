@@ -69,16 +69,31 @@ class _ChatsHomeScreenState extends ConsumerState<ChatsHomeScreen> {
                           tooltip: 'Search',
                         ),
                         const SizedBox(width: AppSpacing.space1),
-                        GestureDetector(
-                          onTap: () {
-                            // Focus Profile tab in shell (index 2 since
-                            // Contacts is no longer a tab).
-                            ref.read(shellTabProvider.notifier).state = 2;
-                          },
-                          child: UserAvatar(
-                            displayName: meName,
-                            imageUrl: meAvatar,
-                            radius: 18,
+                        Material(
+                          color: Colors.transparent,
+                          shape: const CircleBorder(),
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: () {
+                              ref.read(shellTabProvider.notifier).state =
+                                  ShellTab.profile;
+                            },
+                            child: Semantics(
+                              button: true,
+                              label: 'Profile',
+                              child: SizedBox(
+                                width: 48,
+                                height: 48,
+                                child: Center(
+                                  child: UserAvatar(
+                                    displayName: meName,
+                                    imageUrl: meAvatar,
+                                    radius: 18,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -104,35 +119,34 @@ class _ChatsHomeScreenState extends ConsumerState<ChatsHomeScreen> {
                     padding:
                         const EdgeInsets.only(right: AppSpacing.space2),
                     child: Semantics(
-                      // Custom-painted GestureDetector chip — wrap so TalkBack
-                      // announces it as a selectable button, not a plain tap.
                       button: true,
                       selected: isOn,
                       label: '$label filter',
-                      child: GestureDetector(
-                        onTap: () => setState(() => _activeFilter = f),
-                        child: Container(
-                          height: 36,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.space4,
+                      child: Material(
+                        color: isOn ? AppColors.primary : Colors.transparent,
+                        shape: StadiumBorder(
+                          side: BorderSide(
+                            color: isOn
+                                ? Colors.transparent
+                                : lumioColors.hairline,
                           ),
-                          decoration: BoxDecoration(
-                            color:
-                                isOn ? AppColors.primary : Colors.transparent,
-                            border: Border.all(
-                              color: isOn
-                                  ? Colors.transparent
-                                  : lumioColors.hairline,
+                        ),
+                        child: InkWell(
+                          customBorder: const StadiumBorder(),
+                          onTap: () => setState(() => _activeFilter = f),
+                          child: Container(
+                            constraints: const BoxConstraints(minHeight: 40),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.space4,
+                              vertical: 6,
                             ),
-                            borderRadius:
-                                BorderRadius.circular(AppRadius.pill),
-                          ),
-                          child: Center(
-                            child: Text(
-                              label,
-                              style: AppTextStyles.secondaryMedium(
-                                color:
-                                    isOn ? Colors.white : lumioColors.fg1,
+                            child: Center(
+                              child: Text(
+                                label,
+                                style: AppTextStyles.secondaryMedium(
+                                  color:
+                                      isOn ? Colors.white : lumioColors.fg1,
+                                ),
                               ),
                             ),
                           ),
@@ -175,6 +189,7 @@ class _ChatsHomeScreenState extends ConsumerState<ChatsHomeScreen> {
                         .read(conversationListProvider.notifier)
                         .refresh(),
                     child: ListView.builder(
+                      physics: const AlwaysScrollableScrollPhysics(),
                       padding:
                           const EdgeInsets.all(AppSpacing.space4),
                       itemCount: filtered.length,
@@ -516,12 +531,14 @@ class _ConversationCard extends StatelessWidget {
   }
 
   /// Maps a MessageType to the attachment-icon string the design uses,
-  /// or null for plain text (which renders without an icon).
+  /// or null for plain text / call-logs (which render without an icon
+  /// here — the preview text itself is descriptive enough).
   static String? _attachmentKind(MessageType? type) => switch (type) {
         MessageType.image => 'image',
         MessageType.video => 'video',
         MessageType.audio => 'voice',
         MessageType.file => 'document',
+        MessageType.callLog => 'call',
         MessageType.text || null => null,
       };
 
@@ -531,6 +548,7 @@ class _ConversationCard extends StatelessWidget {
         MessageType.video => 'Video',
         MessageType.audio => 'Voice note',
         MessageType.file => 'File',
+        MessageType.callLog => 'Call',
         MessageType.text || null => '',
       };
 

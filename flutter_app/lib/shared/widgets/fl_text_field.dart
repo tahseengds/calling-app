@@ -20,6 +20,8 @@ class FlTextField extends StatefulWidget {
   final String? hint;
   final bool readOnly;
   final int? maxLines;
+  final Iterable<String>? autofillHints;
+  final TextCapitalization textCapitalization;
 
   const FlTextField({
     super.key,
@@ -38,6 +40,8 @@ class FlTextField extends StatefulWidget {
     this.hint,
     this.readOnly = false,
     this.maxLines = 1,
+    this.autofillHints,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   @override
@@ -71,6 +75,8 @@ class _FlTextFieldState extends State<FlTextField> {
       inputFormatters: widget.inputFormatters,
       readOnly: widget.readOnly,
       maxLines: widget.showToggle ? 1 : widget.maxLines,
+      autofillHints: widget.autofillHints,
+      textCapitalization: widget.textCapitalization,
       style: TextStyle(
         fontSize: 16,
         color: isDark ? AppColors.darkFg1 : AppColors.lightFg1,
@@ -91,7 +97,7 @@ class _FlTextFieldState extends State<FlTextField> {
             : null,
         suffixIcon: widget.showToggle
             ? Padding(
-                padding: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.only(right: 6),
                 child: Material(
                   color: (isDark
                           ? AppColors.darkSurfaceLo
@@ -101,13 +107,17 @@ class _FlTextFieldState extends State<FlTextField> {
                   child: InkWell(
                     customBorder: const CircleBorder(),
                     onTap: () => setState(() => _obscure = !_obscure),
-                    child: SizedBox(
-                      width: 44,
-                      height: 44,
-                      child: Icon(
-                        _obscure ? LumioIcons.eye : LumioIcons.eyeOff,
-                        size: 20,
-                        color: fg3,
+                    child: Semantics(
+                      button: true,
+                      label: _obscure ? 'Show password' : 'Hide password',
+                      child: SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Icon(
+                          _obscure ? LumioIcons.eye : LumioIcons.eyeOff,
+                          size: 20,
+                          color: fg3,
+                        ),
                       ),
                     ),
                   ),

@@ -80,6 +80,10 @@ dependencies:
   package_info_plus: ^10.1.0
   url_launcher: ^6.3.1
   audioplayers: ^6.1.0
+  # audio_session: subscribe to OS audio interruptions (incoming cellular call,
+  # Siri, alarms) so we can end the VoIP call cleanly instead of losing audio
+  # silently. Used by CallNotifier — see _subscribeToAudioInterruptions.
+  audio_session: ^0.2.3
   local_auth: ^2.3.0
 
   # Email-verification deep links (replaces deprecated firebase_dynamic_links).

@@ -6,6 +6,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/avatar.dart';
+import '../../../shared/widgets/error_snackbar.dart';
 import '../../../shared/widgets/lumio_icons.dart';
 import '../domain/call_notifier.dart';
 import '../domain/call_state.dart';
@@ -56,6 +57,26 @@ class _OutgoingCallScreenState extends ConsumerState<OutgoingCallScreen>
     super.dispose();
   }
 
+  /// Map a structural [EndReason] to a short user-facing line. Returns null
+  /// for the cases where saying anything would be noise (the user knows they
+  /// hung up; nothing useful to tell them).
+  String? _humanizedEndReason(EndReason? reason) => switch (reason) {
+        EndReason.declined => "They declined the call.",
+        EndReason.busy => "They're on another call.",
+        EndReason.timeout => "No answer.",
+        EndReason.failed => "Call failed. Please try again.",
+        EndReason.missed => "No answer.",
+        EndReason.interrupted => "Call ended — phone audio was interrupted.",
+        EndReason.blocked => "Call ended — contact is blocked.",
+        // forceKilled only appears after reconciliation on next launch, so
+        // the user is never looking at this screen for it. Stays silent.
+        EndReason.hungUp ||
+        EndReason.rejected ||
+        EndReason.forceKilled ||
+        null =>
+          null,
+      };
+
   @override
   Widget build(BuildContext context) {
     final session = ref.watch(callSessionProvider);
@@ -71,6 +92,14 @@ class _OutgoingCallScreenState extends ConsumerState<OutgoingCallScreen>
       if (next == null ||
           next.phase == CallPhase.ended ||
           next.phase == CallPhase.failed) {
+        // Surface a backend-provided error (e.g. "You can only call your
+        // contacts.") to the user before the screen pops — without this the
+        // call just silently vanishes and the user has no idea why.
+        final msg = next?.errorMessage ??
+            _humanizedEndReason(prev?.endReason ?? next?.endReason);
+        if (msg != null) {
+          showErrorSnackbar(context, msg);
+        }
         if (context.canPop()) {
           context.pop();
         }
@@ -216,19 +245,31 @@ class _OutgoingCallScreenState extends ConsumerState<OutgoingCallScreen>
                   ),
                 ),
                 const SizedBox(height: 28),
-                Text(
-                  session.peerUser.name,
-                  style: AppTextStyles.display(color: lumioColors.fg1)
-                      .copyWith(fontSize: 30),
-                  textAlign: TextAlign.center,
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Text(
+                    session.peerUser.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.display(color: lumioColors.fg1)
+                        .copyWith(fontSize: 30),
+                    textAlign: TextAlign.center,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
+                      // Status label tracks what's actually happening:
+                      //   "Calling…"    — local emit done, no backend ack yet
+                      //   "Ringing…"    — backend confirmed the offer reached
+                      //                   the callee (their phone is ringing)
+                      //   "Connecting…" — callee answered, ICE handshake in
+                      //                   progress (about to push to active)
                       switch (session.phase) {
-                        CallPhase.outgoingRinging => 'Ringing',
+                        CallPhase.outgoingRinging =>
+                          session.peerRinging ? 'Ringing' : 'Calling',
                         CallPhase.connecting => 'Connecting',
                         _ => 'Calling',
                       },

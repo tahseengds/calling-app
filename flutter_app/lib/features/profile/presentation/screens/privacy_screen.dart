@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/widgets/error_snackbar.dart';
 import '../../../../shared/widgets/lumio_icons.dart';
 import '../../../../shared/widgets/settings_tile.dart';
 import '../../../settings/domain/app_lock_controller.dart';
@@ -119,19 +120,15 @@ class _Body extends ConsumerWidget {
   ) async {
     final notifier = ref.read(privacySettingsProvider.notifier);
     final controller = ref.read(appLockControllerProvider);
-    final messenger = ScaffoldMessenger.of(context);
 
     if (!turnOn) {
       try {
         await notifier.setAppLockEnabled(false);
         await controller.clearPin();
       } catch (_) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Could not disable App Lock. Try again.'),
-            backgroundColor: AppColors.danger,
-          ),
-        );
+        if (context.mounted) {
+          showErrorSnackbar(context, 'Could not disable App Lock. Try again.');
+        }
       }
       return;
     }
@@ -147,16 +144,13 @@ class _Body extends ConsumerWidget {
         case AuthOutcome.success:
           try {
             await notifier.setAppLockEnabled(true);
-            messenger.showSnackBar(
-              const SnackBar(content: Text('App Lock enabled')),
-            );
+            if (context.mounted) {
+              showSuccessSnackbar(context, 'App Lock enabled');
+            }
           } catch (_) {
-            messenger.showSnackBar(
-              const SnackBar(
-                content: Text('Could not save App Lock setting.'),
-                backgroundColor: AppColors.danger,
-              ),
-            );
+            if (context.mounted) {
+              showErrorSnackbar(context, 'Could not save App Lock setting.');
+            }
           }
           return;
         case AuthOutcome.cancelled:
@@ -180,16 +174,11 @@ class _Body extends ConsumerWidget {
       await controller.setPin(pin);
       await notifier.setAppLockEnabled(true);
       if (!context.mounted) return;
-      messenger.showSnackBar(
-        const SnackBar(content: Text('App Lock enabled — PIN set')),
-      );
+      showSuccessSnackbar(context, 'App Lock enabled — PIN set');
     } catch (_) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Could not save PIN. Try again.'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      if (context.mounted) {
+        showErrorSnackbar(context, 'Could not save PIN. Try again.');
+      }
     }
   }
 

@@ -112,17 +112,22 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
                 ),
                 child: Row(
                   children: [
-                    GestureDetector(
-                      onTap: () => context.pop(),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.12),
-                          shape: BoxShape.circle,
+                    Material(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: () => context.pop(),
+                        child: Semantics(
+                          button: true,
+                          label: 'Minimize call',
+                          child: const SizedBox(
+                            width: 48,
+                            height: 48,
+                            child: Icon(Icons.fullscreen_exit,
+                                color: Colors.white, size: 22),
+                          ),
                         ),
-                        child: const Icon(Icons.fullscreen_exit,
-                            color: Colors.white, size: 22),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -132,6 +137,8 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
                         children: [
                           Text(
                             session.peerUser.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w600,

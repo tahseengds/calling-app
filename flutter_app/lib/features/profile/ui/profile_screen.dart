@@ -11,6 +11,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/user.dart';
 import '../../../shared/widgets/avatar.dart';
+import '../../../shared/widgets/error_snackbar.dart';
 import '../../../shared/widgets/lumio_icons.dart';
 import '../../../shared/widgets/settings_tile.dart';
 import 'package:go_router/go_router.dart';
@@ -139,18 +140,11 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
 
       await ref.read(profileNotifierProvider.notifier).updateAvatar(uploadPath);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Photo updated!')),
-        );
+        showSuccessSnackbar(context, 'Photo updated!');
       }
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to update photo.'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      showErrorSnackbar(context, 'Failed to update photo.');
     } finally {
       if (mounted) setState(() => _uploadingAvatar = false);
     }
@@ -253,25 +247,35 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                               ),
                             ),
                           Positioned(
-                            right: 0,
-                            bottom: 0,
-                            child: GestureDetector(
-                              onTap: _pickAvatar,
-                              child: Container(
-                                width: 34,
-                                height: 34,
-                                decoration: BoxDecoration(
-                                  color: AppColors.primary,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: Theme.of(context).scaffoldBackgroundColor,
-                                    width: 2,
+                            right: -6,
+                            bottom: -6,
+                            child: Material(
+                              color: AppColors.primary,
+                              shape: const CircleBorder(),
+                              clipBehavior: Clip.antiAlias,
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: _pickAvatar,
+                                child: Semantics(
+                                  button: true,
+                                  label: 'Change profile photo',
+                                  child: Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Theme.of(context)
+                                            .scaffoldBackgroundColor,
+                                        width: 2,
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      LumioIcons.camera,
+                                      size: 18,
+                                      color: Colors.white,
+                                    ),
                                   ),
-                                ),
-                                child: const Icon(
-                                  LumioIcons.camera,
-                                  size: 16,
-                                  color: Colors.white,
                                 ),
                               ),
                             ),
@@ -279,18 +283,28 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      // Name with edit icon
-                      GestureDetector(
-                        onTap: _editName,
+                      // Name with edit icon — full-row tap target
+                      TextButton(
+                        onPressed: _editName,
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          minimumSize: const Size(48, 48),
+                          foregroundColor: colors.fg1,
+                        ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              user.name,
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: colors.fg1,
+                            Flexible(
+                              child: Text(
+                                user.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: colors.fg1,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -305,6 +319,8 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                       const SizedBox(height: 4),
                       Text(
                         user.email ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 15,
                           color: colors.fg2,

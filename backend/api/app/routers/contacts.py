@@ -1,9 +1,10 @@
 from uuid import UUID
 
+import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_db
+from app.dependencies import get_current_user, get_db, get_redis
 from app.models.user import User
 from app.schemas.contact import AddContactRequest, BlockRequest, ContactResponse
 from app.services import contact_service
@@ -43,5 +44,10 @@ async def set_blocked(
     req: BlockRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    redis: aioredis.Redis = Depends(get_redis),
 ) -> ContactResponse:
-    return await contact_service.set_blocked(db, current_user, contact_id, req.blocked)
+    # Redis is passed through so set_blocked can publish a user_blocked
+    # event for FIX 8 (end any active call between the two parties).
+    return await contact_service.set_blocked(
+        db, current_user, contact_id, req.blocked, redis=redis,
+    )

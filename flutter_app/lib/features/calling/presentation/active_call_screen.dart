@@ -142,12 +142,17 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen>
                           ),
                         ),
                         const SizedBox(height: 28),
-                        Text(
-                          session.peerUser.name,
-                          style: AppTextStyles.display(
-                                  color: lumioColors.fg1)
-                              .copyWith(fontSize: 30),
-                          textAlign: TextAlign.center,
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Text(
+                            session.peerUser.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.display(
+                                    color: lumioColors.fg1)
+                                .copyWith(fontSize: 30),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
                         const SizedBox(height: 6),
                         Text(

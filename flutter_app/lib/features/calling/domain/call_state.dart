@@ -16,13 +16,16 @@ enum CallType { audio, video }
 enum CallDirection { outgoing, incoming }
 
 enum EndReason {
-  hungUp,   // normal hang-up by either side
-  declined, // callee declined (outgoing view)
-  rejected, // we rejected (incoming view)
-  busy,     // callee is busy
-  missed,   // ring timeout without answer (incoming)
-  failed,   // ICE / connection failure
-  timeout,  // ring timeout without answer (outgoing)
+  hungUp,        // normal hang-up by either side
+  declined,      // callee declined (outgoing view)
+  rejected,      // we rejected (incoming view)
+  busy,          // callee is busy
+  missed,        // ring timeout without answer (incoming)
+  failed,        // ICE / connection failure
+  timeout,       // ring timeout without answer (outgoing)
+  interrupted,   // OS audio interruption (cellular call, Siri, alarm) (FIX 5)
+  forceKilled,   // app killed while connected — reconciled on next launch (FIX 6)
+  blocked,       // one side blocked the other mid-call (FIX 8)
 }
 
 // ── PeerUser ────────────────────────────────────────────────────────────────
@@ -116,6 +119,19 @@ class CallSession {
   /// phase == incomingRinging.
   final Map<String, dynamic>? pendingOffer;
 
+  /// Human-readable reason the call ended badly. Populated when the
+  /// backend rejects a call (e.g. "You can only call your contacts"),
+  /// when local init throws, or when reconnection gives up. The UI shows
+  /// this in the ended-state snackbar so the user knows *why* it failed.
+  final String? errorMessage;
+
+  /// True once the backend has confirmed the offer reached the callee
+  /// (a `call:ringing` ack arrived). Outgoing-call screen flips its
+  /// label from "Calling" to "Ringing" only after this is set, so the
+  /// label reflects what the callee is actually experiencing rather
+  /// than just our local "we hit Send" state.
+  final bool peerRinging;
+
   const CallSession({
     required this.callId,
     required this.peerUser,
@@ -131,6 +147,8 @@ class CallSession {
     this.quality = 'good',
     this.showSwitchToAudioPrompt = false,
     this.pendingOffer,
+    this.errorMessage,
+    this.peerRinging = false,
   });
 
   /// Wall-clock seconds since ICE connected.
@@ -155,6 +173,8 @@ class CallSession {
     String? quality,
     bool? showSwitchToAudioPrompt,
     Map<String, dynamic>? pendingOffer,
+    String? errorMessage,
+    bool? peerRinging,
   }) =>
       CallSession(
         callId: callId,
@@ -172,5 +192,7 @@ class CallSession {
         showSwitchToAudioPrompt:
             showSwitchToAudioPrompt ?? this.showSwitchToAudioPrompt,
         pendingOffer: pendingOffer ?? this.pendingOffer,
+        errorMessage: errorMessage ?? this.errorMessage,
+        peerRinging: peerRinging ?? this.peerRinging,
       );
 }

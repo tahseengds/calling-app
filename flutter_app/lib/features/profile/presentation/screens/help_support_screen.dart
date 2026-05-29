@@ -11,6 +11,8 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/dismiss_keyboard.dart';
+import '../../../../shared/widgets/error_snackbar.dart';
+import '../../../../shared/widgets/fl_button.dart';
 import '../../../../shared/widgets/lumio_icons.dart';
 import '../../../settings/data/support_repository.dart';
 
@@ -97,12 +99,7 @@ class _HelpSupportScreenState extends ConsumerState<HelpSupportScreen> {
       }
 
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Thanks — we'll look into it."),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      showSuccessSnackbar(context, "Thanks — we'll look into it.");
       context.pop();
     } catch (_) {
       if (!mounted) return;
@@ -232,34 +229,11 @@ class _HelpSupportScreenState extends ConsumerState<HelpSupportScreen> {
                 ),
               ),
               const SizedBox(height: AppSpacing.space6),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: ElevatedButton(
-                  onPressed: _submitting ? null : _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.lg),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: _submitting
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor:
-                                AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : Text(
-                          'Submit',
-                          style: AppTextStyles.bodySemibold(color: Colors.white),
-                        ),
-                ),
+              FlButton(
+                label: 'Submit',
+                loadingLabel: 'Submitting…',
+                isLoading: _submitting,
+                onPressed: _submitting ? null : _submit,
               ),
             ],
         ),

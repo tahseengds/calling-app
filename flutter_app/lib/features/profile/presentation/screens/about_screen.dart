@@ -8,6 +8,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/widgets/error_snackbar.dart';
 import '../../../../shared/widgets/lumio_icons.dart';
 import '../../../../shared/widgets/lumio_logo.dart';
 import '../../../../shared/widgets/settings_tile.dart';
@@ -35,9 +36,7 @@ class _AboutScreenState extends State<AboutScreen> {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open link.')),
-      );
+      showErrorSnackbar(context, 'Could not open link.');
     }
   }
 

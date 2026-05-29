@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/config/app_config.dart';
 import '../../../core/mock/mock_data.dart';
@@ -89,7 +90,21 @@ class ConversationListNotifier
             (e) => e.name == msg.messageType,
             orElse: () => MessageType.text,
           );
-          preview = msg.content ?? _mediaPreview(lastType);
+          // call_log messages store their meta as JSON in `content`. Showing
+          // the raw JSON in the chats list is obviously wrong — render a
+          // human-readable summary instead. Other types fall back to
+          // content-or-media-label as before.
+          //
+          // The call_log message's sender_id is always the CALLER (see
+          // backend/signaling/src/callLogMessage.js). For the conversation
+          // list, "incoming" means the other user called me (sender ==
+          // otherUserId), "outgoing" means I called them.
+          if (lastType == MessageType.callLog) {
+            final isIncoming = msg.senderId == row.otherUserId;
+            preview = _callLogPreview(msg.content, isIncoming: isIncoming);
+          } else {
+            preview = msg.content ?? _mediaPreview(lastType);
+          }
         }
       }
 
@@ -122,8 +137,63 @@ class ConversationListNotifier
         MessageType.video => 'Video',
         MessageType.audio => 'Voice note',
         MessageType.file => 'File',
+        MessageType.callLog => 'Call',
         MessageType.text => '',
       };
+
+  /// Build the chats-home preview text for a [MessageType.callLog] message.
+  /// Content is the JSON blob written by backend/signaling/src/callLogMessage.js
+  /// (see CallLogMeta in shared/models/message.dart).
+  ///
+  /// [isIncoming] distinguishes "cancelled by me" from "missed by me" — the
+  /// backend's `outcome: 'missed'` covers both cases (caller-cancelled and
+  /// callee-no-answer). From the caller's chat list a cancellation should
+  /// read "Cancelled call"; from the callee's it should read "Missed call".
+  ///
+  ///   answered  → "Voice call · 2m 14s"   / "Video call · 2m 14s"
+  ///   missed (incoming)  → "Missed voice call"
+  ///   missed (outgoing)  → "Cancelled call"
+  ///   declined  → "Declined voice call"
+  ///   busy/failed → "Call failed"
+  ///   anything else → "Call"
+  String _callLogPreview(String? content, {required bool isIncoming}) {
+    if (content == null || content.isEmpty) return 'Call';
+    try {
+      final json = jsonDecode(content);
+      if (json is! Map<String, dynamic>) return 'Call';
+      final outcome = json['outcome'] as String? ?? '';
+      final callType = json['call_type'] as String? ?? 'audio';
+      final duration = (json['duration_seconds'] as num?)?.toInt() ?? 0;
+      final kind = callType == 'video' ? 'video' : 'voice';
+      switch (outcome) {
+        case 'answered':
+          final cap = kind == 'video' ? 'Video' : 'Voice';
+          if (duration <= 0) return '$cap call';
+          return '$cap call · ${_formatCallLogDuration(duration)}';
+        case 'missed':
+          return isIncoming ? 'Missed $kind call' : 'Cancelled call';
+        case 'declined':
+          return isIncoming ? 'Declined $kind call' : 'Call declined';
+        case 'busy':
+        case 'failed':
+          return 'Call failed';
+        default:
+          return 'Call';
+      }
+    } catch (_) {
+      // Malformed JSON — fall back to a generic label rather than dumping
+      // the raw blob into the preview.
+      return 'Call';
+    }
+  }
+
+  static String _formatCallLogDuration(int seconds) {
+    final m = seconds ~/ 60;
+    final s = seconds % 60;
+    if (m == 0) return '${s}s';
+    if (s == 0) return '${m}m';
+    return '${m}m ${s}s';
+  }
 
   List<Conversation> _mockConversations() {
     final now = DateTime.now();

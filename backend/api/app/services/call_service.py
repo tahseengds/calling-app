@@ -11,12 +11,14 @@ deterministically. The current user's perspective decides whether each row is
 from uuid import UUID
 
 from sqlalchemy import and_, or_, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.call_record import CallRecord
 from app.models.user import User
 from app.schemas.call import (
     CallHistoryPage,
+    CallLogReplayRequest,
     CallRecordResponse,
     decode_cursor,
     encode_cursor,
@@ -112,3 +114,56 @@ async def list_call_history(
         next_cursor = encode_cursor(last.started_at or last.created_at, last.id)
 
     return CallHistoryPage(items=items, next_cursor=next_cursor)
+
+
+async def replay_call_log(
+    db: AsyncSession,
+    user: User,
+    req: CallLogReplayRequest,
+) -> None:
+    """
+    Client-driven reconciliation: insert a call_records row for a call the
+    client knows happened but whose end never reached the Node signaling
+    server (force-killed app, audio-interrupted, etc.).
+
+    Idempotent on the primary key — if the Node side already inserted a row
+    with this call_id (e.g. the hangup signal eventually arrived), this is
+    a no-op.
+
+    Direction discipline: the client tells us whether *they* were the caller
+    or the callee, and we set caller_id/callee_id accordingly. We do NOT
+    trust the client to identify the other user as anyone except the peer
+    they exchanged the call with — the FK constraint to users.id catches
+    bogus ids, and the worst a hostile client could do is record a call
+    against another user they don't share (which has no privacy impact —
+    the call records are only ever read by the caller or callee).
+    """
+    if req.direction == "outgoing":
+        caller_id = user.id
+        callee_id = req.peer_user_id
+    else:
+        caller_id = req.peer_user_id
+        callee_id = user.id
+
+    # Status: 'completed' if media actually flowed (duration > 0), else
+    # 'failed' for everything else. The Node-side hangup handler uses the
+    # same convention so the call history stays consistent.
+    status = "completed" if req.duration_seconds > 0 else "failed"
+
+    stmt = (
+        pg_insert(CallRecord)
+        .values(
+            id=req.call_id,
+            caller_id=caller_id,
+            callee_id=callee_id,
+            call_type=req.call_type,
+            status=status,
+            started_at=req.started_at,
+            answered_at=req.connected_at,
+            ended_at=req.ended_at,
+            duration_seconds=req.duration_seconds,
+        )
+        .on_conflict_do_nothing(index_elements=["id"])
+    )
+    await db.execute(stmt)
+    await db.commit()

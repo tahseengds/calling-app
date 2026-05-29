@@ -156,8 +156,8 @@ class _PermissionsSheetState extends State<_PermissionsSheet> {
             const SizedBox(height: 10),
 
             // Body
-            SizedBox(
-              width: 280,
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 320),
               child: Text(
                 "Lumio needs these so calls reach you. We only use them when you're on a call or expecting one.",
                 style: TextStyle(fontSize: 15, color: fg2, height: 1.55),

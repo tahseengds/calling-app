@@ -30,6 +30,16 @@ def presence_channel(user_id: str) -> str:
     return f"presence:{user_id}"
 
 
+def user_events_channel(user_id: str) -> str:
+    """
+    General per-user events that don't fit msg_delivery/receipt/presence —
+    e.g. block notifications (FIX 8). The Node signaling service forwards
+    these as a single user:* socket event family per `event` field in the
+    payload (e.g. payload.event="user_blocked" → socket emit "user:blocked").
+    """
+    return f"user_events:{user_id}"
+
+
 # ── FCM queue stream name ─────────────────────────────────────────────────────
 
 FCM_QUEUE_STREAM = "fcm_queue"

@@ -13,7 +13,13 @@ import '../../calling/presentation/call_history_screen.dart';
 // Polished "Messages" home — rich card list backed by live conversation data.
 import '../../chat/presentation/chats_home_screen.dart';
 
-final shellTabProvider = StateProvider<int>((_) => 0);
+/// Tabs in the bottom nav. The index used by [IndexedStack] and
+/// [BottomNavigationBar] is derived from the enum order, so reordering
+/// these will reorder both the children list and the nav items
+/// together — no manual int constants to keep in sync.
+enum ShellTab { chats, calls, profile }
+
+final shellTabProvider = StateProvider<ShellTab>((_) => ShellTab.chats);
 
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
@@ -65,11 +71,11 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tabIndex = ref.watch(shellTabProvider);
+    final tab = ref.watch(shellTabProvider);
 
     return Scaffold(
       body: IndexedStack(
-        index: tabIndex,
+        index: tab.index,
         children: const [
           ChatsHomeScreen(),
           CallHistoryScreen(),
@@ -77,16 +83,16 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         ],
       ),
       bottomNavigationBar: _FlBottomNav(
-        currentIndex: tabIndex,
-        onTap: (i) => ref.read(shellTabProvider.notifier).state = i,
+        currentTab: tab,
+        onTap: (t) => ref.read(shellTabProvider.notifier).state = t,
       ),
     );
   }
 }
 
-// Indices kept in sync with the IndexedStack above. Contacts used to be
-// tab 2; it's now reached via the chats-home "new chat" FAB which pushes
-// /contacts as a routed screen.
+// _navItems is indexed by ShellTab.index — order MUST match the enum
+// declaration above. Contacts used to be tab 2; it's now reached via the
+// chats-home "new chat" FAB which pushes /contacts as a routed screen.
 const _navItems = [
   _NavItem(label: 'Messages', icon: LumioIcons.message),
   _NavItem(label: 'Calls', icon: LumioIcons.phone),
@@ -100,10 +106,10 @@ class _NavItem {
 }
 
 class _FlBottomNav extends StatelessWidget {
-  final int currentIndex;
-  final ValueChanged<int> onTap;
+  final ShellTab currentTab;
+  final ValueChanged<ShellTab> onTap;
 
-  const _FlBottomNav({required this.currentIndex, required this.onTap});
+  const _FlBottomNav({required this.currentTab, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -124,12 +130,12 @@ class _FlBottomNav extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(
               children: [
-                for (int i = 0; i < _navItems.length; i++)
+                for (final tab in ShellTab.values)
                   Expanded(
                     child: _NavButton(
-                      item: _navItems[i],
-                      isActive: i == currentIndex,
-                      onTap: () => onTap(i),
+                      item: _navItems[tab.index],
+                      isActive: tab == currentTab,
+                      onTap: () => onTap(tab),
                       isDark: isDark,
                     ),
                   ),

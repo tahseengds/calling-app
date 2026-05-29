@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_colors.dart';
 
 /// Avatar that shows a CachedNetworkImage when [imageUrl] is non-null, and
@@ -87,10 +88,11 @@ class _InitialsAvatar extends StatelessWidget {
       backgroundColor: tint,
       child: Text(
         initials,
-        style: TextStyle(
+        style: GoogleFonts.inter(
           color: Colors.white,
-          fontSize: radius * 0.65,
-          fontWeight: FontWeight.bold,
+          fontSize: radius * 0.7,
+          fontWeight: FontWeight.w600,
+          height: 1.0,
         ),
       ),
     );

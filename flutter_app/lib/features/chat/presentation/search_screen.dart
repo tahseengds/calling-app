@@ -11,6 +11,7 @@ import '../../../features/contacts/domain/contacts_notifier.dart';
 import '../../../shared/models/conversation.dart';
 import '../../../shared/models/user.dart';
 import '../../../shared/widgets/avatar.dart';
+import '../../../shared/widgets/error_snackbar.dart';
 import '../../../shared/widgets/lumio_icons.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -62,9 +63,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       if (mounted) context.push('/chat/$convId');
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open conversation')),
-        );
+        showErrorSnackbar(context, 'Could not open conversation');
       }
     } finally {
       if (mounted) setState(() => _navigating = false);
@@ -138,22 +137,37 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             ),
                           ),
                           if (_query.isNotEmpty)
-                            GestureDetector(
-                              onTap: () {
-                                _searchCtrl.clear();
-                                setState(() => _query = '');
-                              },
-                              child: Container(
-                                width: 22,
-                                height: 22,
-                                decoration: BoxDecoration(
-                                  color: lumioColors.hairlineStrong,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Icon(
-                                  LumioIcons.close,
-                                  size: 14,
-                                  color: theme.scaffoldBackgroundColor,
+                            Material(
+                              color: Colors.transparent,
+                              shape: const CircleBorder(),
+                              child: InkWell(
+                                customBorder: const CircleBorder(),
+                                onTap: () {
+                                  _searchCtrl.clear();
+                                  setState(() => _query = '');
+                                },
+                                child: Semantics(
+                                  button: true,
+                                  label: 'Clear search',
+                                  child: SizedBox(
+                                    width: 40,
+                                    height: 40,
+                                    child: Center(
+                                      child: Container(
+                                        width: 22,
+                                        height: 22,
+                                        decoration: BoxDecoration(
+                                          color: lumioColors.hairlineStrong,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Icon(
+                                          LumioIcons.close,
+                                          size: 14,
+                                          color: theme.scaffoldBackgroundColor,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
                             ),

@@ -70,16 +70,24 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (widget.sender != null)
-              Text(widget.sender!,
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600)),
+              Text(
+                widget.sender!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600),
+              ),
             if (widget.when != null)
-              Text(widget.when!,
-                  style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontSize: 12)),
+              Text(
+                widget.when!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.7),
+                    fontSize: 12),
+              ),
           ],
         ),
       ),

@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../core/config/app_config.dart';
 import '../../../shared/widgets/auth_widgets.dart';
 import '../../../shared/widgets/dismiss_keyboard.dart';
+import '../../../shared/widgets/error_snackbar.dart';
 import '../../../shared/widgets/fl_button.dart';
 import '../../../shared/widgets/fl_text_field.dart';
 import '../domain/auth_notifier.dart';
@@ -76,20 +78,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_firebaseAuthMessage(e)),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      showErrorSnackbar(context, _firebaseAuthMessage(e));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not create the account. Please try again.'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      showErrorSnackbar(
+          context, 'Could not create the account. Please try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -101,20 +94,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       await ref.read(authNotifierProvider.notifier).signInWithGoogle();
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_firebaseAuthMessage(e)),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      showErrorSnackbar(context, _firebaseAuthMessage(e));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Google sign-in failed. Please try again.'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      showErrorSnackbar(context, 'Google sign-in failed. Please try again.');
     } finally {
       if (mounted) setState(() => _isGoogleLoading = false);
     }
@@ -152,25 +135,22 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         child: DismissKeyboard(
           child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
-          child: Form(
-            key: _formKey,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: AutofillGroup(
+            child: Form(
+              key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Create your account',
-                  style: TextStyle(
-                    fontSize: 30,
-                    fontWeight: FontWeight.w600,
-                    color: fg1,
-                    height: 1.15,
-                    letterSpacing: -0.01,
-                  ),
+                  style: AppTextStyles.display(color: fg1)
+                      .copyWith(fontSize: 30, height: 1.15),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   'We\'ll email you a link to confirm your address.',
-                  style: TextStyle(fontSize: 16, color: fg2, height: 1.4),
+                  style: AppTextStyles.body(color: fg2),
                 ),
                 const SizedBox(height: 32),
                 Focus(
@@ -181,7 +161,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     label: 'Display name',
                     controller: _nameCtrl,
                     textInputAction: TextInputAction.next,
+                    textCapitalization: TextCapitalization.words,
                     validator: _touched.contains('name') ? _validateName : null,
+                    autofillHints: const [AutofillHints.name],
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -196,6 +178,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     textInputAction: TextInputAction.next,
                     validator:
                         _touched.contains('email') ? _validateEmail : null,
+                    autofillHints: const [AutofillHints.email, AutofillHints.username],
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -207,6 +190,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   textInputAction: TextInputAction.next,
                   validator:
                       _touched.contains('password') ? _validatePassword : null,
+                  autofillHints: const [AutofillHints.newPassword],
                 ),
                 const SizedBox(height: 14),
                 FlTextField(
@@ -218,6 +202,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   validator:
                       _touched.contains('confirm') ? _validateConfirm : null,
                   onFieldSubmitted: (_) => _submitEmail(),
+                  autofillHints: const [AutofillHints.newPassword],
                 ),
                 const SizedBox(height: 24),
                 FlButton(
@@ -239,7 +224,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 Text(
                   'By continuing, you agree to our Terms and Privacy notice.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 13, color: fg3, height: 1.45),
+                  style: AppTextStyles.caption(color: fg3),
                 ),
                 if (AppConfig.uiOnly) ...[
                   const SizedBox(height: 12),
@@ -260,10 +245,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ),
                   ),
                 ],
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
                 Center(
-                  child: GestureDetector(
-                    onTap: () => context.go('/login'),
+                  child: TextButton(
+                    onPressed: () => context.go('/login'),
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(48, 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    ),
                     child: const Text(
                       '← Back to sign in',
                       style: TextStyle(
@@ -276,6 +265,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 ),
               ],
             ),
+          ),
           ),
         ),
         ),
