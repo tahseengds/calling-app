@@ -113,11 +113,21 @@ print('OK — project:', c.project_id)
 ## Part 3 — Flutter app (when you build the mobile app)
 
 1. Add `google-services.json` (step 5 above).
-2. Run with API enabled:
+2. Build a release APK — production endpoints are the default, so no flags
+   are needed:
+
+   ```bash
+   flutter build apk --release
+   # or, for per-ABI splits:
+   flutter build apk --release --split-per-abi
+   ```
+
+   `flutter run` (debug) defaults to the local emulator host
+   (`http://10.0.2.2:8000` / `ws://10.0.2.2:8001`). Override any endpoint
+   explicitly when needed, e.g. to point a debug build at production:
 
    ```bash
    flutter run \
-     --dart-define=UI_ONLY=false \
      --dart-define=API_BASE_URL=https://lumin.tahseen.tech \
      --dart-define=SIGNALING_URL=wss://lumin.tahseen.tech \
      --dart-define=APP_ENV=prod
