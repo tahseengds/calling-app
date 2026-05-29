@@ -2083,6 +2083,32 @@ class _ReactionChip extends StatelessWidget {
 // ─── Bubble variants ──────────────────────────────────────────────────────────
 
 // Normal / failed bubble
+/// Matches emoji scalar values: pictographic blocks, symbols/dingbats,
+/// regional indicators, keycaps, variation selectors and ZWJ. Range-based so
+/// brand-new emoji (Unicode 15/16, in the 1FA70–1FAFF area) still count.
+final RegExp _emojiCharRegex = RegExp(
+  r'[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}\u{2B00}-\u{2BFF}'
+  r'\u{2190}-\u{21FF}\u{FE00}-\u{FE0F}\u{1F1E6}-\u{1F1FF}\u{200D}\u{20E3}'
+  r'\u{00A9}\u{00AE}\u{2122}]',
+  unicode: true,
+);
+
+/// True when [raw] is nothing but emoji (and whitespace) — used to render the
+/// message "jumbo" with no bubble, WhatsApp/iMessage style. [maxClusters]
+/// keeps long emoji walls in a normal bubble. Returns the emoji match count
+/// via [outCount] so the caller can scale the font size.
+bool _isEmojiOnly(String raw) {
+  final t = raw.trim();
+  if (t.isEmpty) return false;
+  // If anything other than emoji chars + whitespace remains, it's not emoji-only.
+  final stripped =
+      t.replaceAll(_emojiCharRegex, '').replaceAll(RegExp(r'\s'), '');
+  if (stripped.isNotEmpty) return false;
+  // ZWJ sequences inflate the raw match count, so allow a generous cap.
+  final count = _emojiCharRegex.allMatches(t).length;
+  return count > 0 && count <= 16;
+}
+
 class _Bubble extends StatelessWidget {
   const _Bubble({
     required this.mine,
@@ -2109,6 +2135,25 @@ class _Bubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ── Jumbo emoji ───────────────────────────────────────────────────────
+    // A plain-text message that's only emoji renders large with no bubble —
+    // the lightweight "sticker" experience. Skip for replies/failed so those
+    // keep their normal bubble + affordances.
+    if (!_isVisualMedia &&
+        !_isFile &&
+        !_isAudio &&
+        !_isFailed &&
+        replyTo == null &&
+        _isEmojiOnly(msg.content ?? '')) {
+      final emoji = msg.content!.trim();
+      final n = _emojiCharRegex.allMatches(emoji).length;
+      final double size = n <= 1 ? 52 : (n <= 3 ? 40 : 30);
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 2),
+        child: Text(emoji, style: TextStyle(fontSize: size, height: 1.15)),
+      );
+    }
+
     final Color bg = _isFailed
         ? _T.failedBubbleBg
         : mine
@@ -3263,15 +3308,12 @@ class _ChatInputBarState extends State<_ChatInputBar>
             // ── In-pill attach button ──────────────────────────────────────
             Padding(
               padding: const EdgeInsets.only(right: 8, bottom: 6),
-              child: Transform.rotate(
-                angle: math.pi / 4,
-                child: _PillIconButton(
-                  icon:    LucideIcons.paperclip,
-                  color:   c.fg2,
-                  size:    _kIconBtn,
-                  iconSz:  _kIconSz,
-                  onTap:   widget.onAttach,
-                ),
+              child: _PillIconButton(
+                icon:    LucideIcons.paperclip,
+                color:   c.fg2,
+                size:    _kIconBtn,
+                iconSz:  _kIconSz,
+                onTap:   widget.onAttach,
               ),
             ),
           ],

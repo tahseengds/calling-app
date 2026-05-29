@@ -65,7 +65,7 @@ class _ChatsHomeScreenState extends ConsumerState<ChatsHomeScreen> {
                         ),
                         const SizedBox(width: AppSpacing.space1),
                         IconButton(
-                          icon: Icon(LucideIcons.qrCode,
+                          icon: Icon(LucideIcons.scanLine,
                               color: lumioColors.fg1),
                           onPressed: () => context.push('/qr'),
                           tooltip: 'Add friend by QR',
