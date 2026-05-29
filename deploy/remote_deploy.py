@@ -17,6 +17,7 @@ REMOTE_DIR = os.environ.get("DEPLOY_DIR", "/opt/lumin")
 SKIP_DIRS = {
     ".git",
     "flutter_app",
+    "website",
     "node_modules",
     "__pycache__",
     ".pytest_cache",
