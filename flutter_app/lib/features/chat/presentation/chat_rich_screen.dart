@@ -439,9 +439,14 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
   void _sendMessage() {
     final text = _inputCtrl.text.trim();
     if (text.isEmpty) return;
-    ref
-        .read(chatProvider(widget.conversationId).notifier)
-        .sendText(text, replyToId: _replyingTo?.id);
+    final notifier = ref.read(chatProvider(widget.conversationId).notifier);
+    if (_editing != null) {
+      notifier.editMessage(_editing!.id, text);
+      _inputCtrl.clear();
+      setState(() => _editing = null);
+      return;
+    }
+    notifier.sendText(text, replyToId: _replyingTo?.id);
     _inputCtrl.clear();
     _cancelReply();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
