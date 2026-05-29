@@ -1,75 +1,101 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { useRef } from 'react';
+import { motion } from 'framer-motion';
 import { site } from '@/lib/site';
-import { SectionHeading } from '@/components/ui/SectionHeading';
-import { GlassCard } from '@/components/ui/GlassCard';
 import { FeatureIcon } from '@/components/ui/Icons';
 
+const ease = [0.16, 1, 0.3, 1] as const;
+
 export function Features() {
-  const grid = useRef<HTMLDivElement>(null);
-
-  // GSAP ScrollTrigger stagger reveal for the cards.
-  useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const cards = grid.current?.querySelectorAll('[data-card]');
-    if (!cards?.length) return;
-
-    const ctx = gsap.context(() => {
-      gsap.fromTo(
-        cards,
-        { y: 60, opacity: 0, filter: 'blur(8px)' },
-        {
-          y: 0,
-          opacity: 1,
-          filter: 'blur(0px)',
-          duration: 0.9,
-          ease: 'expo.out',
-          stagger: 0.09,
-          scrollTrigger: { trigger: grid.current, start: 'top 78%' },
-        },
-      );
-    }, grid);
-
-    return () => ctx.revert();
-  }, []);
-
   return (
-    <section id="features" className="relative mx-auto max-w-6xl px-6 py-28 md:py-36">
-      <SectionHeading
-        kicker="Built different"
-        title={
-          <>
-            Everything you need to <span className="gradient-text-accent">stay close</span>
-          </>
-        }
-        subtitle="A messaging and calling experience engineered to disappear into the moment — fast, private, and quietly beautiful."
-      />
+    <section id="features" className="relative mx-auto max-w-6xl px-6 py-24 md:py-32">
 
-      <div
-        ref={grid}
-        className="mt-16 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"
+      {/* Section label */}
+      <motion.div
+        className="mb-16 flex items-center gap-5"
+        initial={{ opacity: 0 }}
+        whileInView={{ opacity: 1 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.8 }}
       >
-        {site.features.map((f) => (
-          <div data-card key={f.title}>
-            <GlassCard accent={f.accent} className="h-full">
-              <div
-                className="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-2xl"
-                style={{
-                  background: `linear-gradient(160deg, ${f.accent}33, transparent)`,
-                  boxShadow: `inset 0 0 0 1px ${f.accent}44`,
-                }}
-              >
-                <FeatureIcon name={f.icon} className="h-6 w-6" style={{ color: f.accent }} />
-              </div>
-              <h3 className="font-display text-xl font-semibold tracking-tight">{f.title}</h3>
-              <p className="mt-3 text-[15px] leading-relaxed text-white/55">{f.body}</p>
-            </GlassCard>
-          </div>
+        <span className="h-px flex-1 bg-white/[0.07]" />
+        <span className="text-[11px] uppercase tracking-[0.22em] text-white/35">
+          What makes it different
+        </span>
+        <span className="h-px flex-1 bg-white/[0.07]" />
+      </motion.div>
+
+      {/* Feature list */}
+      <div>
+        {site.features.map((feature, i) => (
+          <FeatureRow key={feature.title} feature={feature} index={i} />
         ))}
       </div>
     </section>
+  );
+}
+
+function FeatureRow({
+  feature,
+  index,
+}: {
+  feature: (typeof site.features)[number];
+  index: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: '-60px' }}
+      transition={{ duration: 0.7, delay: index * 0.05, ease }}
+      className="group relative"
+    >
+      {/* Top divider */}
+      <div className="h-px bg-white/[0.07] transition-colors duration-500 group-hover:bg-white/[0.14]" />
+
+      <div className="flex items-start gap-5 py-7 md:gap-8 md:py-8">
+        {/* Number */}
+        <span className="w-10 shrink-0 pt-0.5 font-display text-[11px] font-bold tracking-[0.15em] text-white/18">
+          {String(index + 1).padStart(2, '0')}
+        </span>
+
+        {/* Icon */}
+        <div
+          className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-300 group-hover:scale-110"
+          style={{
+            background: `${feature.accent}18`,
+            border: `1px solid ${feature.accent}28`,
+          }}
+        >
+          <FeatureIcon
+            name={feature.icon}
+            className="h-5 w-5 transition-colors"
+            style={{ color: feature.accent }}
+          />
+        </div>
+
+        {/* Text */}
+        <div className="flex-1 min-w-0">
+          <h3 className="font-display text-xl font-bold tracking-tight text-white/90 transition-colors group-hover:text-white md:text-2xl">
+            {feature.title}
+          </h3>
+          <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-white/40 transition-colors group-hover:text-white/55">
+            {feature.body}
+          </p>
+        </div>
+
+        {/* Arrow */}
+        <span className="shrink-0 pt-1 text-lg text-white/15 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white/40">
+          ↗
+        </span>
+      </div>
+
+      {/* Left accent bar (on hover) */}
+      <div
+        className="absolute bottom-0 left-0 top-px w-0.5 scale-y-0 origin-top rounded-full transition-transform duration-500 group-hover:scale-y-100"
+        style={{ background: feature.accent }}
+      />
+    </motion.div>
   );
 }

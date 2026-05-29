@@ -1,46 +1,45 @@
 import { site } from '@/lib/site';
 
-const groups = [
-  { title: 'Product', links: ['Features', 'Experience', 'Showcase', 'Download'] },
-  { title: 'Company', links: ['About', 'Careers', 'Press', 'Contact'] },
-  { title: 'Legal', links: ['Privacy', 'Terms', 'Security', 'Status'] },
+const links = [
+  { label: 'Features', href: '#features' },
+  { label: 'Experience', href: '#experience' },
+  { label: 'Download', href: '#download' },
+  { label: 'Privacy', href: '#' },
+  { label: 'Terms', href: '#' },
 ];
 
 export function Footer() {
   return (
-    <footer className="relative border-t border-white/10 px-6 py-16">
-      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-10 md:grid-cols-5">
-        <div className="col-span-2">
+    <footer className="relative border-t border-white/[0.06] px-6 py-12">
+      <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-8 md:flex-row md:items-center">
+        {/* Brand */}
+        <div>
           <div className="flex items-center gap-2.5">
-            <span className="h-7 w-7 rounded-xl bg-gradient-to-br from-brand-400 to-brand-glow shadow-glow-sm" />
-            <span className="font-display text-lg font-semibold tracking-tightest">
+            <span className="h-6 w-6 rounded-lg bg-gradient-to-br from-brand-400 to-brand-glow shadow-glow-sm" />
+            <span className="font-display text-base font-bold tracking-tight text-white/90">
               {site.name}
             </span>
           </div>
-          <p className="mt-4 max-w-xs text-sm leading-relaxed text-white/45">
-            {site.tagline} Built for the people who matter most.
-          </p>
+          <p className="mt-2 text-sm text-white/35">{site.tagline}</p>
         </div>
 
-        {groups.map((g) => (
-          <nav key={g.title} aria-label={g.title}>
-            <h3 className="text-xs uppercase tracking-[0.2em] text-white/40">{g.title}</h3>
-            <ul className="mt-4 space-y-2.5">
-              {g.links.map((l) => (
-                <li key={l}>
-                  <a href="#" className="text-sm text-white/55 transition-colors hover:text-white">
-                    {l}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        ))}
+        {/* Nav */}
+        <nav className="flex flex-wrap gap-x-7 gap-y-2">
+          {links.map((l) => (
+            <a
+              key={l.label}
+              href={l.href}
+              className="text-sm text-white/40 transition-colors hover:text-white/80"
+            >
+              {l.label}
+            </a>
+          ))}
+        </nav>
       </div>
 
-      <div className="mx-auto mt-14 flex max-w-6xl flex-col items-center justify-between gap-4 border-t border-white/10 pt-8 text-xs text-white/35 md:flex-row">
+      <div className="mx-auto mt-10 flex max-w-6xl items-center justify-between border-t border-white/[0.04] pt-6 text-xs text-white/25">
         <p>© {new Date().getFullYear()} {site.name}. All rights reserved.</p>
-        <p>Crafted with motion, light and care.</p>
+        <p>Built with precision.</p>
       </div>
     </footer>
   );
