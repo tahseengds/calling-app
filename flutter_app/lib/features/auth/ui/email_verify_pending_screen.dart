@@ -8,7 +8,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/error_snackbar.dart';
 import '../../../shared/widgets/fl_button.dart';
 import '../../../shared/widgets/lumio_back_button.dart';
 import '../domain/auth_notifier.dart';
@@ -83,12 +85,8 @@ class _EmailVerifyPendingScreenState
           .read(authNotifierProvider.notifier)
           .reloadAndCompleteVerification();
       if (!silent && !verified && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'Email not verified yet. Click the link we sent you, then try again.'),
-          ),
-        );
+        showErrorSnackbar(
+            context, 'Email not verified yet. Click the link we sent you, then try again.');
       }
     } catch (_) {
       // Silent — keep polling.
@@ -125,15 +123,11 @@ class _EmailVerifyPendingScreenState
         mode: LaunchMode.externalApplication,
       );
       if (!launched && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No email app is installed.')),
-        );
+        showErrorSnackbar(context, 'No email app is installed.');
       }
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open mail app.')),
-      );
+      showErrorSnackbar(context, 'Could not open mail app.');
     } finally {
       // Allow a short cooldown so accidental double-taps don't race, but
       // the user can re-trigger if the first attempt did nothing.
@@ -154,25 +148,17 @@ class _EmailVerifyPendingScreenState
           .resendVerificationEmail();
       if (!mounted) return;
       _startCooldown();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('A new verification link has been sent.')),
-      );
+      showSuccessSnackbar(context, 'A new verification link has been sent.');
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       final msg = e.code == 'too-many-requests'
           ? 'Too many attempts. Try again in a few minutes.'
           : e.message ?? 'Could not resend the email.';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(msg), backgroundColor: AppColors.danger),
-      );
+      showErrorSnackbar(context, msg);
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not resend the email. Try again in a moment.'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      showErrorSnackbar(
+          context, 'Could not resend the email. Try again in a moment.');
     } finally {
       if (mounted) setState(() => _isResending = false);
     }
@@ -208,25 +194,18 @@ class _EmailVerifyPendingScreenState
               const SizedBox(height: 24),
               Text(
                 'Verify your email',
-                style: TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w600,
-                  color: fg1,
-                  letterSpacing: -0.01,
-                ),
+                style: AppTextStyles.display(color: fg1)
+                    .copyWith(fontSize: 30, height: 1.15),
               ),
               const SizedBox(height: 12),
               RichText(
                 text: TextSpan(
                   text: 'We sent a verification link to ',
-                  style: TextStyle(fontSize: 16, color: fg2, height: 1.4),
+                  style: AppTextStyles.body(color: fg2),
                   children: [
                     TextSpan(
                       text: email,
-                      style: TextStyle(
-                        color: fg1,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: AppTextStyles.bodySemibold(color: fg1),
                     ),
                     const TextSpan(
                       text:

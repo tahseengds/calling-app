@@ -22,6 +22,38 @@ class CallActionReceiver : BroadcastReceiver() {
         val action = intent.action ?: return
         val callId = intent.getStringExtra(CallService.EXTRA_CALL_ID) ?: return
 
+        // ACTION_HANGUP fires from the ActiveCallService notification while
+        // an answered call is in progress. There's no ringing service to
+        // stop and no incoming-call payload to forward — just tell Flutter
+        // to end the call, then stop the active-call foreground service.
+        if (action == ACTION_HANGUP) {
+            val payload = HashMap<String, Any?>().apply {
+                put(CallService.EXTRA_CALL_ID, callId)
+                put(CallService.EXTRA_NATIVE_ACTION, "hangup")
+            }
+            if (NativeCallBus.isEngineAlive()) {
+                NativeCallBus.invoke("callAction", payload)
+            } else {
+                // Engine dead — launch MainActivity so the user can see the
+                // (now ended) call screen. Flutter's bootstrap will pull
+                // native_action=hangup via getInitialCallData() and end the
+                // call immediately on startup.
+                val launch = Intent(context, MainActivity::class.java).apply {
+                    this.action = Intent.ACTION_MAIN
+                    addCategory(Intent.CATEGORY_LAUNCHER)
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP
+                    putExtra(CallService.EXTRA_FROM_CALL_NOTIFICATION, true)
+                    putExtra(CallService.EXTRA_NATIVE_ACTION, "hangup")
+                    putExtra(CallService.EXTRA_CALL_ID, callId)
+                }
+                context.startActivity(launch)
+            }
+            ActiveCallService.stop(context)
+            return
+        }
+
         val nativeAction = when (action) {
             ACTION_ACCEPT -> "accept"
             ACTION_DECLINE -> "decline"
@@ -74,5 +106,8 @@ class CallActionReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_ACCEPT = "com.lumin.app.action.CALL_ACCEPT"
         const val ACTION_DECLINE = "com.lumin.app.action.CALL_DECLINE"
+        // FIX 7: tapped on the persistent in-call notification's hang-up
+        // action while the call is connected.
+        const val ACTION_HANGUP = "com.lumin.app.action.CALL_HANGUP"
     }
 }

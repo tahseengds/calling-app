@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/user.dart';
 import '../../../shared/widgets/avatar.dart';
+import '../../../shared/widgets/error_snackbar.dart';
 import '../../../shared/widgets/fl_button.dart';
 import '../../../shared/widgets/lumio_icons.dart';
 import '../domain/contacts_notifier.dart';
@@ -272,10 +273,7 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
                 }
               } catch (_) {
                 if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('Could not open conversation')),
-                  );
+                  showErrorSnackbar(context, 'Could not open conversation');
                 }
               }
             },
@@ -533,8 +531,8 @@ class _IconButton extends StatelessWidget {
         child: Tooltip(
           message: tooltip,
           child: SizedBox(
-            width: 40,
-            height: 40,
+            width: 44,
+            height: 44,
             child: Icon(icon, size: 20, color: color),
           ),
         ),

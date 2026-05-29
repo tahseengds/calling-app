@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/widgets/fl_button.dart';
 import '../../../../shared/widgets/lumio_icons.dart';
 import '../../../settings/domain/app_lock_controller.dart';
 
@@ -134,26 +135,9 @@ class _AppLockPinScreenState extends ConsumerState<AppLockPinScreen> {
                 ),
               ),
               const Spacer(),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: ElevatedButton(
-                  onPressed: _onPrimary,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.lg),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    isSetup
-                        ? (_confirming ? 'Confirm' : 'Next')
-                        : 'Unlock',
-                    style: AppTextStyles.bodySemibold(color: Colors.white),
-                  ),
-                ),
+              FlButton(
+                label: isSetup ? (_confirming ? 'Confirm' : 'Next') : 'Unlock',
+                onPressed: _onPrimary,
               ),
             ],
         ),

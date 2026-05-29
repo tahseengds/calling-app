@@ -3,9 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/auth_widgets.dart';
 import '../../../shared/widgets/dismiss_keyboard.dart';
+import '../../../shared/widgets/error_snackbar.dart';
 import '../../../shared/widgets/fl_button.dart';
 import '../../../shared/widgets/fl_text_field.dart';
 import '../../../shared/widgets/lumio_logo.dart';
@@ -56,20 +58,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           );
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_firebaseAuthMessage(e)),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      showErrorSnackbar(context, _firebaseAuthMessage(e));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not sign in. Please try again.'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      showErrorSnackbar(context, 'Could not sign in. Please try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -81,20 +73,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       await ref.read(authNotifierProvider.notifier).signInWithGoogle();
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_firebaseAuthMessage(e)),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      showErrorSnackbar(context, _firebaseAuthMessage(e));
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Google sign-in failed. Please try again.'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      showErrorSnackbar(context, 'Google sign-in failed. Please try again.');
     } finally {
       if (mounted) setState(() => _isGoogleLoading = false);
     }
@@ -132,8 +114,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         child: DismissKeyboard(
           child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 32),
-          child: Form(
-            key: _formKey,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: AutofillGroup(
+            child: Form(
+              key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -141,18 +125,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 const SizedBox(height: 24),
                 Text(
                   'Welcome to Lumio',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w600,
-                    color: fg1,
-                    height: 1.1,
-                    letterSpacing: -0.01,
-                  ),
+                  style: AppTextStyles.display(color: fg1)
+                      .copyWith(fontSize: 32, height: 1.1),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   'Sign in with your email and password.',
-                  style: TextStyle(fontSize: 16, color: fg2, height: 1.4),
+                  style: AppTextStyles.body(color: fg2),
                 ),
                 const SizedBox(height: 32),
                 FlTextField(
@@ -161,6 +140,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
                   validator: _validateEmail,
+                  autofillHints: const [AutofillHints.email, AutofillHints.username],
                 ),
                 const SizedBox(height: 14),
                 FlTextField(
@@ -171,6 +151,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   textInputAction: TextInputAction.done,
                   validator: _validatePassword,
                   onFieldSubmitted: (_) => _submitEmail(),
+                  autofillHints: const [AutofillHints.password],
                 ),
                 const SizedBox(height: 24),
                 FlButton(
@@ -190,19 +171,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 24),
                 Center(
-                  child: GestureDetector(
-                    onTap: () => context.go('/register'),
+                  child: TextButton(
+                    onPressed: () => context.go('/register'),
+                    style: TextButton.styleFrom(
+                      minimumSize: const Size(48, 48),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      tapTargetSize: MaterialTapTargetSize.padded,
+                    ),
                     child: RichText(
                       text: TextSpan(
                         text: 'New to Lumio? ',
-                        style: TextStyle(fontSize: 14, color: fg2),
-                        children: const [
+                        style: AppTextStyles.secondary(color: fg2),
+                        children: [
                           TextSpan(
                             text: 'Create an account',
-                            style: TextStyle(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: AppTextStyles.secondarySemibold(
+                                color: AppColors.primary),
                           ),
                         ],
                       ),
@@ -211,6 +195,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
               ],
             ),
+          ),
           ),
         ),
         ),

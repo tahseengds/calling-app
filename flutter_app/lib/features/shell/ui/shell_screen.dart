@@ -15,7 +15,13 @@ import '../../calling/domain/missed_calls_badge.dart';
 import '../../chat/presentation/chats_home_screen.dart';
 import '../../chat/domain/conversation_list_notifier.dart';
 
-final shellTabProvider = StateProvider<int>((_) => 0);
+/// Tabs in the bottom nav. The index used by [IndexedStack] and
+/// [BottomNavigationBar] is derived from the enum order, so reordering
+/// these will reorder both the children list and the nav items
+/// together — no manual int constants to keep in sync.
+enum ShellTab { chats, calls, profile }
+
+final shellTabProvider = StateProvider<ShellTab>((_) => ShellTab.chats);
 
 class ShellScreen extends ConsumerStatefulWidget {
   const ShellScreen({super.key});
@@ -67,7 +73,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final tabIndex = ref.watch(shellTabProvider);
+    final tab = ref.watch(shellTabProvider);
 
     // Total unread across conversations → badge on the Messages tab.
     final chatsUnread = ref.watch(conversationListProvider).maybeWhen(
@@ -80,7 +86,7 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
 
     return Scaffold(
       body: IndexedStack(
-        index: tabIndex,
+        index: tab.index,
         children: const [
           ChatsHomeScreen(),
           CallHistoryScreen(),
@@ -88,22 +94,24 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
         ],
       ),
       bottomNavigationBar: _FlBottomNav(
-        currentIndex: tabIndex,
+        currentTab: tab,
         chatsUnread: chatsUnread,
         callsMissed: callsMissed,
-        onTap: (i) {
+        onTap: (t) {
           // Viewing the Calls tab clears its missed badge.
-          if (i == 1) ref.read(callsLastSeenProvider.notifier).markSeen();
-          ref.read(shellTabProvider.notifier).state = i;
+          if (t == ShellTab.calls) {
+            ref.read(callsLastSeenProvider.notifier).markSeen();
+          }
+          ref.read(shellTabProvider.notifier).state = t;
         },
       ),
     );
   }
 }
 
-// Indices kept in sync with the IndexedStack above. Contacts used to be
-// tab 2; it's now reached via the chats-home "new chat" FAB which pushes
-// /contacts as a routed screen.
+// _navItems is indexed by ShellTab.index — order MUST match the enum
+// declaration above. Contacts used to be tab 2; it's now reached via the
+// chats-home "new chat" FAB which pushes /contacts as a routed screen.
 const _navItems = [
   _NavItem(label: 'Messages', icon: LucideIcons.messageCircle),
   _NavItem(label: 'Calls', icon: LucideIcons.phone),
@@ -117,13 +125,13 @@ class _NavItem {
 }
 
 class _FlBottomNav extends StatelessWidget {
-  final int currentIndex;
-  final ValueChanged<int> onTap;
+  final ShellTab currentTab;
+  final ValueChanged<ShellTab> onTap;
   final int chatsUnread;
   final int callsMissed;
 
   const _FlBottomNav({
-    required this.currentIndex,
+    required this.currentTab,
     required this.onTap,
     this.chatsUnread = 0,
     this.callsMissed = 0,
@@ -148,17 +156,17 @@ class _FlBottomNav extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Row(
               children: [
-                for (int i = 0; i < _navItems.length; i++)
+                for (final tab in ShellTab.values)
                   Expanded(
                     child: _NavButton(
-                      item: _navItems[i],
-                      isActive: i == currentIndex,
-                      onTap: () => onTap(i),
+                      item: _navItems[tab.index],
+                      isActive: tab == currentTab,
+                      onTap: () => onTap(tab),
                       isDark: isDark,
-                      badgeCount: switch (i) {
-                        0 => chatsUnread,
-                        1 => callsMissed,
-                        _ => 0,
+                      badgeCount: switch (tab) {
+                        ShellTab.chats => chatsUnread,
+                        ShellTab.calls => callsMissed,
+                        ShellTab.profile => 0,
                       },
                     ),
                   ),

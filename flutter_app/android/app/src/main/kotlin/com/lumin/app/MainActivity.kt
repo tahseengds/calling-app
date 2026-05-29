@@ -2,8 +2,11 @@ package com.lumin.app
 
 import android.content.Context
 import android.content.Intent
+import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.util.Log
 import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -31,6 +34,15 @@ class MainActivity : FlutterFragmentActivity() {
 
     /** Pending native action ('accept' | 'decline' | null) carried in the launch intent. */
     private var pendingCallAction: String? = null
+
+    /**
+     * Proximity-screen-off wake lock — acquired while a voice call is active
+     * (not video calls). When the user puts the phone to their ear the screen
+     * blanks and touch is ignored; when they pull it away, screen comes back.
+     * Held outside any composable / Flutter widget lifecycle so it survives
+     * route transitions during the call.
+     */
+    private var proximityWakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -96,6 +108,33 @@ class MainActivity : FlutterFragmentActivity() {
                     CallService.stopAll(this)
                     result.success(true)
                 }
+                "startIncomingCallService" -> {
+                    // Flutter received a socket call:incoming while the app
+                    // was backgrounded — spin up the native ringer/full-screen
+                    // activity right away rather than waiting for FCM to land
+                    // (FCM can take 10–30 s under battery optimization, by
+                    // which point the 30 s server-side ring window is gone).
+                    //
+                    // CallService.handleIncoming dedups by call_id, so it's
+                    // safe even if FCM also fires for the same call.
+                    val raw = call.arguments
+                    if (raw is Map<*, *>) {
+                        val data = HashMap<String, String?>()
+                        for ((k, v) in raw) {
+                            if (k is String) {
+                                data[k] = v?.toString()
+                            }
+                        }
+                        if (data[CallService.EXTRA_CALL_ID].isNullOrBlank()) {
+                            result.error("BAD_ARGS", "call_id is required", null)
+                        } else {
+                            CallService.startIncoming(this, data)
+                            result.success(true)
+                        }
+                    } else {
+                        result.error("BAD_ARGS", "expected a Map payload", null)
+                    }
+                }
                 "setEngineAlive" -> {
                     val alive = call.argument<Boolean>("alive") ?: false
                     NativeCallBus.setEngineAlive(alive)
@@ -118,6 +157,55 @@ class MainActivity : FlutterFragmentActivity() {
                 "openOemAutoStartSettings" -> {
                     val opened = BatteryOptimization.openOemAutoStartSettings(this)
                     result.success(opened)
+                }
+                "setVoiceCallVolumeStream" -> {
+                    // While true, hardware volume buttons control the
+                    // STREAM_VOICE_CALL (in-call) audio level instead of the
+                    // default media stream. The previous behavior was that
+                    // turning down volume during a call would change ringer
+                    // volume instead of call volume — confusing and wrong.
+                    //
+                    // setVolumeControlStream is per-Activity; restoring to
+                    // USE_DEFAULT_STREAM_TYPE on call end resets it to media.
+                    val enabled = call.argument<Boolean>("enabled") ?: false
+                    volumeControlStream = if (enabled) {
+                        AudioManager.STREAM_VOICE_CALL
+                    } else {
+                        AudioManager.USE_DEFAULT_STREAM_TYPE
+                    }
+                    result.success(true)
+                }
+                "setProximityAware" -> {
+                    // Acquire PROXIMITY_SCREEN_OFF_WAKE_LOCK during voice
+                    // calls only (NOT video). When the proximity sensor
+                    // detects the phone is near the user's ear, the screen
+                    // blanks and touch input is suspended — same as the
+                    // native dialer.
+                    val enabled = call.argument<Boolean>("enabled") ?: false
+                    if (enabled) acquireProximityLock() else releaseProximityLock()
+                    result.success(true)
+                }
+                "startActiveCallService" -> {
+                    // FIX 7: Flutter has transitioned the call to connected.
+                    // Start a foreground service so Android doesn't kill the
+                    // process when the user backgrounds the app.
+                    val callId = call.argument<String>("call_id")
+                    val peerName = call.argument<String>("peer_name") ?: "Call"
+                    val callType = call.argument<String>("call_type") ?: "audio"
+                    if (callId.isNullOrBlank()) {
+                        result.error("BAD_ARGS", "call_id required", null)
+                    } else {
+                        ActiveCallService.startActiveCall(
+                            this, callId, peerName, callType,
+                        )
+                        result.success(true)
+                    }
+                }
+                "stopActiveCallService" -> {
+                    // FIX 7: Call ended (any reason). Stop the persistent
+                    // notification + foreground service.
+                    ActiveCallService.stop(this)
+                    result.success(true)
                 }
                 else -> result.notImplemented()
             }
@@ -182,7 +270,51 @@ class MainActivity : FlutterFragmentActivity() {
         }
     }
 
+    // ── Proximity wake lock ─────────────────────────────────────────────────
+
+    @Suppress("DEPRECATION")  // ON_AFTER_RELEASE flag deprecated but only on R+; harmless.
+    private fun acquireProximityLock() {
+        try {
+            if (proximityWakeLock?.isHeld == true) return
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            if (!pm.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
+                Log.w(TAG, "device has no proximity sensor; skipping wake lock")
+                return
+            }
+            val wl = pm.newWakeLock(
+                PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK,
+                "lumin:call_proximity",
+            )
+            wl.setReferenceCounted(false)
+            wl.acquire()
+            proximityWakeLock = wl
+        } catch (t: Throwable) {
+            Log.w(TAG, "proximity wake lock acquire failed: ${t.message}")
+        }
+    }
+
+    private fun releaseProximityLock() {
+        try {
+            // Release with ON_AFTER_RELEASE flag = turn the screen ON when
+            // released (e.g. call ended while phone still at ear).
+            val wl = proximityWakeLock
+            if (wl != null && wl.isHeld) {
+                @Suppress("DEPRECATION")
+                wl.release(PowerManager.RELEASE_FLAG_WAIT_FOR_NO_PROXIMITY)
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "proximity wake lock release failed: ${t.message}")
+        }
+        proximityWakeLock = null
+    }
+
+    override fun onDestroy() {
+        releaseProximityLock()
+        super.onDestroy()
+    }
+
     companion object {
         const val CHANNEL = "familylink/calls"
+        private const val TAG = "MainActivity"
     }
 }

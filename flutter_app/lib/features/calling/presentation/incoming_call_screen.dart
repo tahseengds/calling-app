@@ -4,11 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/avatar.dart';
 import '../../../shared/widgets/lumio_icons.dart';
+import '../../chat/data/conversation_repository.dart';
+import '../../chat/domain/chat_notifier.dart';
 import '../domain/call_notifier.dart';
 import '../domain/call_state.dart';
 
@@ -59,6 +60,39 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
     _ring2.dispose();
     _bob.dispose();
     super.dispose();
+  }
+
+  /// Decline the incoming call and send the chosen text to the caller as a
+  /// chat message. Decline runs immediately so the ringtone stops the moment
+  /// the chip is tapped — the message send is fire-and-forget via the
+  /// captured [ProviderContainer], so it survives the widget unmounting
+  /// when [callSessionProvider] transitions to ended and pops the screen.
+  Future<void> _sendQuickReplyAndDecline(String text) async {
+    final session = ref.read(callSessionProvider);
+    if (session == null) return;
+    final peerId = session.peerUser.id;
+
+    // Capture the container before unmount; [ref] becomes invalid once the
+    // screen pops in response to declineCall().
+    final container = ProviderScope.containerOf(context, listen: false);
+
+    HapticFeedback.selectionClick();
+    container.read(callSessionProvider.notifier).declineCall();
+
+    // Fire-and-forget. The chat notifier queues optimistically; if the
+    // network is down, the message stays pending in the conversation.
+    () async {
+      try {
+        final convId = await container
+            .read(conversationRepositoryProvider)
+            .getOrCreateConversation(peerId);
+        await container.read(chatProvider(convId).notifier).sendText(text);
+      } catch (_) {
+        // No surface to report on — the call screen has already popped.
+        // Failure here just means the message didn't queue; the user can
+        // re-send manually from the chat.
+      }
+    }();
   }
 
   @override
@@ -205,11 +239,16 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
                       ),
                     ),
                     const SizedBox(height: 28),
-                    Text(
-                      session.peerUser.name,
-                      style: AppTextStyles.display(color: lumioColors.fg1)
-                          .copyWith(fontSize: 32),
-                      textAlign: TextAlign.center,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Text(
+                        session.peerUser.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.display(color: lumioColors.fg1)
+                            .copyWith(fontSize: 32),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -223,6 +262,8 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
             ),
 
             // ── Quick-reply chips ─────────────────────────────────────────
+            // Tapping any chip declines the call and sends the chip text to
+            // the caller as a chat message — see _sendQuickReplyAndDecline.
             Padding(
               padding: const EdgeInsets.symmetric(
                   horizontal: 20, vertical: 14),
@@ -232,29 +273,31 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
                 alignment: WrapAlignment.center,
                 children: ["I'll call back", "On my way", "Can't talk now"]
                     .map((s) {
-                  return GestureDetector(
-                    onTap: () {
-                      // Decline the call and send the chip text as a message.
-                      ref
-                          .read(callSessionProvider.notifier)
-                          .declineWithMessage(s);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.06)
-                            : Colors.black.withValues(alpha: 0.04),
-                        border: Border.all(color: lumioColors.hairline),
-                        borderRadius:
-                            BorderRadius.circular(AppRadius.pill),
-                      ),
-                      child: Text(
-                        s,
-                        style: AppTextStyles.secondaryMedium(
-                                color: lumioColors.fg1)
-                            .copyWith(fontSize: 13),
+                  return Material(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.06)
+                        : Colors.black.withValues(alpha: 0.04),
+                    shape: StadiumBorder(
+                      side: BorderSide(color: lumioColors.hairline),
+                    ),
+                    child: InkWell(
+                      customBorder: const StadiumBorder(),
+                      onTap: () => _sendQuickReplyAndDecline(s),
+                      child: Semantics(
+                        button: true,
+                        label: 'Decline and send: $s',
+                        child: Container(
+                          constraints: const BoxConstraints(minHeight: 40),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
+                          alignment: Alignment.center,
+                          child: Text(
+                            s,
+                            style: AppTextStyles.secondaryMedium(
+                                    color: lumioColors.fg1)
+                                .copyWith(fontSize: 13),
+                          ),
+                        ),
                       ),
                     ),
                   );

@@ -18,13 +18,24 @@ const { subscriber } = require('./redis');
 const logger = require('./logger');
 
 function registerMessageBridge(io) {
-  subscriber.psubscribe('msg_delivery:*', 'receipt:*', 'presence:*', (err) => {
-    if (err) {
-      logger.error({ event: 'psubscribe_error', error: err.message });
-    } else {
-      logger.info({ event: 'pubsub_subscribed', patterns: ['msg_delivery:*', 'receipt:*', 'presence:*'] });
-    }
-  });
+  // FIX 8: also subscribe to user_events:* so block events delivered by the
+  // FastAPI side fan out as socket events (currently used for user:blocked).
+  subscriber.psubscribe(
+    'msg_delivery:*',
+    'receipt:*',
+    'presence:*',
+    'user_events:*',
+    (err) => {
+      if (err) {
+        logger.error({ event: 'psubscribe_error', error: err.message });
+      } else {
+        logger.info({
+          event: 'pubsub_subscribed',
+          patterns: ['msg_delivery:*', 'receipt:*', 'presence:*', 'user_events:*'],
+        });
+      }
+    },
+  );
 
   subscriber.on('pmessage', (_pattern, channel, message) => {
     try {
@@ -52,6 +63,23 @@ function registerMessageBridge(io) {
         const userId = channel.slice('presence:'.length);
         io.to(userId).emit('presence:update', payload);
         logger.debug({ event: 'presence:update', userId });
+
+      } else if (channel.startsWith('user_events:')) {
+        // FIX 8: forward per-user lifecycle events. payload.event names the
+        // specific kind (currently only 'user_blocked'); we translate it to
+        // a socket event of form 'user:<kind without user_ prefix>'.
+        const userId = channel.slice('user_events:'.length);
+        const eventKind = payload.event;
+        const eventMap = {
+          user_blocked: 'user:blocked',
+        };
+        const event = eventMap[eventKind];
+        if (event) {
+          io.to(userId).emit(event, payload);
+          logger.debug({ event, userId });
+        } else {
+          logger.warn({ event: 'unknown_user_event', kind: eventKind, userId });
+        }
       }
     } catch (err) {
       logger.error({ event: 'pmessage_parse_error', channel, error: err.message });

@@ -19,6 +19,7 @@ from app.models.contact import Contact
 from app.models.user import User
 from app.schemas.contact import AddContactRequest, ContactResponse
 from app.schemas.user import UserPublic
+from app.services.realtime import publish, user_events_channel
 from app.utils.exceptions import NotFoundError, ValidationFailedError
 
 
@@ -126,9 +127,25 @@ async def remove_contact(
 
 
 async def set_blocked(
-    db: AsyncSession, user: User, contact_id: UUID, blocked: bool
+    db: AsyncSession, user: User, contact_id: UUID, blocked: bool, redis=None
 ) -> ContactResponse:
     contact = await _load_contact(db, contact_id, user.id)
     contact.is_blocked = blocked
     await db.commit()
+
+    # FIX 8: publish a user_blocked event so any in-progress call between
+    # these two parties tears down immediately on both sides. We push to
+    # BOTH parties' channels — symmetric handling lets the Flutter side
+    # match by peer.id without caring whether it was the blocker or the
+    # blocked. Block-only (not unblock) — unblocking doesn't end calls.
+    if blocked and redis is not None:
+        payload = {
+            "event": "user_blocked",
+            "blocker_id": str(user.id),
+            "blocked_id": str(contact.contact_user_id),
+        }
+        await publish(redis, user_events_channel(str(user.id)), payload)
+        await publish(
+            redis, user_events_channel(str(contact.contact_user_id)), payload,
+        )
     return _to_response(contact)

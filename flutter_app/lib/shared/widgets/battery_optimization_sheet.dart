@@ -112,8 +112,8 @@ class _BatterySheetState extends State<_BatterySheet> {
             const SizedBox(height: 10),
 
             // Body
-            SizedBox(
-              width: 280,
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 320),
               child: Text(
                 "When your phone sleeps, Lumio might stop receiving calls. Turn off battery optimization so your calls and chats come through.",
                 style: TextStyle(fontSize: 15, color: fg2, height: 1.55),

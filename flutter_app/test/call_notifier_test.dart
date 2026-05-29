@@ -219,10 +219,25 @@ class FakeCallRepository implements CallRepository {
       [];
 
   @override
-  Future<CallRecord?> getCall(String callId) async => null;
+  Stream<List<CallRecordRow>> watchCachedHistory() => const Stream.empty();
+
+  // FIX 6: persistence shims. Tests don't exercise SharedPreferences, so
+  // both are no-ops — they exist only to satisfy the interface.
+  @override
+  Future<void> stashInterruptedCall({
+    required String callId,
+    required String peerUserId,
+    required String callType,
+    required String direction,
+    required DateTime startedAt,
+    required DateTime? connectedAt,
+    required DateTime endedAt,
+    required int durationSeconds,
+    required String reason,
+  }) async {}
 
   @override
-  Stream<List<CallRecordRow>> watchCachedHistory() => const Stream.empty();
+  Future<void> syncInterruptedCalls() async {}
 }
 
 // ── Test subclass that swaps in fakes ─────────────────────────────────────────

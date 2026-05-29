@@ -143,8 +143,8 @@ class _PermissionDeniedScreenState extends State<PermissionDeniedScreen>
                       const SizedBox(height: 12),
 
                       // Body
-                      SizedBox(
-                        width: 280,
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 320),
                         child: Text(
                           isMic
                               ? "Lumio can't connect a call without it. Open settings and allow microphone for Lumio."

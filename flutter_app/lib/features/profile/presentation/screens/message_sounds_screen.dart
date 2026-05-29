@@ -8,6 +8,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../shared/widgets/error_snackbar.dart';
 import '../../../../shared/widgets/lumio_icons.dart';
 import '../../../../shared/widgets/settings_tile.dart';
 import '../../../settings/domain/models/notification_preferences.dart';
@@ -76,7 +77,6 @@ class _MessageSoundsScreenState extends ConsumerState<MessageSoundsScreen> {
 
   Future<void> _select(String id, NotificationSound? sound) async {
     final notifier = ref.read(notificationSettingsProvider.notifier);
-    final messenger = ScaffoldMessenger.of(context);
 
     // 1) Persist the selection first so a preview failure doesn't lose the pick.
     try {
@@ -86,12 +86,7 @@ class _MessageSoundsScreenState extends ConsumerState<MessageSoundsScreen> {
         await notifier.setMessageSound(id);
       }
     } catch (_) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Could not save sound.'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      if (mounted) showErrorSnackbar(context, 'Could not save sound.');
       return;
     }
 
@@ -109,24 +104,20 @@ class _MessageSoundsScreenState extends ConsumerState<MessageSoundsScreen> {
       return;
     }
     if (!_playerReady) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text(
-              'Audio player not ready. Try once more or check device volume.'),
-        ),
-      );
+      if (mounted) {
+        showErrorSnackbar(context,
+            'Audio player not ready. Try once more or check device volume.');
+      }
       return;
     }
     try {
       await _player.stop();
       await _player.play(AssetSource(sound!.assetPath!));
     } catch (e) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text('Could not play preview: ${_shortError(e)}'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      if (mounted) {
+        showErrorSnackbar(
+            context, 'Could not play preview: ${_shortError(e)}');
+      }
     }
   }
 

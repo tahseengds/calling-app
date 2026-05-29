@@ -1,4 +1,6 @@
-enum MessageType { text, image, video, audio, file }
+import 'dart:convert';
+
+enum MessageType { text, image, video, audio, file, callLog }
 
 /// Parse the backend's wire `message_type`. The server spells documents
 /// `"document"` while the Dart enum calls it `file`, so map it explicitly —
@@ -16,12 +18,66 @@ MessageType messageTypeFromWire(String? wire) {
       return MessageType.audio;
     case 'file':
       return MessageType.file;
+    case 'call_log':
+      return MessageType.callLog;
     default:
       return MessageType.text;
   }
 }
 
 enum MessageStatus { sending, sent, delivered, read, failed }
+
+String _messageTypeToWire(MessageType type) {
+  switch (type) {
+    case MessageType.text:
+      return 'text';
+    case MessageType.image:
+      return 'image';
+    case MessageType.video:
+      return 'video';
+    case MessageType.audio:
+      return 'audio';
+    case MessageType.file:
+      return 'file';
+    case MessageType.callLog:
+      return 'call_log';
+  }
+}
+
+/// Structured payload carried inside a [MessageType.callLog] message's
+/// `content` field (as a JSON string). The backend inserts this when a
+/// call ends; the chat renders it as an inline log entry.
+///
+/// `outcome` vocabulary (from backend/signaling/src/callLogMessage.js):
+///   answered | missed | declined | busy | failed
+class CallLogMeta {
+  final String callType; // 'audio' | 'video'
+  final String outcome;
+  final int durationSeconds; // 0 when not answered
+
+  const CallLogMeta({
+    required this.callType,
+    required this.outcome,
+    required this.durationSeconds,
+  });
+
+  bool get isVideo => callType == 'video';
+  bool get isAnswered => outcome == 'answered';
+  bool get isMissed => outcome == 'missed';
+  bool get isDeclined => outcome == 'declined';
+
+  factory CallLogMeta.fromJson(Map<String, dynamic> json) => CallLogMeta(
+        callType: json['call_type'] as String? ?? 'audio',
+        outcome: json['outcome'] as String? ?? 'missed',
+        durationSeconds: (json['duration_seconds'] as num?)?.toInt() ?? 0,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'call_type': callType,
+        'outcome': outcome,
+        'duration_seconds': durationSeconds,
+      };
+}
 
 /// Per-emoji aggregate of who reacted to a message. The server keeps the
 /// authoritative state in `message_reactions`; this is the rolled-up shape
@@ -150,6 +206,24 @@ class Message {
     this.reactions = const [],
   });
 
+  /// Lazily-decoded call-log metadata. Returns null for non-call_log
+  /// messages or when `content` isn't valid JSON. Decoded on demand so
+  /// regular bubbles don't pay the parse cost.
+  CallLogMeta? get callLog {
+    if (type != MessageType.callLog) return null;
+    final c = content;
+    if (c == null || c.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(c);
+      if (decoded is Map<String, dynamic>) {
+        return CallLogMeta.fromJson(decoded);
+      }
+    } catch (_) {
+      // Malformed — render the generic "Call" fallback in the UI.
+    }
+    return null;
+  }
+
   factory Message.fromJson(Map<String, dynamic> json) => Message(
         id: json['id'] as String,
         conversationId: json['conversation_id'] as String,
@@ -184,7 +258,8 @@ class Message {
         'id': id,
         'conversation_id': conversationId,
         'sender_id': senderId,
-        'type': type.name,
+        'type': _messageTypeToWire(type),
+        'message_type': _messageTypeToWire(type),
         if (content != null) 'content': content,
         if (media != null) 'media': media!.toJson(),
         'status': status.name,

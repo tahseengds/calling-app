@@ -51,42 +51,46 @@ clientB.on('connect', () => {
   console.log('B connected:', clientB.id);
 
   // A initiates a call to B
+  //
+  // Wire format: all call:* payloads use snake_case (call_id, call_type,
+  // from_user) so they match the Flutter client and the FastAPI REST API.
+  // Local JS variable names stay camelCase by convention.
   clientA.emit('call:initiate', {
     to: USER_B_ID,
     offer: 'v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\n...',   // fake SDP
-    callType: 'video',
+    call_type: 'video',
   });
 });
 
-clientA.on('call:ringing', ({ callId }) => {
+clientA.on('call:ringing', ({ call_id: callId }) => {
   console.log('A: call ringing, callId=', callId);
   global.callId = callId;
 });
 
-clientB.on('call:incoming', ({ callId, from, offer }) => {
+clientB.on('call:incoming', ({ call_id: callId, from, offer }) => {
   console.log('B: incoming call from', from, 'callId=', callId);
   // B answers
-  clientB.emit('call:answer', { callId, to: from, answer: 'v=0\r\n...' });
+  clientB.emit('call:answer', { call_id: callId, to: from, answer: 'v=0\r\n...' });
 });
 
-clientA.on('call:answered', ({ callId, answer }) => {
+clientA.on('call:answered', ({ call_id: callId, answer }) => {
   console.log('A: call answered, callId=', callId);
   // Exchange ICE candidates
-  clientA.emit('call:ice', { callId, to: USER_B_ID, candidate: { candidate: 'candidate:0 1 UDP ...' } });
+  clientA.emit('call:ice', { call_id: callId, to: USER_B_ID, candidate: { candidate: 'candidate:0 1 UDP ...' } });
 });
 
 clientB.on('call:ice', ({ from, candidate }) => {
   console.log('B: got ICE from', from);
-  clientB.emit('call:ice', { callId: global.callId, to: from, candidate });
+  clientB.emit('call:ice', { call_id: global.callId, to: from, candidate });
 });
 
 // After 3 seconds, A hangs up
 setTimeout(() => {
   console.log('A: hanging up');
-  clientA.emit('call:hangup', { callId: global.callId, to: USER_B_ID });
+  clientA.emit('call:hangup', { call_id: global.callId, to: USER_B_ID });
 }, 3000);
 
-clientB.on('call:hangup', ({ callId }) => {
+clientB.on('call:hangup', ({ call_id: callId }) => {
   console.log('B: call ended, callId=', callId);
   process.exit(0);
 });

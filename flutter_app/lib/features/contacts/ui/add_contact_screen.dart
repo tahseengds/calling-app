@@ -4,8 +4,10 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/dismiss_keyboard.dart';
+import '../../../shared/widgets/error_snackbar.dart';
 import '../../../shared/widgets/fl_button.dart';
 import '../../../shared/widgets/fl_text_field.dart';
 import '../../../shared/widgets/lumio_back_button.dart';
@@ -47,12 +49,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
           );
       if (!mounted) return;
       context.pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Contact added!'),
-          backgroundColor: AppColors.success,
-        ),
-      );
+      showSuccessSnackbar(context, 'Contact added!');
     } on DuplicateContactException {
       if (!mounted) return;
       setState(() => _addError = const _Duplicate());
@@ -93,8 +90,10 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
         child: DismissKeyboard(
           child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-          child: Form(
-            key: _formKey,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: AutofillGroup(
+            child: Form(
+              key: _formKey,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -102,17 +101,13 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                 const SizedBox(height: 20),
                 Text(
                   'Add a contact',
-                  style: TextStyle(
-                    fontSize: 28,
-                    fontWeight: FontWeight.w600,
-                    color: fg1,
-                    letterSpacing: -0.01,
-                  ),
+                  style: AppTextStyles.display(color: fg1)
+                      .copyWith(fontSize: 28),
                 ),
                 const SizedBox(height: 10),
                 Text(
                   "Enter their email. We'll find them on Lumio — or you can invite them if they haven't joined yet.",
-                  style: TextStyle(fontSize: 15, color: fg2, height: 1.45),
+                  style: AppTextStyles.body(color: fg2),
                 ),
                 const SizedBox(height: 28),
                 FlTextField(
@@ -122,6 +117,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                   hint: 'name@example.com',
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
+                  autofillHints: const [AutofillHints.email],
                   validator: (v) {
                     final t = (v ?? '').trim();
                     if (t.isEmpty) return 'Enter an email';
@@ -139,6 +135,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                   enabled: !_isLoading,
                   hint: 'e.g. Alex, Sam, Mom',
                   textInputAction: TextInputAction.done,
+                  textCapitalization: TextCapitalization.words,
                   onFieldSubmitted: (_) => _submit(),
                 ),
                 if (_addError != null) ...[
@@ -155,6 +152,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                 // we have a real invite flow (share_plus + deep link).
               ],
             ),
+          ),
           ),
         ),
         ),

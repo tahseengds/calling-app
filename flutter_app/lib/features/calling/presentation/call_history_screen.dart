@@ -7,6 +7,7 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/avatar.dart';
+import '../../../shared/widgets/error_snackbar.dart';
 import '../../../shared/widgets/lumio_icons.dart';
 import '../data/call_repository.dart';
 import '../../../features/chat/data/conversation_repository.dart';
@@ -89,34 +90,34 @@ class _CallHistoryScreenState
                       button: true,
                       selected: isOn,
                       label: '$item filter',
-                      child: GestureDetector(
-                        onTap: () => setState(() {
-                          _filter = item;
-                          _expandedId = null;
-                        }),
-                        child: Container(
-                          height: 36,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.space4),
-                          decoration: BoxDecoration(
+                      child: Material(
+                        color: isOn ? AppColors.primary : Colors.transparent,
+                        shape: StadiumBorder(
+                          side: BorderSide(
                             color: isOn
-                                ? AppColors.primary
-                                : Colors.transparent,
-                            border: Border.all(
-                              color: isOn
-                                  ? Colors.transparent
-                                  : lumioColors.hairline,
-                            ),
-                            borderRadius:
-                                BorderRadius.circular(AppRadius.pill),
+                                ? Colors.transparent
+                                : lumioColors.hairline,
                           ),
-                          child: Center(
-                            child: Text(
-                              item,
-                              style: AppTextStyles.secondaryMedium(
-                                color: isOn
-                                    ? Colors.white
-                                    : lumioColors.fg1,
+                        ),
+                        child: InkWell(
+                          customBorder: const StadiumBorder(),
+                          onTap: () => setState(() {
+                            _filter = item;
+                            _expandedId = null;
+                          }),
+                          child: Container(
+                            constraints: const BoxConstraints(minHeight: 40),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: AppSpacing.space4,
+                              vertical: 6,
+                            ),
+                            child: Center(
+                              child: Text(
+                                item,
+                                style: AppTextStyles.secondaryMedium(
+                                  color:
+                                      isOn ? Colors.white : lumioColors.fg1,
+                                ),
                               ),
                             ),
                           ),
@@ -499,9 +500,7 @@ class _CallRow extends ConsumerWidget {
       }
     } catch (_) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open conversation')),
-        );
+        showErrorSnackbar(context, 'Could not open conversation');
       }
     }
   }
@@ -554,11 +553,15 @@ class _CallRow extends ConsumerWidget {
     }
 
     if (!context.mounted) return;
+    // The global call observer in app.dart pushes /call/outgoing when the
+    // session phase becomes outgoingRinging — same behaviour as the other
+    // entry points (chat screen, contacts). Pushing here too would stack
+    // two outgoing-call screens; only the top one auto-pops on call end,
+    // leaving a zombie underneath that the user has to back out of.
     ref.read(callSessionProvider.notifier).startCall(
           record.peerUser,
           callType,
         );
-    context.push('/call/outgoing');
   }
 
   String _fmt(int seconds) {
@@ -613,46 +616,53 @@ class _ActionBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 40,
-        decoration: BoxDecoration(
-          color: filled ? AppColors.primary : Colors.transparent,
-          border: Border.all(
-            color:
-                filled ? Colors.transparent : lumioColors.hairlineStrong,
-          ),
-          borderRadius: BorderRadius.circular(AppRadius.pill),
-          boxShadow: filled
-              ? const [
-                  BoxShadow(
-                    color: Color(0x2E5B7CFA),
-                    blurRadius: 16,
-                    offset: Offset(0, 6),
-                  ),
-                ]
-              : null,
+    return Material(
+      color: filled ? AppColors.primary : Colors.transparent,
+      shape: StadiumBorder(
+        side: BorderSide(
+          color: filled ? Colors.transparent : lumioColors.hairlineStrong,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon,
-                size: 16,
-                color: filled ? Colors.white : lumioColors.fg1),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: filled ? Colors.white : lumioColors.fg1,
+      ),
+      child: InkWell(
+        customBorder: const StadiumBorder(),
+        onTap: onTap,
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppRadius.pill),
+            boxShadow: filled
+                ? const [
+                    BoxShadow(
+                      color: Color(0x2E5B7CFA),
+                      blurRadius: 16,
+                      offset: Offset(0, 6),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 44),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon,
+                    size: 16,
+                    color: filled ? Colors.white : lumioColors.fg1),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: filled ? Colors.white : lumioColors.fg1,
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

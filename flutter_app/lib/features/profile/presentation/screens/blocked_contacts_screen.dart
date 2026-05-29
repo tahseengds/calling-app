@@ -7,6 +7,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../shared/widgets/avatar.dart';
+import '../../../../shared/widgets/error_snackbar.dart';
 import '../../../../shared/widgets/lumio_icons.dart';
 import '../../../contacts/data/contact_repository.dart';
 
@@ -37,17 +38,10 @@ class _BlockedContactsScreenState extends ConsumerState<BlockedContactsScreen> {
       await repo.setBlocked(contactId: entry.contactId, blocked: false);
       if (!mounted) return;
       setState(() => _future = _load());
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Unblocked ${entry.user.name}')),
-      );
+      showSuccessSnackbar(context, 'Unblocked ${entry.user.name}');
     } catch (_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not unblock contact.'),
-          backgroundColor: AppColors.danger,
-        ),
-      );
+      showErrorSnackbar(context, 'Could not unblock contact.');
     }
   }
 

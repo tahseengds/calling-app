@@ -30,6 +30,13 @@ def presence_channel(user_id: str) -> str:
     return f"presence:{user_id}"
 
 
+def user_events_channel(user_id: str) -> str:
+    """General per-user events that don't fit msg_delivery/receipt/presence —
+    e.g. block notifications. The Node signaling service forwards these as a
+    user:* socket event family per the `event` field in the payload."""
+    return f"user_events:{user_id}"
+
+
 # ── Presence lookup ───────────────────────────────────────────────────────────
 #
 # The Node.js signaling server is the source of truth for live presence: it

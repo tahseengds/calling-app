@@ -83,11 +83,18 @@ class CallService : Service() {
             return
         }
 
-        // If a second incoming arrives while one is already ringing, ignore the
-        // newcomer here — CallNotifier on the Flutter side will respond with
-        // call:busy via the socket. We keep ringing the original one.
-        if (activeCallId != null && activeCallId != callId) {
-            Log.i(TAG, "already ringing for $activeCallId; ignoring $callId")
+        // Idempotency check covers two cases:
+        //   1. A second DIFFERENT incoming arrives while ringing — ignore the
+        //      newcomer, CallNotifier responds with call:busy via the socket.
+        //   2. The SAME callId arrives twice (e.g. FCM + Flutter-bridged start
+        //      from a socket call:incoming) — also ignore so we don't restart
+        //      the ringer, re-arm the timer, or post a second notification.
+        if (activeCallId != null) {
+            if (activeCallId != callId) {
+                Log.i(TAG, "already ringing for $activeCallId; ignoring different callId $callId")
+            } else {
+                Log.i(TAG, "already ringing for $callId; ignoring duplicate start")
+            }
             return
         }
 

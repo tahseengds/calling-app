@@ -60,4 +60,10 @@ async function insertCallRecord({
   );
 }
 
-module.exports = { getUserBrief, getFcmToken, getContactUserIds, insertCallRecord };
+module.exports = {
+  pool,
+  getUserBrief,
+  getFcmToken,
+  getContactUserIds,
+  insertCallRecord,
+};

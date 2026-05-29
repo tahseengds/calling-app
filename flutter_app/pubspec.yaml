@@ -69,7 +69,7 @@ dependencies:
   # modules + centered app logo) + sharing the code as an image.
   mobile_scanner: ^7.2.0
   qr_flutter: ^4.1.0
-  share_plus: ^11.0.0
+  share_plus: ^13.1.0
 
   # WebRTC — flutter_webrtc 0.11+ uses Flutter plugin v2 API (no PluginRegistry.Registrar)
   flutter_webrtc: ^0.13.0
