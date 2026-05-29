@@ -141,7 +141,7 @@ class NotificationService {
   /// the id used by both the Dart and native (FcmService) message paths.
   Future<void> cancelConversation(String conversationId) async {
     if (conversationId.isEmpty) return;
-    await _plugin.cancel(conversationNotificationId(conversationId));
+    await _plugin.cancel(id: conversationNotificationId(conversationId));
   }
 
   /// Clear every message notification (e.g. on logout).
