@@ -234,6 +234,9 @@ class _LuminAppState extends ConsumerState<LuminApp>
   }
 
   Future<void> _handleAppLink(Uri uri) async {
+    // This can fire from a cold-start Future or the uriStream after the widget
+    // has been disposed; bail before touching `ref` if we're no longer mounted.
+    if (!mounted) return;
     // Email verification — fall through silently if the URI is for anything
     // else (the auth-notifier method checks the shape and returns false).
     try {

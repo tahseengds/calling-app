@@ -29,17 +29,20 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
   /// the chrome down to just the remote video then.
   bool _inPip = false;
   late final NativeCallBridge _bridge;
+  // Cached so dispose() doesn't read a provider through `ref` after unmount.
+  late final StateController<bool> _callScreenVisible;
 
   @override
   void initState() {
     super.initState();
     _bridge = ref.read(nativeCallBridgeProvider);
+    _callScreenVisible = ref.read(callScreenVisibleProvider.notifier);
     // Allow auto-PiP when the user backgrounds the app mid-call.
     _bridge.setPipActive(true);
     _bridge.isInPip.addListener(_onPipChanged);
     // Hide the global "return to call" overlay while the full call screen is up.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) ref.read(callScreenVisibleProvider.notifier).state = true;
+      if (mounted) _callScreenVisible.state = true;
     });
   }
 
@@ -52,7 +55,7 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
   void dispose() {
     _bridge.isInPip.removeListener(_onPipChanged);
     _bridge.setPipActive(false);
-    ref.read(callScreenVisibleProvider.notifier).state = false;
+    _callScreenVisible.state = false;
     super.dispose();
   }
 

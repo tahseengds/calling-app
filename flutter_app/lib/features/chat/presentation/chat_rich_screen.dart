@@ -117,6 +117,10 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
   /// setState cost is negligible (ListView.builder only rebuilds visible rows).
   Timer? _clockTicker;
 
+  /// Cached so dispose() can clear the active-conversation flag without reading
+  /// a provider through `ref` after the widget has been deactivated.
+  StateController<String?>? _activeConversation;
+
   /// Resolve the other user's display name. Prefers live data from the chat
   /// state, falls back to the contactName the caller passed (e.g. from
   /// conversation list), then a generic placeholder.
@@ -139,12 +143,12 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
   @override
   void initState() {
     super.initState();
+    _activeConversation = ref.read(activeConversationProvider.notifier);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToBottom();
       // Mark this chat active (so incoming messages for it don't notify) and
       // clear any tray notification / badge already showing for it.
-      ref.read(activeConversationProvider.notifier).state =
-          widget.conversationId;
+      _activeConversation!.state = widget.conversationId;
       ref
           .read(notificationServiceProvider)
           .cancelConversation(widget.conversationId);
@@ -221,8 +225,10 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
   void dispose() {
     // No longer the active conversation (only clear if it's still us — the
     // next chat may have already claimed it).
-    final active = ref.read(activeConversationProvider.notifier);
-    if (active.state == widget.conversationId) active.state = null;
+    final active = _activeConversation;
+    if (active != null && active.state == widget.conversationId) {
+      active.state = null;
+    }
     _clockTicker?.cancel();
     _inputCtrl.dispose();
     _scrollCtrl.dispose();

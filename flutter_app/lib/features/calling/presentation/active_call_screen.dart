@@ -26,6 +26,12 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _breath;
 
+  // Cached in initState so dispose() never touches `ref` — reading a provider
+  // through `ref` once the widget is deactivated throws (BuildContext is
+  // unsafe to use after unmount).
+  late final NativeCallBridge _bridge;
+  late final StateController<bool> _callScreenVisible;
+
   @override
   void initState() {
     super.initState();
@@ -33,20 +39,22 @@ class _ActiveCallScreenState extends ConsumerState<ActiveCallScreen>
       vsync: this,
       duration: const Duration(milliseconds: 3600),
     )..repeat(reverse: true);
+    _bridge = ref.read(nativeCallBridgeProvider);
+    _callScreenVisible = ref.read(callScreenVisibleProvider.notifier);
     // Allow auto-PiP when the user backgrounds the app during a voice call.
-    ref.read(nativeCallBridgeProvider).setPipActive(true);
+    _bridge.setPipActive(true);
     // Tell the global "return to call" overlay we're on the call screen, so it
     // hides while this screen is visible and reappears once we leave.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) ref.read(callScreenVisibleProvider.notifier).state = true;
+      if (mounted) _callScreenVisible.state = true;
     });
   }
 
   @override
   void dispose() {
     _breath.dispose();
-    ref.read(nativeCallBridgeProvider).setPipActive(false);
-    ref.read(callScreenVisibleProvider.notifier).state = false;
+    _bridge.setPipActive(false);
+    _callScreenVisible.state = false;
     super.dispose();
   }
 
