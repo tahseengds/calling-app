@@ -281,7 +281,7 @@ class _ChatsHomeScreenState extends ConsumerState<ChatsHomeScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.wifi_off_rounded,
+            Icon(LucideIcons.wifiOff,
                 size: 48, color: lumioColors.fg3),
             const SizedBox(height: AppSpacing.space3),
             Text(

@@ -1,72 +1,73 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
-/// Stroke-style icons aligned with lumio-screens-design.html.
-/// Uses Material outlined icons (compatible with all Flutter versions).
+/// Semantic icon aliases used across the app, backed by the Lucide icon set
+/// (lucide_icons_flutter). Centralising them here gives a single swap point.
 abstract final class LumioIcons {
-  static const IconData phone = Icons.phone_outlined;
-  static const IconData message = Icons.chat_bubble_outline;
-  static const IconData users = Icons.people_outline;
-  static const IconData settings = Icons.settings_outlined;
-  static const IconData add = Icons.person_add_outlined;
-  static const IconData search = Icons.search;
-  static const IconData eye = Icons.visibility_outlined;
-  static const IconData eyeOff = Icons.visibility_off_outlined;
-  static const IconData back = Icons.arrow_back;
-  static const IconData more = Icons.more_horiz;
-  static const IconData bell = Icons.notifications_outlined;
-  static const IconData shield = Icons.shield_outlined;
-  static const IconData logout = Icons.logout;
-  static const IconData chevronRight = Icons.chevron_right;
-  static const IconData camera = Icons.camera_alt_outlined;
-  static const IconData edit = Icons.edit_outlined;
-  static const IconData help = Icons.help_outline;
-  static const IconData info = Icons.info_outline;
-  static const IconData battery = Icons.battery_charging_full_outlined;
-  static const IconData send = Icons.send_outlined;
-  static const IconData wifiOff = Icons.wifi_off;
-  static const IconData people = Icons.people_outline;
+  static const IconData phone = LucideIcons.phone;
+  static const IconData message = LucideIcons.messageCircle;
+  static const IconData users = LucideIcons.users;
+  static const IconData settings = LucideIcons.settings;
+  static const IconData add = LucideIcons.userPlus;
+  static const IconData search = LucideIcons.search;
+  static const IconData eye = LucideIcons.eye;
+  static const IconData eyeOff = LucideIcons.eyeOff;
+  static const IconData back = LucideIcons.arrowLeft;
+  static const IconData more = LucideIcons.ellipsis;
+  static const IconData bell = LucideIcons.bell;
+  static const IconData shield = LucideIcons.shield;
+  static const IconData logout = LucideIcons.logOut;
+  static const IconData chevronRight = LucideIcons.chevronRight;
+  static const IconData camera = LucideIcons.camera;
+  static const IconData edit = LucideIcons.pencil;
+  static const IconData help = LucideIcons.circleHelp;
+  static const IconData info = LucideIcons.info;
+  static const IconData battery = LucideIcons.batteryCharging;
+  static const IconData send = LucideIcons.send;
+  static const IconData wifiOff = LucideIcons.wifiOff;
+  static const IconData people = LucideIcons.users;
   
   // Newly added for calls and chats
-  static const IconData video = Icons.videocam_outlined;
-  static const IconData videoOff = Icons.videocam_off_outlined;
-  static const IconData mic = Icons.mic_none_outlined;
-  static const IconData micOff = Icons.mic_off_outlined;
-  static const IconData speaker = Icons.volume_up_outlined;
-  static const IconData check = Icons.check;
-  static const IconData attach = Icons.attach_file;
-  static const IconData smile = Icons.sentiment_satisfied_alt_outlined;
-  static const IconData chevron = Icons.chevron_right;
-  static const IconData arrowDown = Icons.keyboard_arrow_down;
-  static const IconData heart = Icons.favorite_border;
-  static const IconData history = Icons.history;
-  static const IconData arrowUp = Icons.arrow_upward;
-  static const IconData arrowDownLeft = Icons.call_received;
-  static const IconData arrowUpRight = Icons.call_made;
-  static const IconData close = Icons.close;
+  static const IconData video = LucideIcons.video;
+  static const IconData videoOff = LucideIcons.videoOff;
+  static const IconData mic = LucideIcons.mic;
+  static const IconData micOff = LucideIcons.micOff;
+  static const IconData speaker = LucideIcons.volume2;
+  static const IconData check = LucideIcons.check;
+  static const IconData attach = LucideIcons.paperclip;
+  static const IconData smile = LucideIcons.smile;
+  static const IconData chevron = LucideIcons.chevronRight;
+  static const IconData arrowDown = LucideIcons.chevronDown;
+  static const IconData heart = LucideIcons.heart;
+  static const IconData history = LucideIcons.history;
+  static const IconData arrowUp = LucideIcons.arrowUp;
+  static const IconData arrowDownLeft = LucideIcons.phoneIncoming;
+  static const IconData arrowUpRight = LucideIcons.phoneOutgoing;
+  static const IconData close = LucideIcons.x;
 
   // Settings-screens additions
-  static const IconData lock = Icons.lock_outline;
-  static const IconData mail = Icons.mail_outline;
-  static const IconData volume = Icons.volume_up_outlined;
-  static const IconData volumeOff = Icons.volume_off_outlined;
-  static const IconData block = Icons.block;
-  static const IconData vibration = Icons.vibration;
-  static const IconData clock = Icons.access_time;
-  static const IconData moon = Icons.dark_mode_outlined;
-  static const IconData musicNote = Icons.music_note_outlined;
-  static const IconData lockClock = Icons.lock_clock_outlined;
-  static const IconData fingerprint = Icons.fingerprint;
-  static const IconData warning = Icons.warning_amber_outlined;
-  static const IconData bookOpen = Icons.menu_book_outlined;
-  static const IconData heartFilled = Icons.favorite;
-  static const IconData openInNew = Icons.open_in_new;
-  static const IconData fileText = Icons.description_outlined;
-  static const IconData bug = Icons.bug_report_outlined;
-  static const IconData userMinus = Icons.person_remove_outlined;
-  static const IconData phoneOff = Icons.phone_disabled_outlined;
-  static const IconData groups = Icons.group_outlined;
-  static const IconData reactions = Icons.emoji_emotions_outlined;
-  static const IconData mention = Icons.alternate_email;
+  static const IconData lock = LucideIcons.lock;
+  static const IconData mail = LucideIcons.mail;
+  static const IconData volume = LucideIcons.volume2;
+  static const IconData volumeOff = LucideIcons.volumeX;
+  static const IconData block = LucideIcons.ban;
+  static const IconData vibration = LucideIcons.vibrate;
+  static const IconData clock = LucideIcons.clock;
+  static const IconData moon = LucideIcons.moon;
+  static const IconData musicNote = LucideIcons.music;
+  static const IconData lockClock = LucideIcons.lock;
+  static const IconData fingerprint = LucideIcons.fingerprint;
+  static const IconData warning = LucideIcons.triangleAlert;
+  static const IconData bookOpen = LucideIcons.bookOpen;
+  static const IconData heartFilled = LucideIcons.heart;
+  static const IconData openInNew = LucideIcons.externalLink;
+  static const IconData fileText = LucideIcons.fileText;
+  static const IconData bug = LucideIcons.bug;
+  static const IconData userMinus = LucideIcons.userMinus;
+  static const IconData phoneOff = LucideIcons.phoneOff;
+  static const IconData groups = LucideIcons.users;
+  static const IconData reactions = LucideIcons.smile;
+  static const IconData mention = LucideIcons.atSign;
 }
 
 /// US flag mini widget for phone prefix (design uses SVG, not emoji).

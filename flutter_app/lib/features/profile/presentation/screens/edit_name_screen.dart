@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -237,7 +238,7 @@ class _EditNameScreenState extends ConsumerState<EditNameScreen> {
                   errorText: _errorText,
                   suffixIcon: _controller.text.isNotEmpty
                       ? IconButton(
-                          icon: Icon(Icons.clear, color: colors.fg3, size: 20),
+                          icon: Icon(LucideIcons.x, color: colors.fg3, size: 20),
                         tooltip: 'Clear',
                           onPressed: () => _controller.clear(),
                       )

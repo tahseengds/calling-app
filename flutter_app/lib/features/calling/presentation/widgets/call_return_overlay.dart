@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
@@ -78,7 +79,7 @@ class _CallReturnOverlayState extends ConsumerState<CallReturnOverlay> {
             color: AppColors.success,
             child: Row(
               children: [
-                const Icon(Icons.phone_in_talk_rounded,
+                const Icon(LucideIcons.phoneCall,
                     color: Colors.white, size: 18),
                 const SizedBox(width: 10),
                 const Expanded(

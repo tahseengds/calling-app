@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:go_router/go_router.dart';
@@ -121,7 +122,7 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
                 child: const Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.videocam_off_rounded,
+                    Icon(LucideIcons.videoOff,
                         color: Colors.white70, size: 16),
                     SizedBox(width: 6),
                     Text('Your camera is off',
@@ -163,7 +164,7 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
                           color: Colors.white.withValues(alpha: 0.12),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.fullscreen_exit,
+                        child: const Icon(LucideIcons.minimize,
                             color: Colors.white, size: 22),
                       ),
                     ),
@@ -368,7 +369,7 @@ class _VideoPlaceholder extends StatelessWidget {
       color: const Color(0xFF0B0F1A),
       child: Center(
         child: Icon(
-          Icons.videocam_off_rounded,
+          LucideIcons.videoOff,
           size: 64,
           color: Colors.white.withValues(alpha: 0.3),
         ),
@@ -421,7 +422,7 @@ class WeakConnectionBanner extends StatelessWidget {
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: const Center(
-                        child: Icon(Icons.wifi_rounded,
+                        child: Icon(LucideIcons.wifi,
                             color: Color(0xFFF0A93B), size: 22),
                       ),
                     ),

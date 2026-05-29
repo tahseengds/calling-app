@@ -11,6 +11,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -453,10 +454,10 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
   /// for text so we don't waste pixels on a chat-bubble icon when the
   /// caption itself already tells the user what they're replying to.
   IconData? _replyTypeIcon(MessageType type) => switch (type) {
-        MessageType.image => Icons.image_outlined,
-        MessageType.video => Icons.play_circle_outline_rounded,
-        MessageType.audio => Icons.mic_none_rounded,
-        MessageType.file => Icons.insert_drive_file_outlined,
+        MessageType.image => LucideIcons.image,
+        MessageType.video => LucideIcons.circlePlay,
+        MessageType.audio => LucideIcons.mic,
+        MessageType.file => LucideIcons.file,
         MessageType.text => null,
       };
 
@@ -559,7 +560,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
             _ReplyThumbnail(url: _replyThumbnailUrl(_replyingTo!)!),
           ],
           IconButton(
-            icon: Icon(Icons.close_rounded, size: 20, color: c.fg2),
+            icon: Icon(LucideIcons.x, size: 20, color: c.fg2),
             tooltip: 'Back',
             onPressed: _cancelReply,
             padding: EdgeInsets.zero,
@@ -855,7 +856,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
               ),
               const SizedBox(height: 18),
               _AttachListItem(
-                icon: Icons.image_outlined,
+                icon: LucideIcons.image,
                 title: 'Photo',
                 subtitle: 'Pick one from your gallery.',
                 color: AppColors.primary,
@@ -867,7 +868,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
               ),
               const SizedBox(height: 10),
               _AttachListItem(
-                icon: Icons.play_circle_outline_rounded,
+                icon: LucideIcons.circlePlay,
                 title: 'Video',
                 subtitle: 'Send a video from your gallery.',
                 color: AppColors.danger,
@@ -879,7 +880,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
               ),
               const SizedBox(height: 10),
               _AttachListItem(
-                icon: Icons.camera_alt_outlined,
+                icon: LucideIcons.camera,
                 title: 'Camera',
                 subtitle: 'Take a new photo.',
                 color: AppColors.success,
@@ -891,7 +892,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
               ),
               const SizedBox(height: 10),
               _AttachListItem(
-                icon: Icons.insert_drive_file_outlined,
+                icon: LucideIcons.file,
                 title: 'Document',
                 subtitle: 'Share a file, like a PDF.',
                 color: const Color(0xFFF0A93B),
@@ -1193,7 +1194,7 @@ class _MediaThumb extends StatelessWidget {
               ),
               child: Padding(
                 padding: EdgeInsets.all(8),
-                child: Icon(Icons.play_arrow_rounded,
+                child: Icon(LucideIcons.play,
                     color: Colors.white, size: 26),
               ),
             ),
@@ -1257,7 +1258,7 @@ class _UploadProgressOverlay extends ConsumerWidget {
                     valueColor:
                         const AlwaysStoppedAnimation<Color>(Colors.white),
                   ),
-                  const Icon(Icons.close_rounded, color: Colors.white, size: 22),
+                  const Icon(LucideIcons.x, color: Colors.white, size: 22),
                 ],
               ),
             ),
@@ -1297,7 +1298,7 @@ class _ScrollToBottomButton extends StatelessWidget {
           child: Stack(
             alignment: Alignment.center,
             children: [
-              Icon(Icons.keyboard_arrow_down_rounded,
+              Icon(LucideIcons.chevronDown,
                   color: colors.fg1, size: 26),
               if (hasNew)
                 Positioned(
@@ -1659,7 +1660,7 @@ class _MessageRow extends StatelessWidget {
                   },
                 ),
                 _SheetOption(
-                  icon:  Icons.delete_outline,
+                  icon:  LucideIcons.trash2,
                   label: 'Delete',
                   color: AppColors.danger,
                   onTap: () {
@@ -2007,7 +2008,7 @@ class _MediaVisualContent extends StatelessWidget {
                     child: Padding(
                       padding: EdgeInsets.all(10),
                       child: Icon(
-                        Icons.play_arrow_rounded,
+                        LucideIcons.play,
                         color: Colors.white,
                         size: 32,
                       ),
@@ -2079,7 +2080,7 @@ class _MediaPlaceholder extends StatelessWidget {
       color: const Color(0x33000000),
       child: Center(
         child: Icon(
-          isVideo ? Icons.movie_outlined : Icons.broken_image_outlined,
+          isVideo ? LucideIcons.film : LucideIcons.imageOff,
           color: Colors.white70,
           size: 36,
         ),
@@ -2141,7 +2142,7 @@ class _FileMessageContent extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.insert_drive_file_outlined, color: fgColor, size: 28),
+        Icon(LucideIcons.file, color: fgColor, size: 28),
         const SizedBox(width: 10),
         Flexible(
           child: Column(
@@ -2284,8 +2285,8 @@ class _AudioMessageContentState extends State<_AudioMessageContent> {
             opacity: unplayable ? 0.5 : 1.0,
             child: Icon(
               _isPlaying
-                  ? Icons.pause_circle_filled_rounded
-                  : Icons.play_circle_fill_rounded,
+                  ? LucideIcons.circlePause
+                  : LucideIcons.circlePlay,
               color: fg,
               size: 32,
             ),
@@ -2339,7 +2340,7 @@ class _DeletedBubble extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.not_interested_rounded, size: 14, color: colors.fg2),
+            Icon(LucideIcons.ban, size: 14, color: colors.fg2),
             const SizedBox(width: 8),
             Text(
               'This message was deleted',
@@ -2501,7 +2502,7 @@ class _MessageStatusIcon extends StatelessWidget {
       MessageStatus.read => const _DoubleTick(color: _T.readTick),
       // Failed — warning triangle (HTML: triangle with ! inside)
       MessageStatus.failed => const Icon(
-          Icons.warning_rounded,
+          LucideIcons.triangleAlert,
           size:  12,
           color: AppColors.danger,
         ),
@@ -2952,7 +2953,7 @@ class _ChatInputBarState extends State<_ChatInputBar>
               child: Transform.rotate(
                 angle: math.pi / 4,
                 child: _PillIconButton(
-                  icon:    Icons.attach_file_rounded,
+                  icon:    LucideIcons.paperclip,
                   color:   c.fg2,
                   size:    _kIconBtn,
                   iconSz:  _kIconSz,
@@ -3005,7 +3006,7 @@ class _ChatInputBarState extends State<_ChatInputBar>
             children: [
               FadeTransition(
                 opacity: _micOpacity,
-                child: const Icon(Icons.mic_rounded, color: Colors.white, size: _kIconSz + 2),
+                child: const Icon(LucideIcons.mic, color: Colors.white, size: _kIconSz + 2),
               ),
               FadeTransition(
                 opacity: _sendOpacity,
@@ -3083,7 +3084,7 @@ class _ChatInputBarState extends State<_ChatInputBar>
                     ],
                   ),
                   child: Center(
-                    child: Icon(Icons.mic_rounded, color: Colors.white, size: _kIconSz + 2),
+                    child: Icon(LucideIcons.mic, color: Colors.white, size: _kIconSz + 2),
                   ),
                 ),
               ),
@@ -3129,7 +3130,7 @@ class _ChatInputBarState extends State<_ChatInputBar>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.chevron_left_rounded, color: hintColor, size: 16),
+                      Icon(LucideIcons.chevronLeft, color: hintColor, size: 16),
                       const SizedBox(width: 4),
                       Text('Slide to cancel', style: AppTextStyles.bodyMedium(color: hintColor).copyWith(fontSize: 14)),
                     ],
@@ -3161,7 +3162,7 @@ class _ChatInputBarState extends State<_ChatInputBar>
                   border: Border.all(color: AppColors.danger, width: 2),
                 ),
                 child: const Center(
-                  child: Icon(Icons.delete_outline_rounded, color: AppColors.danger, size: 20),
+                  child: Icon(LucideIcons.trash2, color: AppColors.danger, size: 20),
                 ),
               ),
             );
@@ -3372,7 +3373,7 @@ class _AttachListItem extends StatelessWidget {
                 ],
               ),
             ),
-            Icon(Icons.chevron_right_rounded, color: c.fg2, size: 24),
+            Icon(LucideIcons.chevronRight, color: c.fg2, size: 24),
           ],
         ),
       ),
@@ -3479,7 +3480,7 @@ class _ContextMenuOverlay extends StatelessWidget {
                           color: isDark ? const Color(0xFF1F273C) : const Color(0xFFF8FAFE),
                           border: Border.all(color: border),
                         ),
-                        child: Icon(Icons.add, color: isDark ? const Color(0xFF9AA3B8) : const Color(0xFF6B7488), size: 20),
+                        child: Icon(LucideIcons.plus, color: isDark ? const Color(0xFF9AA3B8) : const Color(0xFF6B7488), size: 20),
                       ),
                     ),
                   ],
@@ -3506,21 +3507,21 @@ class _ContextMenuOverlay extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     _ContextMenuAction(
-                      icon: Icons.reply_rounded, 
+                      icon: LucideIcons.reply, 
                       label: 'Reply', 
                       color: fg, 
                       border: border, 
                       onTap: () => Navigator.of(context).pop(),
                     ),
                     _ContextMenuAction(
-                      icon: Icons.copy_rounded, 
+                      icon: LucideIcons.copy, 
                       label: 'Copy', 
                       color: fg, 
                       border: border, 
                       onTap: () => Navigator.of(context).pop(),
                     ),
                     _ContextMenuAction(
-                      icon: Icons.shortcut_rounded, 
+                      icon: LucideIcons.forward, 
                       label: 'Forward', 
                       color: fg, 
                       border: border, 
@@ -3528,7 +3529,7 @@ class _ContextMenuOverlay extends StatelessWidget {
                     ),
                     if (mine)
                       _ContextMenuAction(
-                        icon: Icons.delete_outline_rounded, 
+                        icon: LucideIcons.trash2, 
                         label: 'Delete', 
                         color: AppColors.danger, 
                         border: Colors.transparent, 

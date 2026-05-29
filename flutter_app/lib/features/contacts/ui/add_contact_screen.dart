@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
@@ -187,17 +188,17 @@ class _ErrorBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final (icon, title, subtitle) = switch (error) {
       _NotFound() => (
-          Icons.person_search_outlined,
+          LucideIcons.userSearch,
           'Not on Lumio yet',
           'No one with that email has joined Lumio. Invite them so you can chat and call.',
         ),
       _Duplicate() => (
-          Icons.people_outline,
+          LucideIcons.users,
           'Already in your contacts',
           'This person is already on your contact list.',
         ),
       _OtherError(:final message) => (
-          Icons.error_outline,
+          LucideIcons.circleAlert,
           'Something went wrong',
           message,
         ),

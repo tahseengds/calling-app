@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../../core/theme/app_colors.dart';
 
@@ -87,7 +88,7 @@ class _PermissionDeniedScreenState extends State<PermissionDeniedScreen>
                   alignment: Alignment.centerLeft,
                   child: IconButton(
                     onPressed: () => Navigator.of(context).maybePop(),
-                    icon: Icon(Icons.close, color: fg1, size: 22),
+                    icon: Icon(LucideIcons.x, color: fg1, size: 22),
                     style: IconButton.styleFrom(
                       backgroundColor: Colors.transparent,
                       shape: const CircleBorder(),
@@ -117,8 +118,8 @@ class _PermissionDeniedScreenState extends State<PermissionDeniedScreen>
                         child: Center(
                           child: Icon(
                             isMic
-                                ? Icons.mic_off_rounded
-                                : Icons.videocam_off_rounded,
+                                ? LucideIcons.micOff
+                                : LucideIcons.videoOff,
                             size: 52,
                             color: AppColors.danger,
                           ),

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:go_router/go_router.dart';
 import 'package:photo_view/photo_view.dart';
 import 'package:video_player/video_player.dart';
@@ -87,7 +88,7 @@ class _MediaGalleryScreenState extends State<MediaGalleryScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.close_rounded, color: Colors.white),
+          icon: const Icon(LucideIcons.x, color: Colors.white),
           tooltip: 'Close',
           onPressed: () => context.pop(),
         ),
@@ -231,8 +232,8 @@ class _GalleryVideoPageState extends State<_GalleryVideoPage> {
                 ),
                 child: Icon(
                   ctrl.value.isPlaying
-                      ? Icons.pause_rounded
-                      : Icons.play_arrow_rounded,
+                      ? LucideIcons.pause
+                      : LucideIcons.play,
                   color: Colors.white,
                   size: 36,
                 ),

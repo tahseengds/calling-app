@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../core/theme/app_colors.dart';
 
@@ -123,19 +124,19 @@ class _PermissionsSheetState extends State<_PermissionsSheet> {
                 children: [
                   _PermIcon(
                     color: AppColors.primary,
-                    icon: Icons.notifications_outlined,
+                    icon: LucideIcons.bell,
                     borderColor: borderColor,
                   ),
                   const SizedBox(width: 12),
                   _PermIcon(
                     color: AppColors.success,
-                    icon: Icons.mic_none_outlined,
+                    icon: LucideIcons.mic,
                     borderColor: borderColor,
                   ),
                   const SizedBox(width: 12),
                   _PermIcon(
                     color: const Color(0xFFF0A93B),
-                    icon: Icons.videocam_outlined,
+                    icon: LucideIcons.video,
                     borderColor: borderColor,
                   ),
                 ],
@@ -317,7 +318,7 @@ class _PermRow extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
               child: const Center(
-                child: Icon(Icons.check, size: 14, color: Colors.white),
+                child: Icon(LucideIcons.check, size: 14, color: Colors.white),
               ),
             ),
             const SizedBox(width: 12),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
@@ -187,12 +188,12 @@ class VideoCallControls extends StatelessWidget {
             onTap: onToggleMic,
           ),
           _VideoCtrlBtn(
-            icon: isCameraOff ? Icons.videocam_off_rounded : LumioIcons.video,
+            icon: isCameraOff ? LucideIcons.videoOff : LumioIcons.video,
             active: isCameraOff,
             onTap: onToggleCamera,
           ),
           _VideoCtrlBtn(
-            icon: Icons.flip_camera_ios_rounded,
+            icon: LucideIcons.switchCamera,
             onTap: onFlipCamera,
           ),
           _VideoCtrlBtn(

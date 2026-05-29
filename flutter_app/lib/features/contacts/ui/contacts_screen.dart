@@ -349,7 +349,7 @@ class _PillSearchBarState extends State<_PillSearchBar> {
           ),
           suffixIcon: widget.controller.text.isNotEmpty
               ? IconButton(
-                  icon: const Icon(Icons.close, size: 18),
+                  icon: const Icon(LucideIcons.x, size: 18),
                   color: colors.fg3,
                   tooltip: 'Clear',
                   onPressed: () {
