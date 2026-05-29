@@ -3467,6 +3467,7 @@ class _Timestamp extends StatelessWidget {
     required this.mine,
     required this.status,
     required this.colors,
+    this.edited = false,
     this.onRetry,
   });
 
@@ -3474,6 +3475,7 @@ class _Timestamp extends StatelessWidget {
   final bool        mine;
   final MessageStatus status;
   final LumioColors colors;
+  final bool        edited;
   final VoidCallback? onRetry;
 
   bool get _isFailed => status == MessageStatus.failed;
@@ -3481,8 +3483,8 @@ class _Timestamp extends StatelessWidget {
   String get _label {
     final now = DateTime.now();
     final diff = now.difference(time);
-    if (diff.inMinutes < 2) return 'Just now';
-    return DateFormat('h:mm a').format(time);
+    final base = diff.inMinutes < 2 ? 'Just now' : DateFormat('h:mm a').format(time);
+    return edited ? 'edited · $base' : base;
   }
 
   @override
