@@ -23,6 +23,9 @@ enum EndReason {
   missed,   // ring timeout without answer (incoming)
   failed,   // ICE / connection failure
   timeout,  // ring timeout without answer (outgoing)
+  interrupted, // OS audio interruption (cellular call, Siri, alarm)
+  forceKilled, // app killed while connected — reconciled on next launch
+  blocked,     // one side blocked the other mid-call
 }
 
 // ── PeerUser ────────────────────────────────────────────────────────────────

@@ -34,6 +34,10 @@ enum NativeCallEventKind {
 
   /// User tapped Decline on the native notification (or via cold-start launch).
   decline,
+
+  /// FIX 7: User tapped Hang Up on the persistent in-call notification while
+  /// the app was backgrounded. Payload carries only call_id + native_action.
+  hangup,
 }
 
 class NativeCallEvent {
@@ -141,6 +145,107 @@ class NativeCallBridge {
     }
   }
 
+  /// Spin up the native CallService for an incoming call that arrived over
+  /// the socket (not FCM). Used by [CallNotifier.handleIncomingCall] when
+  /// the app is backgrounded — without this, a backgrounded callee with a
+  /// live socket sees nothing (Flutter can't show UI while not in the
+  /// foreground), and FCM may take 10–30 s under battery optimization.
+  ///
+  /// [payload] must include `call_id`. Other keys (`caller_id`, `caller_name`,
+  /// `caller_avatar`, `call_type`, `sdp_offer`, `signal_token`) are forwarded
+  /// to CallService as intent extras so the full-screen activity and the
+  /// notification can populate themselves.
+  ///
+  /// Idempotent on the native side — calling this for a callId that's
+  /// already ringing (e.g. because FCM also arrived) is a no-op.
+  Future<void> startIncomingCallService(Map<String, String?> payload) async {
+    if (kIsWeb) return;
+    if ((payload['call_id'] ?? '').isEmpty) return;
+    try {
+      await _channel.invokeMethod<void>('startIncomingCallService', payload);
+    } on PlatformException catch (e) {
+      debugPrint('[native_call_bridge] startIncomingCallService failed: $e');
+    } on MissingPluginException {
+      /* tests */
+    }
+  }
+
+  /// Route hardware volume buttons to the in-call (voice-call) stream while
+  /// `enabled` is true. Without this, pressing volume during an active call
+  /// changes media volume — the wrong stream entirely. Call with `false` at
+  /// call end to restore default (media) routing.
+  Future<void> setVoiceCallVolumeStream(bool enabled) async {
+    if (kIsWeb) return;
+    try {
+      await _channel.invokeMethod<void>(
+        'setVoiceCallVolumeStream',
+        {'enabled': enabled},
+      );
+    } on PlatformException catch (e) {
+      debugPrint('[native_call_bridge] setVoiceCallVolumeStream failed: $e');
+    } on MissingPluginException {
+      /* tests */
+    }
+  }
+
+  /// Acquire a PROXIMITY_SCREEN_OFF_WAKE_LOCK so the screen blanks when the
+  /// user puts the phone to their ear. Only enable during VOICE calls (not
+  /// video — the user needs to see the screen). Idempotent on the native
+  /// side; safe to call with the same value repeatedly.
+  Future<void> setProximityAware(bool enabled) async {
+    if (kIsWeb) return;
+    try {
+      await _channel.invokeMethod<void>(
+        'setProximityAware',
+        {'enabled': enabled},
+      );
+    } on PlatformException catch (e) {
+      debugPrint('[native_call_bridge] setProximityAware failed: $e');
+    } on MissingPluginException {
+      /* tests */
+    }
+  }
+
+  /// FIX 7: Start the active-call foreground service when the call
+  /// transitions to connected. Keeps the process priority high enough that
+  /// Android doesn't kill it while the user is in another app or on the
+  /// lock screen. Shows a persistent low-importance notification with a
+  /// hang-up action. Idempotent — calling again for the same call_id is
+  /// a no-op on the native side.
+  Future<void> startActiveCallService({
+    required String callId,
+    required String peerName,
+    required String callType,
+  }) async {
+    if (kIsWeb) return;
+    if (callId.isEmpty) return;
+    try {
+      await _channel.invokeMethod<void>('startActiveCallService', {
+        'call_id': callId,
+        'peer_name': peerName,
+        'call_type': callType,
+      });
+    } on PlatformException catch (e) {
+      debugPrint('[native_call_bridge] startActiveCallService failed: $e');
+    } on MissingPluginException {
+      /* tests */
+    }
+  }
+
+  /// FIX 7: Stop the active-call foreground service. Called from every
+  /// end-of-call path so the notification disappears the instant the
+  /// call ends.
+  Future<void> stopActiveCallService() async {
+    if (kIsWeb) return;
+    try {
+      await _channel.invokeMethod<void>('stopActiveCallService');
+    } on PlatformException catch (e) {
+      debugPrint('[native_call_bridge] stopActiveCallService failed: $e');
+    } on MissingPluginException {
+      /* tests */
+    }
+  }
+
   Future<void> dispose() async {
     _channel.setMethodCallHandler(null);
     await _events.close();
@@ -181,6 +286,7 @@ class NativeCallBridge {
     final kind = switch (nativeAction) {
       'accept' => NativeCallEventKind.accept,
       'decline' => NativeCallEventKind.decline,
+      'hangup' => NativeCallEventKind.hangup,
       _ => NativeCallEventKind.incoming,
     };
     return NativeCallEvent(kind: kind, payload: map);
@@ -204,6 +310,7 @@ class NativeCallBridge {
     final kind = switch (nativeAction) {
       'accept' => NativeCallEventKind.accept,
       'decline' => NativeCallEventKind.decline,
+      'hangup' => NativeCallEventKind.hangup,
       _ => null,
     };
     if (kind == null) return null;

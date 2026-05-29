@@ -51,6 +51,9 @@ dependencies:
   video_player: ^2.11.1
   photo_view: ^0.15.0
   cached_network_image: ^3.4.1
+  # audio_session: subscribe to OS audio interruptions (incoming cellular
+  # call, Siri, alarm) so an active call can pause/resume cleanly.
+  audio_session: ^0.2.3
 
   # Storage
   flutter_secure_storage: ^10.3.0
