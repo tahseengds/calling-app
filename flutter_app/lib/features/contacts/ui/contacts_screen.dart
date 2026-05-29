@@ -239,9 +239,15 @@ class _ContactsScreenState extends ConsumerState<ContactsScreen> {
           final user = filtered[i];
           return _ContactRow(
             user: user,
-            onRemove: () => ref
-                .read(contactsNotifierProvider.notifier)
-                .removeContact(user.id),
+            onRemove: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              await ref
+                  .read(contactsNotifierProvider.notifier)
+                  .removeContact(user.id);
+              messenger.showSnackBar(
+                SnackBar(content: Text('Removed ${user.name}')),
+              );
+            },
             onCallAudio: () => _placeCall(user, CallType.audio),
             onMessage: () async {
               try {

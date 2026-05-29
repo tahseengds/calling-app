@@ -19,6 +19,7 @@ class FlTextField extends StatefulWidget {
   final List<TextInputFormatter>? inputFormatters;
   final String? hint;
   final bool readOnly;
+  final bool enabled;
   final int? maxLines;
 
   const FlTextField({
@@ -37,6 +38,7 @@ class FlTextField extends StatefulWidget {
     this.inputFormatters,
     this.hint,
     this.readOnly = false,
+    this.enabled = true,
     this.maxLines = 1,
   });
 
@@ -69,6 +71,7 @@ class _FlTextFieldState extends State<FlTextField> {
       onChanged: widget.onChanged,
       onFieldSubmitted: widget.onFieldSubmitted,
       inputFormatters: widget.inputFormatters,
+      enabled: widget.enabled,
       readOnly: widget.readOnly,
       maxLines: widget.showToggle ? 1 : widget.maxLines,
       style: TextStyle(

@@ -117,6 +117,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                 FlTextField(
                   label: 'Email',
                   controller: _emailCtrl,
+                  enabled: !_isLoading,
                   hint: 'name@example.com',
                   keyboardType: TextInputType.emailAddress,
                   textInputAction: TextInputAction.next,
@@ -134,6 +135,7 @@ class _AddContactScreenState extends ConsumerState<AddContactScreen> {
                 FlTextField(
                   label: 'Nickname · optional',
                   controller: _nicknameCtrl,
+                  enabled: !_isLoading,
                   hint: 'e.g. Alex, Sam, Mom',
                   textInputAction: TextInputAction.done,
                   onFieldSubmitted: (_) => _submit(),
