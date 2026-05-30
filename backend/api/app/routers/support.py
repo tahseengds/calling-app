@@ -1,7 +1,9 @@
 import secrets
 from pathlib import Path
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi.responses import RedirectResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
@@ -14,6 +16,7 @@ from app.schemas.support import (
     SupportFeedbackRequest,
     SupportFeedbackResponse,
     SupportRequestList,
+    SupportStatus,
 )
 from app.services import support_service
 from app.utils.security import verify_password
@@ -61,6 +64,15 @@ async def _is_admin_basic(
     return False
 
 
+def _basic_challenge() -> Response:
+    """401 with WWW-Authenticate so the browser shows its login dialog."""
+    return Response(
+        content="Authentication required.",
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        headers={"WWW-Authenticate": 'Basic realm="Lumio Support Admin"'},
+    )
+
+
 @router.post(
     "/feedback",
     response_model=SupportFeedbackResponse,
@@ -100,14 +112,34 @@ async def view_support_requests(
     # prompt (a raw GET can't carry a Bearer token). On failure, return 401
     # with WWW-Authenticate so the browser re-prompts.
     if not await _is_admin_basic(db, credentials):
-        return Response(
-            content="Authentication required.",
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            headers={"WWW-Authenticate": 'Basic realm="Lumio Support Admin"'},
-        )
+        return _basic_challenge()
     data = await support_service.list_requests(db, limit=limit, offset=offset)
     return templates.TemplateResponse(
         request=request,
         name="support_requests.html",
         context={"data": data},
+    )
+
+
+@router.post("/requests/{request_id}/status")
+async def set_support_request_status(
+    request_id: UUID,
+    new_status: SupportStatus = Query(..., alias="status"),
+    credentials: HTTPBasicCredentials | None = Depends(_basic),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Admin-only triage: move a request to open / in_progress / resolved.
+
+    Same HTTP Basic gate as the HTML view, so the status buttons on that page
+    work with the browser's stored credentials. After updating we 303-redirect
+    back to the view (POST/redirect/GET) so a refresh doesn't re-submit.
+    """
+    if not await _is_admin_basic(db, credentials):
+        return _basic_challenge()
+    admin_email = credentials.username.strip().lower()
+    await support_service.update_status(db, request_id, new_status, admin_email)
+    return RedirectResponse(
+        url="/api/support/requests/view",
+        status_code=status.HTTP_303_SEE_OTHER,
     )

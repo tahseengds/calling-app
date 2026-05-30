@@ -28,6 +28,14 @@ class SupportFeedback(Base):
     device_info: Mapped[dict] = mapped_column(
         JSONB, nullable=False, default=dict, server_default="{}"
     )
+    # Triage state, managed by admins: 'open' | 'in_progress' | 'resolved'.
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="open", server_default="open"
+    )
+    # Email of the admin who last changed the status, for a light audit trail.
+    handled_by: Mapped[str | None] = mapped_column(String(254))
+    # Set when status moves to 'resolved', cleared otherwise.
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

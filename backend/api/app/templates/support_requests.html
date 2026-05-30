@@ -140,13 +140,65 @@
       word-break: break-word;
       overflow-x: auto;
     }
+    .counts { display: flex; gap: 8px; }
+    .open-count {
+      color: var(--chip-account-fg);
+      background: var(--chip-account);
+      border-color: transparent;
+    }
+    /* Status pill on each card */
+    .status {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      border-radius: 999px;
+      padding: 3px 9px;
+    }
+    .status-open { background: var(--chip-account); color: var(--chip-account-fg); }
+    .status-in_progress { background: var(--chip-bug); color: var(--chip-bug-fg); }
+    .status-resolved { background: var(--chip-feature); color: var(--chip-feature-fg); }
+    .card.is-resolved { opacity: 0.62; }
+    /* Triage buttons */
+    .actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+    }
+    .actions form { margin: 0; }
+    .act {
+      font: inherit;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--bg);
+      color: var(--text);
+      border-radius: 8px;
+      padding: 6px 14px;
+    }
+    .act:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+    .act.is-current {
+      cursor: default;
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+      opacity: 1;
+    }
+    .act:disabled { cursor: default; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <header>
       <h1>Support Requests</h1>
-      <span class="count">{{ data.total }} total</span>
+      <div class="counts">
+        <span class="count open-count">{{ data.open_count }} open</span>
+        <span class="count">{{ data.total }} total</span>
+      </div>
     </header>
 
     {% if not data.requests %}
@@ -154,9 +206,10 @@
     {% else %}
       <div class="cards">
         {% for r in data.requests %}
-          <div class="card">
+          <div class="card {% if r.status == 'resolved' %}is-resolved{% endif %}">
             <div class="card-top">
               <span class="chip {{ r.category }}">{{ r.category }}</span>
+              <span class="status status-{{ r.status }}">{{ r.status.replace('_', ' ') }}</span>
               <span class="who">
                 {{ r.user_name or "Unknown user" }}
                 {% if r.user_email %}<span class="email">· {{ r.user_email }}</span>{% endif %}
@@ -167,6 +220,8 @@
             <div class="meta">
               {% if r.platform %}<span>Platform: {{ r.platform }}</span>{% endif %}
               {% if r.app_version %}<span>App: {{ r.app_version }}</span>{% endif %}
+              {% if r.handled_by %}<span>Handled by: {{ r.handled_by }}</span>{% endif %}
+              {% if r.resolved_at %}<span>Resolved: {{ r.resolved_at.strftime("%Y-%m-%d %H:%M UTC") }}</span>{% endif %}
               <span>Request <code>{{ r.id }}</code></span>
             </div>
             {% if r.device_info %}
@@ -175,6 +230,18 @@
                 <pre>{{ r.device_info | tojson(indent=2) }}</pre>
               </details>
             {% endif %}
+            <div class="actions">
+              {% for value, label in [('open', 'Open'), ('in_progress', 'In progress'), ('resolved', 'Resolved')] %}
+                <form method="post"
+                      action="/api/support/requests/{{ r.id }}/status?status={{ value }}">
+                  <button type="submit"
+                          class="act act-{{ value }} {% if r.status == value %}is-current{% endif %}"
+                          {% if r.status == value %}disabled{% endif %}>
+                    {{ label }}
+                  </button>
+                </form>
+              {% endfor %}
+            </div>
           </div>
         {% endfor %}
       </div>

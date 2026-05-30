@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from uuid import UUID
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +14,7 @@ from app.schemas.support import (
     SupportRequestAdmin,
     SupportRequestList,
 )
+from app.utils.exceptions import NotFoundError
 
 
 async def submit_feedback(
@@ -40,12 +44,21 @@ async def list_requests(
     total = await db.scalar(
         select(func.count()).select_from(SupportFeedback)
     )
+    open_count = await db.scalar(
+        select(func.count())
+        .select_from(SupportFeedback)
+        .where(SupportFeedback.status == "open")
+    )
 
+    # Open requests first, then by newest — so the work queue floats to the top.
     rows = (
         await db.execute(
             select(SupportFeedback, User.name, User.email)
             .join(User, User.id == SupportFeedback.user_id, isouter=True)
-            .order_by(SupportFeedback.created_at.desc())
+            .order_by(
+                (SupportFeedback.status == "resolved"),
+                SupportFeedback.created_at.desc(),
+            )
             .limit(limit)
             .offset(offset)
         )
@@ -62,8 +75,32 @@ async def list_requests(
             app_version=fb.app_version,
             platform=fb.platform,
             device_info=fb.device_info or {},
+            status=fb.status,
+            handled_by=fb.handled_by,
+            resolved_at=fb.resolved_at,
             created_at=fb.created_at,
         )
         for fb, name, email in rows
     ]
-    return SupportRequestList(total=total or 0, requests=requests)
+    return SupportRequestList(
+        total=total or 0, open_count=open_count or 0, requests=requests
+    )
+
+
+async def update_status(
+    db: AsyncSession, request_id: UUID, status: str, admin_email: str
+) -> SupportFeedback:
+    """Set an admin triage status on one request. Stamps handled_by, and
+    resolved_at when (and only when) the status becomes 'resolved'."""
+    row = await db.get(SupportFeedback, request_id)
+    if row is None:
+        raise NotFoundError("Support request not found")
+
+    row.status = status
+    row.handled_by = admin_email
+    row.resolved_at = (
+        datetime.now(timezone.utc) if status == "resolved" else None
+    )
+    await db.commit()
+    await db.refresh(row)
+    return row

@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 SupportCategory = Literal["bug", "feature", "account", "other"]
+SupportStatus = Literal["open", "in_progress", "resolved"]
 
 
 class SupportFeedbackRequest(BaseModel):
@@ -41,6 +42,9 @@ class SupportRequestAdmin(BaseModel):
     app_version: str | None = None
     platform: str | None = None
     device_info: dict = {}
+    status: str = "open"
+    handled_by: str | None = None
+    resolved_at: datetime | None = None
     created_at: datetime
 
 
@@ -48,4 +52,11 @@ class SupportRequestList(BaseModel):
     """Admin listing payload: the rows plus a total count for the header."""
 
     total: int
+    open_count: int
     requests: list[SupportRequestAdmin]
+
+
+class SupportStatusUpdate(BaseModel):
+    """Admin status change for a single support request."""
+
+    status: SupportStatus
