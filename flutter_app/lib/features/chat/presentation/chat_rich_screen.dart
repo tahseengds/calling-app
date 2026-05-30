@@ -267,7 +267,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
     final startOffset = _scrollCtrl.hasClients ? _scrollCtrl.offset : 0.0;
     for (var attempt = 0; attempt < 8; attempt++) {
       final ctx = _msgKeys[messageId]?.currentContext;
-      if (ctx != null) {
+      if (ctx != null && ctx.mounted) {
         await Scrollable.ensureVisible(
           ctx,
           alignment: 0.4,
