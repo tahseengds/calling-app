@@ -122,13 +122,24 @@ class _HelpSupportScreenState extends ConsumerState<HelpSupportScreen> {
           tooltip: 'Back',
           onPressed: () => context.pop(),
         ),
-        title:
-            Text('Help & support', style: AppTextStyles.h1(color: colors.fg1)),
+        title: Text(
+          'Help & support',
+          style: AppTextStyles.h1(color: colors.fg1),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
       body: SafeArea(
         child: DismissKeyboard(
           child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.space4),
+          // Pad the bottom by the keyboard inset so the Submit button always
+          // clears the on-screen keyboard on small phones.
+          padding: EdgeInsets.fromLTRB(
+            AppSpacing.space4,
+            AppSpacing.space4,
+            AppSpacing.space4,
+            AppSpacing.space4 + MediaQuery.of(context).viewInsets.bottom,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

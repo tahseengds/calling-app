@@ -22,3 +22,30 @@ class SupportFeedbackResponse(BaseModel):
 
     id: UUID
     created_at: datetime
+
+
+class SupportRequestAdmin(BaseModel):
+    """A single support request as seen by an administrator — includes the
+    submitter's identity and the full message + diagnostic metadata."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    user_id: UUID
+    user_name: str | None = None
+    user_email: str | None = None
+    # Plain str (not the SupportCategory literal) so the admin view never 500s
+    # on a legacy/unexpected category value.
+    category: str
+    message: str
+    app_version: str | None = None
+    platform: str | None = None
+    device_info: dict = {}
+    created_at: datetime
+
+
+class SupportRequestList(BaseModel):
+    """Admin listing payload: the rows plus a total count for the header."""
+
+    total: int
+    requests: list[SupportRequestAdmin]

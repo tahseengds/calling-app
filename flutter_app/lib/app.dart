@@ -38,9 +38,12 @@ import 'features/profile/presentation/screens/about_screen.dart';
 import 'features/profile/presentation/screens/blocked_contacts_screen.dart';
 import 'features/profile/presentation/screens/edit_name_screen.dart';
 import 'features/profile/presentation/screens/help_support_screen.dart';
+import 'features/profile/presentation/screens/licenses_screen.dart';
 import 'features/profile/presentation/screens/message_sounds_screen.dart';
 import 'features/profile/presentation/screens/notification_settings_screen.dart';
+import 'features/profile/presentation/screens/privacy_policy_screen.dart';
 import 'features/profile/presentation/screens/privacy_screen.dart';
+import 'features/profile/presentation/screens/terms_of_service_screen.dart';
 import 'core/services/pending_deep_link.dart';
 
 // ── Router ────────────────────────────────────────────────────────────────────
@@ -169,6 +172,15 @@ final _routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: '/profile/about',
           builder: (_, _) => const AboutScreen()),
+      GoRoute(
+          path: '/profile/licenses',
+          builder: (_, _) => const LicensesScreen()),
+      GoRoute(
+          path: '/profile/terms',
+          builder: (_, _) => const TermsOfServiceScreen()),
+      GoRoute(
+          path: '/profile/privacy-policy',
+          builder: (_, _) => const PrivacyPolicyScreen()),
     ],
   );
 });

@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lumio — Support Requests</title>
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --card: #ffffff;
+      --text: #1a1d26;
+      --muted: #5c6370;
+      --border: #e2e6ee;
+      --accent: #5b7cfa;
+      --chip-bug: #fdecea;     --chip-bug-fg: #b42318;
+      --chip-feature: #e6f4ed; --chip-feature-fg: #0d7a4a;
+      --chip-account: #fff8e6; --chip-account-fg: #9a6700;
+      --chip-other: #eef1f6;   --chip-other-fg: #5c6370;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #12141a;
+        --card: #1c1f28;
+        --text: #e8eaef;
+        --muted: #9aa3b2;
+        --border: #2d3340;
+        --accent: #8aa0fc;
+        --chip-bug: #2a1614;     --chip-bug-fg: #f7a399;
+        --chip-feature: #132a22; --chip-feature-fg: #3dd68c;
+        --chip-account: #2a2410; --chip-account-fg: #f5c451;
+        --chip-other: #232733;   --chip-other-fg: #9aa3b2;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px 16px 64px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    h1 { font-size: 22px; margin: 0; font-weight: 700; }
+    .count {
+      font-size: 14px;
+      color: var(--muted);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 12px;
+    }
+    .empty {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 48px 24px;
+      text-align: center;
+      color: var(--muted);
+    }
+    .cards { display: flex; flex-direction: column; gap: 12px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 18px;
+    }
+    .card-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .chip {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: capitalize;
+      border-radius: 999px;
+      padding: 3px 10px;
+    }
+    .chip.bug { background: var(--chip-bug); color: var(--chip-bug-fg); }
+    .chip.feature { background: var(--chip-feature); color: var(--chip-feature-fg); }
+    .chip.account { background: var(--chip-account); color: var(--chip-account-fg); }
+    .chip.other { background: var(--chip-other); color: var(--chip-other-fg); }
+    .who { font-weight: 600; font-size: 14px; }
+    .who .email { color: var(--muted); font-weight: 400; }
+    .when { margin-left: auto; font-size: 13px; color: var(--muted); }
+    .message {
+      font-size: 15px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 0 0 10px;
+    }
+    .meta {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+    }
+    .meta code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Support Requests</h1>
+      <span class="count">{{ data.total }} total</span>
+    </header>
+
+    {% if not data.requests %}
+      <div class="empty">No support requests have been submitted yet.</div>
+    {% else %}
+      <div class="cards">
+        {% for r in data.requests %}
+          <div class="card">
+            <div class="card-top">
+              <span class="chip {{ r.category }}">{{ r.category }}</span>
+              <span class="who">
+                {{ r.user_name or "Unknown user" }}
+                {% if r.user_email %}<span class="email">· {{ r.user_email }}</span>{% endif %}
+              </span>
+              <span class="when">{{ r.created_at.strftime("%Y-%m-%d %H:%M UTC") }}</span>
+            </div>
+            <p class="message">{{ r.message }}</p>
+            <div class="meta">
+              {% if r.platform %}<span>Platform: {{ r.platform }}</span>{% endif %}
+              {% if r.app_version %}<span>App: {{ r.app_version }}</span>{% endif %}
+              <span>Request <code>{{ r.id }}</code></span>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  </div>
+</body>
+</html>

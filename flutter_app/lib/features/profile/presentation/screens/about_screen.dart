@@ -1,14 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-import '../../../../core/config/app_config.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_theme.dart';
-import '../../../../shared/widgets/error_snackbar.dart';
 import '../../../../shared/widgets/lumio_icons.dart';
 import '../../../../shared/widgets/lumio_logo.dart';
 import '../../../../shared/widgets/settings_tile.dart';
@@ -29,15 +26,6 @@ class _AboutScreenState extends State<AboutScreen> {
     PackageInfo.fromPlatform().then((info) {
       if (mounted) setState(() => _info = info);
     });
-  }
-
-  Future<void> _openUrl(String url) async {
-    try {
-      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-    } catch (_) {
-      if (!mounted) return;
-      showErrorSnackbar(context, 'Could not open link.');
-    }
   }
 
   void _showWhatsNew() {
@@ -110,21 +98,17 @@ class _AboutScreenState extends State<AboutScreen> {
                   SettingsTile(
                     icon: LumioIcons.fileText,
                     label: 'Open-source licenses',
-                    onTap: () => showLicensePage(
-                      context: context,
-                      applicationName: 'Lumio',
-                      applicationVersion: info?.version ?? '1.0.0',
-                    ),
+                    onTap: () => context.push('/profile/licenses'),
                   ),
                   SettingsTile(
-                    icon: LumioIcons.openInNew,
+                    icon: LumioIcons.fileText,
                     label: 'Terms of Service',
-                    onTap: () => _openUrl(AppConfig.termsUrl),
+                    onTap: () => context.push('/profile/terms'),
                   ),
                   SettingsTile(
                     icon: LumioIcons.shield,
                     label: 'Privacy Policy',
-                    onTap: () => _openUrl(AppConfig.privacyUrl),
+                    onTap: () => context.push('/profile/privacy-policy'),
                   ),
                 ],
               ),

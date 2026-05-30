@@ -224,8 +224,11 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                   padding: const EdgeInsets.symmetric(vertical: 32),
                   child: Column(
                     children: [
-                      // 96 px avatar with camera button overlay
+                      // 96 px avatar with camera button overlay.
+                      // clipBehavior: none so the camera button (offset -6,-6)
+                      // and its ring aren't truncated at the Stack's bounds.
                       Stack(
+                        clipBehavior: Clip.none,
                         children: [
                           UserAvatar(
                             displayName: user.name,
@@ -284,37 +287,19 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                         ],
                       ),
                       const SizedBox(height: 16),
-                      // Name with edit icon — full-row tap target
-                      TextButton(
-                        onPressed: _editName,
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
-                          minimumSize: const Size(48, 48),
-                          foregroundColor: colors.fg1,
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                user.name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold,
-                                  color: colors.fg1,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Icon(
-                              LumioIcons.edit,
-                              size: 18,
-                              color: colors.fg3,
-                            ),
-                          ],
+                      // Display name only — editing lives in Account › Edit name.
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(
+                          user.name,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            color: colors.fg1,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 4),

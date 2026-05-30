@@ -34,15 +34,4 @@ abstract final class AppConfig {
   );
 
   static bool get isProduction => appEnv == 'prod';
-
-  // ── Public links shown in About screen ─────────────────────────────────
-  static const String termsUrl = String.fromEnvironment(
-    'TERMS_URL',
-    defaultValue: 'https://lumin.tahseen.tech/terms',
-  );
-
-  static const String privacyUrl = String.fromEnvironment(
-    'PRIVACY_URL',
-    defaultValue: 'https://lumin.tahseen.tech/privacy',
-  );
 }

@@ -43,5 +43,18 @@ class Settings(BaseSettings):
     DOMAIN: str = "lumin.example.com"  # TODO: replace domain
     MEDIA_URL_SCHEME: str = "https"  # set to http when serving without TLS (e.g. IP-only)
 
+    # Admin access — comma-separated list of emails treated as administrators.
+    # Used to gate the support-requests admin views. Matching is
+    # case-insensitive. Empty means "no admins" (endpoints 403 for everyone).
+    ADMIN_EMAILS: str = ""
+
+    @property
+    def admin_emails(self) -> set[str]:
+        return {
+            e.strip().lower()
+            for e in self.ADMIN_EMAILS.split(",")
+            if e.strip()
+        }
+
 
 settings = Settings()

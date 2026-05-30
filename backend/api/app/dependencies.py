@@ -7,12 +7,20 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.db import get_db  # re-export
 from app.models.user import User
-from app.utils.exceptions import RateLimitError, UnauthorizedError
+from app.utils.exceptions import ForbiddenError, RateLimitError, UnauthorizedError
 from app.utils.security import decode_access_token
 
-__all__ = ["get_db", "get_redis", "get_current_user", "rate_limit", "client_ip"]
+__all__ = [
+    "get_db",
+    "get_redis",
+    "get_current_user",
+    "get_admin_user",
+    "rate_limit",
+    "client_ip",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -76,6 +84,27 @@ async def get_current_user(
         raise UnauthorizedError("User not found or inactive")
 
     return user
+
+
+# ---------------------------------------------------------------------------
+# Admin dependency
+# ---------------------------------------------------------------------------
+
+async def get_admin_user(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """
+    Require the authenticated user to be an administrator.
+
+    There is no role column on the User model; admins are configured via the
+    ADMIN_EMAILS env var (comma-separated, case-insensitive). A user with no
+    email, or an email not in the list, gets a 403.
+    """
+    admins = settings.admin_emails
+    email = (current_user.email or "").strip().lower()
+    if not email or email not in admins:
+        raise ForbiddenError("Administrator access required")
+    return current_user
 
 
 # ---------------------------------------------------------------------------
