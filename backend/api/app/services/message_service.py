@@ -213,17 +213,21 @@ async def send_message(
     await publish(redis, msg_delivery_channel(str(req.recipient_id)), payload)
 
     # ── Enqueue FCM job (for prompt 07 worker) ───────────────────────────────
-    await enqueue_fcm(
-        redis,
-        {
-            "type": "new_message",
-            "recipient_id": str(req.recipient_id),
-            "sender_id": str(sender.id),
-            "message_id": str(msg.id),
-            "conversation_id": str(conv.id),
-            "message_type": req.message_type,
-        },
-    )
+    # Include a short text preview so the push shows the real message, not a
+    # generic "New message". Only for text; media types render their own label
+    # (📷 Photo, etc.) worker-side. Truncated to keep the payload small and
+    # avoid leaking a whole message into the FCM transport.
+    fcm_job = {
+        "type": "new_message",
+        "recipient_id": str(req.recipient_id),
+        "sender_id": str(sender.id),
+        "message_id": str(msg.id),
+        "conversation_id": str(conv.id),
+        "message_type": req.message_type,
+    }
+    if req.message_type == "text" and req.content:
+        fcm_job["content"] = req.content.strip()[:140]
+    await enqueue_fcm(redis, fcm_job)
 
     return response
 

@@ -47,6 +47,7 @@ import 'features/profile/presentation/screens/privacy_policy_screen.dart';
 import 'features/profile/presentation/screens/privacy_screen.dart';
 import 'features/profile/presentation/screens/terms_of_service_screen.dart';
 import 'core/services/pending_deep_link.dart';
+import 'core/services/native_call_bridge.dart';
 
 // ── Router ────────────────────────────────────────────────────────────────────
 
@@ -209,6 +210,10 @@ class _LuminAppState extends ConsumerState<LuminApp>
       _maybeConsumeDeepLink();
       _bootstrapDeepLinks();
     });
+    // Restore the full-screen call UI when the user taps the PiP window to
+    // expand it (PiP exit) while a call is still active.
+    _pipBridge = ref.read(nativeCallBridgeProvider);
+    _pipBridge!.isInPip.addListener(_onPipChanged);
   }
 
   /// Push a pending deep-link only after the auth state has resolved to
@@ -290,8 +295,35 @@ class _LuminAppState extends ConsumerState<LuminApp>
   @override
   void dispose() {
     _appLinksSub?.cancel();
+    _pipBridge?.isInPip.removeListener(_onPipChanged);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  /// Bridge whose isInPip notifier we watch to restore the call screen when the
+  /// user expands the PiP window. Stored so the listener can be removed.
+  NativeCallBridge? _pipBridge;
+
+  void _onPipChanged() {
+    final bridge = _pipBridge;
+    if (bridge == null) return;
+    // Only act on PiP EXIT (true → false).
+    if (bridge.isInPip.value) return;
+    final session = ref.read(callSessionProvider);
+    if (session == null || !session.isActive) return;
+    final router = ref.read(_routerProvider);
+    // Don't stack a duplicate if a call screen is already on top.
+    final current = router.routerDelegate.currentConfiguration.uri.path;
+    const callRoutes = {
+      '/call/video',
+      '/call/active',
+      '/call/incoming',
+      '/call/outgoing',
+    };
+    if (callRoutes.contains(current)) return;
+    router.push(
+      session.callType == CallType.video ? '/call/video' : '/call/active',
+    );
   }
 
   @override

@@ -121,11 +121,20 @@ Future<void> main() async {
               convId == container.read(activeConversationProvider)) {
             return;
           }
+          // Our pushes are data-only (no `notification` block) so the native
+          // FcmService can render them in the background. That means
+          // `msg.notification` is null here — read the real sender/preview from
+          // the data payload (the worker puts them there), falling back to the
+          // notification block only if a server ever sends one.
           final notif = msg.notification;
+          final senderName =
+              msg.data['sender_name'] as String? ?? notif?.title ?? 'New message';
+          final preview =
+              msg.data['preview'] as String? ?? notif?.body ?? '';
           container.read(notificationServiceProvider).showMessageNotification(
                 id: msg.messageId ?? '',
-                senderName: notif?.title ?? 'New message',
-                preview: notif?.body ?? '',
+                senderName: senderName,
+                preview: preview,
                 conversationId: convId,
               );
         }
@@ -148,11 +157,19 @@ Future<void> main() async {
             .read(pendingDeepLinkProvider.notifier)
             .set('/chat/$convId');
       };
+      // Generic notification routes (e.g. missed-call → /call/history).
+      bridge.onOpenRoute = (route) {
+        container.read(pendingDeepLinkProvider.notifier).set(route);
+      };
       final initialConv = await bridge.getInitialConversation();
       if (initialConv != null && initialConv.isNotEmpty) {
         container
             .read(pendingDeepLinkProvider.notifier)
             .set('/chat/$initialConv');
+      }
+      final initialRoute = await bridge.getInitialRoute();
+      if (initialRoute != null && initialRoute.isNotEmpty) {
+        container.read(pendingDeepLinkProvider.notifier).set(initialRoute);
       }
     }
   } catch (e, st) {

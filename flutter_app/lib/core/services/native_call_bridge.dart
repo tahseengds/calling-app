@@ -74,6 +74,10 @@ class NativeCallBridge {
   /// is the conversation_id to route to. Set by main.dart.
   void Function(String conversationId)? onOpenConversation;
 
+  /// Called when the user taps a notification carrying a generic route (warm
+  /// start) — e.g. a missed-call notification → "/call/history". Set by main.dart.
+  void Function(String route)? onOpenRoute;
+
   /// Stream of events pushed by the native side.
   Stream<NativeCallEvent> get events => _events.stream;
 
@@ -324,6 +328,12 @@ class NativeCallBridge {
         final convId = call.arguments as String?;
         if (convId != null && convId.isNotEmpty) {
           onOpenConversation?.call(convId);
+        }
+        return null;
+      case 'openRoute':
+        final route = call.arguments as String?;
+        if (route != null && route.isNotEmpty) {
+          onOpenRoute?.call(route);
         }
         return null;
       default:

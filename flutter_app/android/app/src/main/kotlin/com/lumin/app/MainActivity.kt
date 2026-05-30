@@ -50,6 +50,11 @@ class MainActivity : FlutterFragmentActivity() {
      * Flutter engine pulls it via "getInitialConversation" (cold start). */
     private var pendingConversationId: String? = null
 
+    /** Generic deep-link route from a tapped notification (e.g. a missed-call
+     * notification carries "/call/history"), pending until the Flutter engine
+     * pulls it via "getInitialRoute" on cold start. */
+    private var pendingRoute: String? = null
+
     /**
      * Proximity-screen-off wake lock — acquired while a voice call is active
      * (not video calls). When the user puts the phone to their ear the screen
@@ -64,6 +69,7 @@ class MainActivity : FlutterFragmentActivity() {
         applyKeyguardFlagsForIntent(intent)
         captureCallExtras(intent)
         captureConversationExtra(intent)
+        captureNavRoute(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -72,6 +78,7 @@ class MainActivity : FlutterFragmentActivity() {
         applyKeyguardFlagsForIntent(intent)
         captureCallExtras(intent)
         captureConversationExtra(intent)
+        captureNavRoute(intent)
 
         // If the engine is already alive, forward the action immediately.
         val payload = pendingCallData
@@ -243,6 +250,13 @@ class MainActivity : FlutterFragmentActivity() {
                     pendingConversationId = null
                     result.success(c)
                 }
+                "getInitialRoute" -> {
+                    // Cold-start: Flutter pulls a generic deep-link route from a
+                    // tapped notification (e.g. missed-call → "/call/history").
+                    val r = pendingRoute
+                    pendingRoute = null
+                    result.success(r)
+                }
                 else -> result.notImplemented()
             }
         }
@@ -292,6 +306,23 @@ class MainActivity : FlutterFragmentActivity() {
             channel.invokeMethod("openConversation", convId)
         } else {
             pendingConversationId = convId
+        }
+    }
+
+    /**
+     * Capture a generic `nav_route` extra from a tapped notification (e.g. a
+     * missed-call notification carries "/call/history"). If the engine is live,
+     * route immediately; else stash it for Flutter to pull on startup via
+     * "getInitialRoute".
+     */
+    private fun captureNavRoute(intent: Intent?) {
+        val route = intent?.getStringExtra("nav_route")
+            ?.takeIf { it.isNotBlank() } ?: return
+        val channel = methodChannel
+        if (channel != null && NativeCallBus.isEngineAlive()) {
+            channel.invokeMethod("openRoute", route)
+        } else {
+            pendingRoute = route
         }
     }
 

@@ -239,6 +239,21 @@ class FcmService : FirebaseMessagingService() {
         val callerName = data["caller_name"] ?: "Unknown"
         val callId = data["call_id"] ?: return
 
+        // Tapping the missed-call notification opens the app on call history.
+        // MainActivity reads nav_route and routes Flutter to /call/history.
+        val tapIntent = Intent(this, MainActivity::class.java).apply {
+            action = Intent.ACTION_MAIN
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra("nav_route", "/call/history")
+        }
+        val tapPending = PendingIntent.getActivity(
+            this,
+            CallService.MISSED_CALL_NOTIFICATION_ID_BASE + callId.hashCode(),
+            tapIntent,
+            pendingFlags(),
+        )
+
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         val notif = NotificationCompat.Builder(this, CallService.CALL_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.sym_call_missed)
@@ -247,6 +262,7 @@ class FcmService : FirebaseMessagingService() {
             .setCategory(NotificationCompat.CATEGORY_MISSED_CALL)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
+            .setContentIntent(tapPending)
             .build()
         nm.notify(
             CallService.MISSED_CALL_NOTIFICATION_ID_BASE + callId.hashCode(),

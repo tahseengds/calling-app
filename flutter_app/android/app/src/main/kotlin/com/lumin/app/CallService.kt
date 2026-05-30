@@ -363,6 +363,21 @@ class CallService : Service() {
 
     private fun postMissedCallNotification(callId: String) {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        // Tapping the missed-call notification opens the app on call history.
+        val tapIntent = Intent(this, MainActivity::class.java).apply {
+            action = Intent.ACTION_MAIN
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra("nav_route", "/call/history")
+        }
+        val tapPending = PendingIntent.getActivity(
+            this,
+            MISSED_CALL_NOTIFICATION_ID_BASE + callId.hashCode(),
+            tapIntent,
+            pendingFlags(),
+        )
+
         val notif = NotificationCompat.Builder(this, CALL_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.sym_call_missed)
             .setContentTitle("Missed call")
@@ -370,6 +385,7 @@ class CallService : Service() {
             .setCategory(NotificationCompat.CATEGORY_MISSED_CALL)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
+            .setContentIntent(tapPending)
             .build()
         nm.notify(MISSED_CALL_NOTIFICATION_ID_BASE + callId.hashCode(), notif)
     }
