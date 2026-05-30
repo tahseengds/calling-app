@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     # case-insensitive. Empty means "no admins" (endpoints 403 for everyone).
     ADMIN_EMAILS: str = ""
 
+    # Optional shared password for the browser (HTTP Basic) support-admin page
+    # at /api/support/requests/view. When set, an admin can log in with their
+    # ADMIN_EMAILS address + this password. Leave empty to require each admin's
+    # own Lumio account password instead.
+    ADMIN_PANEL_PASSWORD: str = ""
+
     @property
     def admin_emails(self) -> set[str]:
         return {
