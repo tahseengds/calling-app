@@ -17,6 +17,7 @@ from sqlalchemy import text
 from app.config import settings
 from app.db import engine
 from app.dependencies import client_ip
+from app.metrics import MetricsMiddleware, metrics
 from app.services.health_service import (
     collect_health,
     wants_detailed_report,
@@ -131,6 +132,11 @@ def create_app() -> FastAPI:
         BodySizeLimitMiddleware,
         max_bytes=settings.MAX_REQUEST_BODY_MB * 1024 * 1024,
     )
+
+    # ── HTTP metrics ──────────────────────────────────────────────────────────
+    # Added last → outermost, so recorded latency spans the whole chain
+    # (including the body-size guard and CORS).
+    app.add_middleware(MetricsMiddleware)
 
     # ── CORS ──────────────────────────────────────────────────────────────────
     # Mobile clients don't enforce CORS, so the only callers this matters for
@@ -277,6 +283,8 @@ def create_app() -> FastAPI:
             "# TYPE lumin_redis_up gauge",
             f"lumin_redis_up {redis_up}",
         ]
+        # Append per-request count + latency histogram.
+        lines += metrics.render()
         return Response(
             content="\n".join(lines) + "\n",
             media_type="text/plain; version=0.0.4; charset=utf-8",

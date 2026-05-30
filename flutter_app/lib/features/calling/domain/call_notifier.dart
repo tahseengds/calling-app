@@ -1108,6 +1108,25 @@ class CallNotifier extends Notifier<CallSession?> {
 
     debugPrint('[call] ending with reason=$reason (callId=$endingId)');
 
+    // Analytics: emit exactly once per call. Guard against the funnel running
+    // twice (e.g. a hangup racing a connection-failure) by skipping when the
+    // session is already in a terminal phase.
+    if (session != null &&
+        session.phase != CallPhase.ended &&
+        session.phase != CallPhase.failed) {
+      final connected = session.connectedAt != null;
+      ref.read(analyticsServiceProvider).callEnded(
+            callType: session.callType.name,
+            direction: session.direction.name,
+            reason: reason.name,
+            connected: connected,
+            durationBucket: _durationBucket(
+              connected ? session.durationSeconds : 0,
+              connected,
+            ),
+          );
+    }
+
     // ── FIX 6: persist unexpectedly-interrupted connected calls ──────────────
     // If the call had actually connected (connectedAt is set) and the end
     // wasn't a clean hangup, persist a minimal record so the next app
@@ -1146,6 +1165,17 @@ class CallNotifier extends Notifier<CallSession?> {
         state = null;
       }
     });
+  }
+
+  /// Coarse duration buckets for the `call_ended` analytics event — keeps the
+  /// metric low-cardinality and privacy-friendly (no exact call lengths).
+  static String _durationBucket(int seconds, bool connected) {
+    if (!connected) return 'not_connected';
+    if (seconds < 15) return '0-15s';
+    if (seconds < 60) return '15-60s';
+    if (seconds < 300) return '1-5m';
+    if (seconds < 1800) return '5-30m';
+    return '30m+';
   }
 
   /// True for end reasons that suggest the call was cut off rather than

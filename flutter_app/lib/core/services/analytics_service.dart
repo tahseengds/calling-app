@@ -47,6 +47,22 @@ class AnalyticsService {
         'direction': direction,
       });
 
+  Future<void> callEnded({
+    required String callType,
+    required String direction,
+    required String reason,
+    required bool connected,
+    required String durationBucket,
+  }) =>
+      logEvent('call_ended', {
+        'call_type': callType,
+        'direction': direction,
+        'end_reason': reason,
+        // Firebase event params accept only String/num — send the flag as text.
+        'connected': connected.toString(),
+        'duration_bucket': durationBucket,
+      });
+
   Future<void> supportRequestSubmitted(String category) =>
       logEvent('support_request_submitted', {'category': category});
 
