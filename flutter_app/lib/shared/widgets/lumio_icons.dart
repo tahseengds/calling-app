@@ -68,6 +68,7 @@ abstract final class LumioIcons {
   static const IconData groups = LucideIcons.users;
   static const IconData reactions = LucideIcons.smile;
   static const IconData mention = LucideIcons.atSign;
+  static const IconData trash = LucideIcons.trash2;
 }
 
 /// US flag mini widget for phone prefix (design uses SVG, not emoji).

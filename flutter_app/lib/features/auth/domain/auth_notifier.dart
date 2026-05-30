@@ -461,6 +461,38 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = const AuthUnauthenticated();
   }
 
+  /// Tear down local auth state after the account has been deleted on the
+  /// server. Unlike [signOut] there is no server logout call — the account
+  /// (and all its sessions) are already gone. The network DELETE itself is
+  /// issued by the caller (ProfileRepository) so this stays a pure local
+  /// teardown.
+  Future<void> handleAccountDeleted() async {
+    _ref.read(fcmTokenServiceProvider).stopRotationListener();
+    _ref.read(authTokenProvider.notifier).clear();
+    await _secure.deleteRefreshToken();
+    await _secure.deleteCachedUser();
+    try {
+      await _google.signOut();
+    } catch (_) {}
+    try {
+      await _firebase.signOut();
+    } catch (_) {}
+    state = const AuthUnauthenticated();
+  }
+
+  /// Email the signed-in user a password-reset link (email/password accounts).
+  /// Firebase owns passwords, so this is the correct channel; Google-only
+  /// accounts have no password and Firebase will reject the address.
+  /// Throws [StateError] if we have no email on file.
+  Future<void> sendPasswordResetEmail() async {
+    final current = state;
+    final email = current is AuthAuthenticated ? current.me.email : null;
+    if (email == null || email.isEmpty) {
+      throw StateError('No email address on file for this account');
+    }
+    await _firebase.sendPasswordResetEmail(email: email);
+  }
+
   /// Called by the Dio interceptor when a token refresh fails mid-flight.
   /// Does NOT await async cleanup — it's fire-and-forget by design.
   void forceSignOut() {

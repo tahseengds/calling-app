@@ -31,6 +31,13 @@ class ProfileRepository {
     );
     return User.fromJson(resp.data!);
   }
+
+  /// Permanently delete (anonymize) the signed-in account on the server.
+  /// The backend revokes every session, so the caller must tear down local
+  /// auth state afterwards.
+  Future<void> deleteAccount() async {
+    await _dio.delete<void>('/api/users/me');
+  }
 }
 
 final profileRepositoryProvider = Provider<ProfileRepository>(

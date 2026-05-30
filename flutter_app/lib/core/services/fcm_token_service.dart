@@ -53,22 +53,37 @@ class FcmTokenService {
   ///
   /// Returns true on 204, false otherwise. Errors are swallowed so token
   /// registration never blocks the sign-in flow.
-  Future<bool> registerCurrentToken() async {
+  ///
+  /// Retries transient failures (no response / 5xx) with exponential backoff so
+  /// a momentary network blip at startup doesn't leave the user silently
+  /// unable to receive pushes. Client errors (4xx — e.g. an expired session)
+  /// are not retried since a retry can't fix them. The success path makes a
+  /// single request with no added latency.
+  Future<bool> registerCurrentToken({int maxAttempts = 3}) async {
     final token = await currentToken();
     if (token == null || token.isEmpty) return false;
 
     final deviceId = await _ref.read(secureStorageProvider).readDeviceId();
     final dio = _ref.read(dioProvider);
-    try {
-      final resp = await dio.post<void>(
-        '/api/users/fcm-token',
-        data: {'fcm_token': token, 'device_id': deviceId},
-      );
-      return resp.statusCode == 204;
-    } on DioException catch (e) {
-      debugPrint('[fcm] register failed: ${e.message}');
-      return false;
+    var delay = const Duration(seconds: 1);
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final resp = await dio.post<void>(
+          '/api/users/fcm-token',
+          data: {'fcm_token': token, 'device_id': deviceId},
+        );
+        return resp.statusCode == 204;
+      } on DioException catch (e) {
+        final status = e.response?.statusCode;
+        final transient = status == null || status >= 500;
+        debugPrint(
+            '[fcm] register attempt $attempt/$maxAttempts failed: ${e.message}');
+        if (!transient || attempt == maxAttempts) return false;
+        await Future<void>.delayed(delay);
+        delay *= 2;
+      }
     }
+    return false;
   }
 
   /// Wire up the onTokenRefresh listener. Idempotent — calling more than

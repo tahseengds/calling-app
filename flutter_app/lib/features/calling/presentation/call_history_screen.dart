@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:go_router/go_router.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../core/theme/app_colors.dart';
@@ -15,12 +16,87 @@ import '../domain/call_notifier.dart';
 import '../domain/call_state.dart';
 import 'widgets/permission_denied_screen.dart';
 
-// ── Provider ──────────────────────────────────────────────────────────────────
+// ── Pagination state + controller ───────────────────────────────────────────
 
-final _callHistoryProvider =
-    FutureProvider<List<CallRecord>>((ref) async {
-  return ref.watch(callRepositoryProvider).getCallHistory();
-});
+/// Cursor-paginated call-history state. Records accumulate as older pages are
+/// fetched; [nextCursor] is null once the server has no more rows.
+class CallHistoryState {
+  final List<CallRecord> records;
+  final String? nextCursor;
+  final bool initialLoading;
+  final bool loadingMore;
+  final bool hasError;
+
+  const CallHistoryState({
+    this.records = const [],
+    this.nextCursor,
+    this.initialLoading = true,
+    this.loadingMore = false,
+    this.hasError = false,
+  });
+
+  bool get hasMore => nextCursor != null;
+}
+
+class CallHistoryController extends StateNotifier<CallHistoryState> {
+  final CallRepository _repo;
+  static const int _pageSize = 30;
+
+  CallHistoryController(this._repo) : super(const CallHistoryState()) {
+    refresh();
+  }
+
+  /// Reload from the top (pull-to-refresh / first load).
+  Future<void> refresh() async {
+    state = const CallHistoryState(initialLoading: true);
+    try {
+      final page = await _repo.getCallHistoryPage(limit: _pageSize);
+      state = CallHistoryState(
+        records: page.records,
+        nextCursor: page.nextCursor,
+        initialLoading: false,
+      );
+    } catch (_) {
+      state = const CallHistoryState(initialLoading: false, hasError: true);
+    }
+  }
+
+  /// Append the next (older) page. No-ops while already loading or at the end.
+  Future<void> loadMore() async {
+    if (state.loadingMore || state.initialLoading || !state.hasMore) return;
+    state = CallHistoryState(
+      records: state.records,
+      nextCursor: state.nextCursor,
+      initialLoading: false,
+      loadingMore: true,
+    );
+    try {
+      final page = await _repo.getCallHistoryPage(
+        cursor: state.nextCursor,
+        limit: _pageSize,
+      );
+      state = CallHistoryState(
+        records: [...state.records, ...page.records],
+        nextCursor: page.nextCursor,
+        initialLoading: false,
+        loadingMore: false,
+      );
+    } catch (_) {
+      // Keep what we have; the footer trigger will retry on the next scroll.
+      state = CallHistoryState(
+        records: state.records,
+        nextCursor: state.nextCursor,
+        initialLoading: false,
+        loadingMore: false,
+      );
+    }
+  }
+}
+
+final callHistoryControllerProvider = StateNotifierProvider.autoDispose<
+    CallHistoryController, CallHistoryState>(
+  (ref) => CallHistoryController(ref.watch(callRepositoryProvider)),
+);
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -36,10 +112,33 @@ class _CallHistoryScreenState
     extends ConsumerState<CallHistoryScreen> {
   String _filter = 'All'; // 'All' | 'Missed' | 'Video'
   String? _expandedId;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// Fetch the next page when the user nears the bottom of the list.
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    if (pos.pixels >= pos.maxScrollExtent - 300) {
+      ref.read(callHistoryControllerProvider.notifier).loadMore();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    final historyAsync = ref.watch(_callHistoryProvider);
+    final history = ref.watch(callHistoryControllerProvider);
     final lumioColors = context.lumioColors;
     final theme = Theme.of(context);
 
@@ -131,34 +230,40 @@ class _CallHistoryScreenState
 
             // ── List ──────────────────────────────────────────────────
             Expanded(
-              child: historyAsync.when(
-                loading: () => const Center(
-                    child: CircularProgressIndicator()),
-                error: (e, _) => RefreshIndicator(
-                  onRefresh: () async =>
-                      ref.invalidate(_callHistoryProvider),
-                  child: ListView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    children: [
-                      SizedBox(
-                        height: MediaQuery.of(context).size.height * 0.5,
-                        child: Center(
-                          child: Text(
-                            'Could not load calls',
-                            style: AppTextStyles.secondary(
-                                color: lumioColors.fg2),
+              child: Builder(
+                builder: (context) {
+                  if (history.initialLoading) {
+                    return const Center(
+                        child: CircularProgressIndicator());
+                  }
+                  if (history.hasError && history.records.isEmpty) {
+                    return RefreshIndicator(
+                      onRefresh: () => ref
+                          .read(callHistoryControllerProvider.notifier)
+                          .refresh(),
+                      child: ListView(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        children: [
+                          SizedBox(
+                            height: MediaQuery.of(context).size.height * 0.5,
+                            child: Center(
+                              child: Text(
+                                'Could not load calls',
+                                style: AppTextStyles.secondary(
+                                    color: lumioColors.fg2),
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-                data: (records) {
-                  final filtered = _applyFilter(records);
+                    );
+                  }
+                  final filtered = _applyFilter(history.records);
                   if (filtered.isEmpty) {
                     return RefreshIndicator(
-                      onRefresh: () async =>
-                          ref.invalidate(_callHistoryProvider),
+                      onRefresh: () => ref
+                          .read(callHistoryControllerProvider.notifier)
+                          .refresh(),
                       child: ListView(
                         physics: const AlwaysScrollableScrollPhysics(),
                         children: [
@@ -171,15 +276,34 @@ class _CallHistoryScreenState
                     );
                   }
                   final entries = _groupByDate(filtered);
+                  // Trailing slot for the "loading older calls" spinner.
+                  final showFooter = history.loadingMore || history.hasMore;
                   return RefreshIndicator(
-                    onRefresh: () async =>
-                        ref.invalidate(_callHistoryProvider),
+                    onRefresh: () => ref
+                        .read(callHistoryControllerProvider.notifier)
+                        .refresh(),
                     child: ListView.builder(
+                      controller: _scrollController,
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding:
                           const EdgeInsets.all(AppSpacing.space4),
-                      itemCount: entries.length,
+                      itemCount: entries.length + (showFooter ? 1 : 0),
                       itemBuilder: (context, index) {
+                        if (index >= entries.length) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            child: Center(
+                              child: history.loadingMore
+                                  ? const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
+                                    )
+                                  : const SizedBox.shrink(),
+                            ),
+                          );
+                        }
                         final e = entries[index];
                         if (e.header != null) {
                           return _DateHeader(

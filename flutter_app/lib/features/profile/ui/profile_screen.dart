@@ -17,6 +17,7 @@ import '../../../shared/widgets/lumio_icons.dart';
 import '../../../shared/widgets/settings_tile.dart';
 import 'package:go_router/go_router.dart';
 import '../../auth/domain/auth_notifier.dart';
+import '../data/profile_repository.dart';
 import '../domain/profile_notifier.dart';
 
 class ProfileScreen extends ConsumerWidget {
@@ -64,6 +65,7 @@ class _ProfileView extends ConsumerStatefulWidget {
 
 class _ProfileViewState extends ConsumerState<_ProfileView> {
   bool _isSigningOut = false;
+  bool _isDeletingAccount = false;
   bool _uploadingAvatar = false;
   String? _versionLabel;
 
@@ -184,6 +186,88 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
       // GoRouter redirect fires automatically on AuthUnauthenticated.
     } finally {
       if (mounted) setState(() => _isSigningOut = false);
+    }
+  }
+
+  Future<void> _resetPassword() async {
+    final email = widget.user.email;
+    if (email == null || email.isEmpty) {
+      showErrorSnackbar(context, 'No email on file to reset a password.');
+      return;
+    }
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset password?'),
+        content: Text(
+          "We'll email a password-reset link to $email. "
+          'If you sign in with Google, your account has no password to reset.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Send link'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    try {
+      await ref.read(authNotifierProvider.notifier).sendPasswordResetEmail();
+      if (mounted) {
+        showSuccessSnackbar(context, 'Password reset link sent to $email');
+      }
+    } catch (_) {
+      if (!mounted) return;
+      showErrorSnackbar(
+        context,
+        "Couldn't send a reset link. Google sign-in accounts have no password.",
+      );
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete account?'),
+        content: const Text(
+          'This permanently deletes your account and removes your personal '
+          'data. You will be signed out on all devices. This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: AppColors.danger),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    setState(() => _isDeletingAccount = true);
+    try {
+      await ref.read(profileRepositoryProvider).deleteAccount();
+      // Local teardown — server already revoked every session. The GoRouter
+      // redirect fires automatically on AuthUnauthenticated.
+      await ref.read(authNotifierProvider.notifier).handleAccountDeleted();
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isDeletingAccount = false);
+      showErrorSnackbar(
+        context,
+        "Couldn't delete your account. Check your connection and try again.",
+      );
     }
   }
 
@@ -337,6 +421,11 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                           label: 'Privacy',
                           onTap: () => context.push('/profile/privacy'),
                         ),
+                        SettingsTile(
+                          icon: LumioIcons.lock,
+                          label: 'Reset password',
+                          onTap: _resetPassword,
+                        ),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -378,8 +467,30 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
                     SettingsDestructiveTile(
                       icon: LumioIcons.logout,
                       label: 'Log out',
-                      onTap: _isSigningOut ? null : _signOut,
+                      onTap: (_isSigningOut || _isDeletingAccount)
+                          ? null
+                          : _signOut,
                       trailing: _isSigningOut
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppColors.danger,
+                              ),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // ── Delete account ────────────────────────────────────
+                    SettingsDestructiveTile(
+                      icon: LumioIcons.trash,
+                      label: 'Delete account',
+                      onTap: (_isSigningOut || _isDeletingAccount)
+                          ? null
+                          : _deleteAccount,
+                      trailing: _isDeletingAccount
                           ? const SizedBox(
                               width: 20,
                               height: 20,

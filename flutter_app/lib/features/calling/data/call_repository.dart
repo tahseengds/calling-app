@@ -9,6 +9,14 @@ import '../../../core/network/dio_client.dart';
 import '../../../core/storage/local_db.dart';
 import '../domain/call_state.dart';
 
+/// One page of call history: the records plus the cursor to fetch the next
+/// (older) page, or null when the end has been reached.
+class CallHistoryPageResult {
+  final List<CallRecord> records;
+  final String? nextCursor;
+  const CallHistoryPageResult({required this.records, required this.nextCursor});
+}
+
 class CallRepository {
   final Dio _dio;
   final AppDatabase _db;
@@ -78,12 +86,14 @@ class CallRepository {
 
   // ── Call history ─────────────────────────────────────────────────────────────
 
-  /// Fetch paginated call history from the API and write to Drift.
+  /// Fetch one page of call history from the API and write to Drift.
   ///
-  /// On any DioException we degrade to an empty list — the UI keeps streaming
-  /// from the local Drift cache via [watchCachedHistory], so calls made on
-  /// *this* device still appear.
-  Future<List<CallRecord>> getCallHistory({
+  /// Returns both the records and the `next_cursor` (null when there are no
+  /// older calls) so callers can implement infinite scroll. On any
+  /// DioException we degrade to an empty page — the UI keeps streaming from the
+  /// local Drift cache via [watchCachedHistory], so calls made on *this* device
+  /// still appear.
+  Future<CallHistoryPageResult> getCallHistoryPage({
     String? cursor,
     int limit = 30,
   }) async {
@@ -99,6 +109,7 @@ class CallRepository {
       final records = items
           .map((e) => CallRecord.fromJson(e as Map<String, dynamic>))
           .toList();
+      final nextCursor = resp.data?['next_cursor'] as String?;
 
       // Cache to Drift (best-effort — ignore failures)
       for (final rec in records) {
@@ -117,12 +128,19 @@ class CallRepository {
           );
         } catch (_) {}
       }
-      return records;
+      return CallHistoryPageResult(records: records, nextCursor: nextCursor);
     } on DioException catch (e) {
       debugPrint('[call_repository] getCallHistory failed: ${e.message}');
-      return const [];
+      return const CallHistoryPageResult(records: [], nextCursor: null);
     }
   }
+
+  /// Convenience wrapper that returns just the first page's records (no cursor).
+  Future<List<CallRecord>> getCallHistory({
+    String? cursor,
+    int limit = 30,
+  }) async =>
+      (await getCallHistoryPage(cursor: cursor, limit: limit)).records;
 
   /// Watch cached call records from Drift (offline-first).
   Stream<List<CallRecordRow>> watchCachedHistory() =>

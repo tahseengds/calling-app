@@ -6,10 +6,12 @@ import 'dart:ui';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'app.dart';
+import 'shared/widgets/app_error_screen.dart';
 import 'core/services/analytics_service.dart';
 import 'core/services/native_call_bridge.dart';
 import 'core/services/notification_service.dart';
@@ -35,6 +37,13 @@ Future<void> main() async {
   // Keep the native splash visible while we do async initialization.
   // FlutterNativeSplash.remove() is called right before runApp().
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
+
+  // In release builds, replace Flutter's default grey/red build-error box with
+  // a calm fallback screen. Debug builds keep the detailed red box (useful for
+  // developers). The error is still reported to Crashlytics via onError below.
+  if (kReleaseMode) {
+    ErrorWidget.builder = (FlutterErrorDetails details) => const AppErrorScreen();
+  }
 
   late final ProviderContainer container;
 

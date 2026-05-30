@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/services/battery_optimization_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/battery_optimization_sheet.dart';
+import '../../../shared/widgets/offline_banner.dart';
 import '../../../shared/widgets/permissions_sheet.dart';
 import '../../profile/ui/profile_screen.dart';
 import '../../calling/presentation/call_history_screen.dart';
@@ -85,12 +86,19 @@ class _ShellScreenState extends ConsumerState<ShellScreen> {
     final callsMissed = ref.watch(missedCallsBadgeProvider);
 
     return Scaffold(
-      body: IndexedStack(
-        index: tab.index,
-        children: const [
-          ChatsHomeScreen(),
-          CallHistoryScreen(),
-          ProfileScreen(),
+      body: Column(
+        children: [
+          const OfflineBanner(),
+          Expanded(
+            child: IndexedStack(
+              index: tab.index,
+              children: const [
+                ChatsHomeScreen(),
+                CallHistoryScreen(),
+                ProfileScreen(),
+              ],
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: _FlBottomNav(
