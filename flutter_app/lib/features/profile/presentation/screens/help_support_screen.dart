@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -66,6 +67,9 @@ class _HelpSupportScreenState extends ConsumerState<HelpSupportScreen> {
       setState(() => _error = 'Please describe the issue in at least 10 characters.');
       return;
     }
+    // Capture display metrics now, while we still hold a valid BuildContext
+    // (MediaQuery can't be read after the awaits below).
+    final media = MediaQuery.maybeOf(context);
     setState(() {
       _submitting = true;
       _error = null;
@@ -79,13 +83,8 @@ class _HelpSupportScreenState extends ConsumerState<HelpSupportScreen> {
       } catch (_) {}
 
       final platform = Platform.operatingSystem;
-      final deviceInfo = _includeDeviceInfo
-          ? <String, dynamic>{
-              'platform': platform,
-              'os_version': Platform.operatingSystemVersion,
-              'locale': Platform.localeName,
-            }
-          : null;
+      final deviceInfo =
+          _includeDeviceInfo ? await _collectDeviceInfo(media) : null;
 
       await ref.read(supportRepositoryProvider).submit(
             category: _category.wire,
@@ -105,6 +104,94 @@ class _HelpSupportScreenState extends ConsumerState<HelpSupportScreen> {
         _error = 'Could not submit. Check your connection and try again.';
       });
     }
+  }
+
+  /// Gathers as much diagnostic detail as we can about the app, OS, hardware,
+  /// and display. Every section is individually guarded so a single failure
+  /// never blocks the report. We deliberately collect no contacts, messages,
+  /// or precise identifiers beyond the OS-provided vendor/device IDs.
+  Future<Map<String, dynamic>> _collectDeviceInfo(MediaQueryData? media) async {
+    final map = <String, dynamic>{};
+
+    // ── App / package ────────────────────────────────────────────────────
+    try {
+      final info = await PackageInfo.fromPlatform();
+      map['app'] = {
+        'name': info.appName,
+        'package': info.packageName,
+        'version': info.version,
+        'build_number': info.buildNumber,
+        if (info.installerStore != null) 'installer': info.installerStore,
+      };
+    } catch (_) {}
+
+    // ── OS / runtime (dart:io) ───────────────────────────────────────────
+    try {
+      final now = DateTime.now();
+      map['os'] = {
+        'platform': Platform.operatingSystem,
+        'os_version': Platform.operatingSystemVersion,
+        'locale': Platform.localeName,
+        'num_processors': Platform.numberOfProcessors,
+        'timezone': now.timeZoneName,
+        'timezone_offset_minutes': now.timeZoneOffset.inMinutes,
+        'dart_version': Platform.version,
+      };
+    } catch (_) {}
+
+    // ── Display metrics ──────────────────────────────────────────────────
+    if (media != null) {
+      try {
+        map['display'] = {
+          'width_dp': media.size.width.round(),
+          'height_dp': media.size.height.round(),
+          'device_pixel_ratio': media.devicePixelRatio,
+          'text_scale': media.textScaler.scale(1.0),
+          'brightness': media.platformBrightness.name,
+          'padding_top': media.padding.top.round(),
+          'padding_bottom': media.padding.bottom.round(),
+        };
+      } catch (_) {}
+    }
+
+    // ── Hardware / device (device_info_plus) ─────────────────────────────
+    try {
+      final plugin = DeviceInfoPlugin();
+      if (Platform.isAndroid) {
+        final a = await plugin.androidInfo;
+        map['device'] = {
+          'type': 'android',
+          'brand': a.brand,
+          'manufacturer': a.manufacturer,
+          'model': a.model,
+          'device': a.device,
+          'product': a.product,
+          'hardware': a.hardware,
+          'board': a.board,
+          'android_release': a.version.release,
+          'sdk_int': a.version.sdkInt,
+          'security_patch': a.version.securityPatch,
+          'is_physical_device': a.isPhysicalDevice,
+          'supported_abis': a.supportedAbis,
+          'fingerprint': a.fingerprint,
+        };
+      } else if (Platform.isIOS) {
+        final i = await plugin.iosInfo;
+        map['device'] = {
+          'type': 'ios',
+          'name': i.name,
+          'model': i.model,
+          'localized_model': i.localizedModel,
+          'system_name': i.systemName,
+          'system_version': i.systemVersion,
+          'machine': i.utsname.machine,
+          'is_physical_device': i.isPhysicalDevice,
+          'identifier_for_vendor': i.identifierForVendor,
+        };
+      }
+    } catch (_) {}
+
+    return map;
   }
 
   @override

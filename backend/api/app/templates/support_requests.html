@@ -114,6 +114,32 @@
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 11px;
     }
+    details.device {
+      margin-top: 10px;
+      border-top: 1px solid var(--border);
+      padding-top: 10px;
+    }
+    details.device summary {
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      list-style: none;
+    }
+    details.device summary::-webkit-details-marker { display: none; }
+    details.device pre {
+      margin: 10px 0 0;
+      padding: 12px;
+      background: var(--chip-other);
+      border-radius: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: var(--text);
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-x: auto;
+    }
   </style>
 </head>
 <body>
@@ -143,6 +169,12 @@
               {% if r.app_version %}<span>App: {{ r.app_version }}</span>{% endif %}
               <span>Request <code>{{ r.id }}</code></span>
             </div>
+            {% if r.device_info %}
+              <details class="device">
+                <summary>Device details</summary>
+                <pre>{{ r.device_info | tojson(indent=2) }}</pre>
+              </details>
+            {% endif %}
           </div>
         {% endfor %}
       </div>

@@ -95,6 +95,8 @@ dependencies:
 
   # Settings sub-screens (notifications, sounds, privacy, help, about)
   package_info_plus: ^10.1.0
+  # Rich device/OS details attached to support requests for diagnostics.
+  device_info_plus: ">=11.0.0 <13.0.0"
   url_launcher: ^6.3.1
   audioplayers: ^6.1.0
   local_auth: ^2.3.0
