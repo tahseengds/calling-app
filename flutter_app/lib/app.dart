@@ -33,6 +33,8 @@ import 'features/calling/domain/call_notifier.dart';
 import 'features/calling/domain/call_state.dart';
 // App lock gate
 import 'features/settings/ui/app_lock_gate.dart';
+// Force-update / maintenance gate (driven by Firebase Remote Config)
+import 'features/app_update/update_gate.dart';
 // Profile screens
 import 'features/profile/presentation/screens/about_screen.dart';
 import 'features/profile/presentation/screens/blocked_contacts_screen.dart';
@@ -371,20 +373,23 @@ class _LuminAppState extends ConsumerState<LuminApp>
         );
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: overlay,
-          // Wrap every route in the App Lock gate so a locked app can't be
-          // bypassed by deep-linking past the home screen. The call-return
-          // overlay floats above all routes (but below the lock screen) so an
-          // in-progress call is always one tap away from anywhere in the app.
-          child: AppLockGate(
-            child: Stack(
-              children: [
-                child ?? const SizedBox.shrink(),
-                CallReturnOverlay(
-                  onReturn: (isVideo) => router.push(
-                    isVideo ? '/call/video' : '/call/active',
+          // UpdateGate sits outermost: a force-update / maintenance block must
+          // win over everything, including the lock screen. Inside it, the App
+          // Lock gate prevents bypassing a locked app via deep links, and the
+          // call-return overlay floats above all routes (but below those gates)
+          // so an in-progress call is always one tap away.
+          child: UpdateGate(
+            child: AppLockGate(
+              child: Stack(
+                children: [
+                  child ?? const SizedBox.shrink(),
+                  CallReturnOverlay(
+                    onReturn: (isVideo) => router.push(
+                      isVideo ? '/call/video' : '/call/active',
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );

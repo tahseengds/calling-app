@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import redis.asyncio as aioredis
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -219,6 +219,67 @@ def create_app() -> FastAPI:
             name="health.html",
             context={"report": report},
             status_code=report.http_status,
+        )
+
+    @app.get("/metrics", tags=["infra"])
+    async def metrics(request: Request):
+        """
+        Prometheus exposition of DB connection-pool saturation + liveness.
+
+        Internal-only (same RFC-1918 / localhost gate as the detailed health
+        report) — pool internals shouldn't be world-readable, and a public
+        /metrics is a common information leak. External callers get a 404 so
+        the endpoint isn't even advertised. Hand-rolled text format keeps this
+        dependency-free (no prometheus_client needed).
+        """
+        if not _is_internal(request):
+            return JSONResponse(status_code=404, content={"detail": "Not found"})
+
+        # The async engine wraps a sync engine whose pool exposes the counters.
+        pool = engine.sync_engine.pool
+
+        def _stat(fn: str) -> int:
+            method = getattr(pool, fn, None)
+            try:
+                return int(method()) if callable(method) else -1
+            except Exception:
+                return -1
+
+        # Redis liveness (bounded so a stuck Redis can't hang a scrape).
+        redis_up = 0
+        try:
+            await asyncio.wait_for(request.app.state.redis.ping(), timeout=1.0)
+            redis_up = 1
+        except Exception:
+            redis_up = 0
+
+        version = app.version
+        lines = [
+            "# HELP lumin_app_info Application metadata.",
+            "# TYPE lumin_app_info gauge",
+            f'lumin_app_info{{version="{version}"}} 1',
+            "# HELP lumin_db_pool_size Configured base pool size.",
+            "# TYPE lumin_db_pool_size gauge",
+            f"lumin_db_pool_size {_stat('size')}",
+            "# HELP lumin_db_pool_checked_out Connections currently in use.",
+            "# TYPE lumin_db_pool_checked_out gauge",
+            f"lumin_db_pool_checked_out {_stat('checkedout')}",
+            "# HELP lumin_db_pool_checked_in Idle connections available in the pool.",
+            "# TYPE lumin_db_pool_checked_in gauge",
+            f"lumin_db_pool_checked_in {_stat('checkedin')}",
+            "# HELP lumin_db_pool_overflow Overflow connections beyond the base size.",
+            "# TYPE lumin_db_pool_overflow gauge",
+            f"lumin_db_pool_overflow {_stat('overflow')}",
+            "# HELP lumin_db_pool_max_overflow Configured max overflow.",
+            "# TYPE lumin_db_pool_max_overflow gauge",
+            f"lumin_db_pool_max_overflow {settings.DB_MAX_OVERFLOW}",
+            "# HELP lumin_redis_up 1 if Redis answered a ping, else 0.",
+            "# TYPE lumin_redis_up gauge",
+            f"lumin_redis_up {redis_up}",
+        ]
+        return Response(
+            content="\n".join(lines) + "\n",
+            media_type="text/plain; version=0.0.4; charset=utf-8",
         )
 
     app.include_router(auth_router.router, prefix="/api/auth", tags=["auth"])

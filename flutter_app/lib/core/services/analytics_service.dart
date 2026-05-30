@@ -28,6 +28,28 @@ class AnalyticsService {
     } catch (_) {/* best effort */}
   }
 
+  // ── Curated product events ─────────────────────────────────────────────────
+  // Centralised, consistently-named events for key user actions so product
+  // analytics stays queryable instead of a grab-bag of ad-hoc strings. Each is
+  // a thin alias over [logEvent] (already crash-guarded).
+
+  Future<void> accountDeleted() => logEvent('account_deleted');
+
+  Future<void> passwordResetRequested() =>
+      logEvent('password_reset_requested');
+
+  Future<void> callStarted({
+    required String callType,
+    required String direction,
+  }) =>
+      logEvent('call_started', {
+        'call_type': callType,
+        'direction': direction,
+      });
+
+  Future<void> supportRequestSubmitted(String category) =>
+      logEvent('support_request_submitted', {'category': category});
+
   /// Associate events + crashes with a user (call on sign-in / clear on logout).
   Future<void> setUser(String? id) async {
     try {

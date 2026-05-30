@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:uuid/uuid.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../../core/services/native_call_bridge.dart';
 import '../../../core/services/signaling_service.dart';
 import '../../../core/services/webrtc_service.dart';
@@ -191,6 +192,11 @@ class CallNotifier extends Notifier<CallSession?> {
       startedAt: DateTime.now().toUtc(),
       isSpeakerOn: speakerDefault,
     );
+
+    ref.read(analyticsServiceProvider).callStarted(
+          callType: callType.name,
+          direction: 'outgoing',
+        );
 
     // ── Voice-call audio mode ────────────────────────────────────────────────
     // Hardware volume buttons should control the in-call (STREAM_VOICE_CALL)

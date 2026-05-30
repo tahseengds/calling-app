@@ -8,6 +8,7 @@ import 'package:image_cropper/image_cropper.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import '../../../core/services/analytics_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/models/user.dart';
@@ -218,6 +219,7 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
     if (confirm != true || !mounted) return;
     try {
       await ref.read(authNotifierProvider.notifier).sendPasswordResetEmail();
+      ref.read(analyticsServiceProvider).passwordResetRequested();
       if (mounted) {
         showSuccessSnackbar(context, 'Password reset link sent to $email');
       }
@@ -258,6 +260,7 @@ class _ProfileViewState extends ConsumerState<_ProfileView> {
     setState(() => _isDeletingAccount = true);
     try {
       await ref.read(profileRepositoryProvider).deleteAccount();
+      ref.read(analyticsServiceProvider).accountDeleted();
       // Local teardown — server already revoked every session. The GoRouter
       // redirect fires automatically on AuthUnauthenticated.
       await ref.read(authNotifierProvider.notifier).handleAccountDeleted();

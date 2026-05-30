@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://redis:6379/0"
     SIGNALING_REDIS_URL: str = "redis://redis:6379/1"
 
+    # SQLAlchemy connection pool (also surfaced on the internal /metrics endpoint)
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 5
+
     # JWT
     JWT_SECRET: str
     JWT_ALGORITHM: str = "HS256"

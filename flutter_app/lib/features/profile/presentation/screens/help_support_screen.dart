@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../../../core/services/analytics_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -93,6 +94,8 @@ class _HelpSupportScreenState extends ConsumerState<HelpSupportScreen> {
             platform: platform,
             deviceInfo: deviceInfo,
           );
+
+      ref.read(analyticsServiceProvider).supportRequestSubmitted(_category.wire);
 
       if (!mounted) return;
       showSuccessSnackbar(context, "Thanks — we'll look into it.");

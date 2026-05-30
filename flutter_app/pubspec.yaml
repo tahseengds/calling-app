@@ -32,6 +32,10 @@ dependencies:
   # Usage analytics + crash/error reporting (issue tracking).
   firebase_analytics: ^12.0.0
   firebase_crashlytics: ^5.0.0
+  # Remotely-tunable config: force-update floor, soft-update target, store URLs,
+  # and a maintenance kill-switch. Ships with safe in-app defaults so it works
+  # before anything is set in the Firebase Console.
+  firebase_remote_config: ^6.0.0
   # Google Sign-In — runs the native Google account picker then exchanges
   # the result for a Firebase credential via GoogleAuthProvider.credential.
   google_sign_in: ^6.2.2
