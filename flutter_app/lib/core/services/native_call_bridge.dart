@@ -285,6 +285,20 @@ class NativeCallBridge {
     }
   }
 
+  /// Cold-start: a generic deep-link route from a tapped notification (e.g. a
+  /// missed-call notification → "/call/history"). Null if none pending.
+  Future<String?> getInitialRoute() async {
+    if (kIsWeb) return null;
+    try {
+      return await _channel.invokeMethod<String>('getInitialRoute');
+    } on PlatformException catch (e) {
+      debugPrint('[native_call_bridge] getInitialRoute failed: $e');
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
+  }
+
   /// Explicitly request Picture-in-Picture (e.g. the minimize button).
   /// Returns true if the OS entered PiP; false when unsupported.
   Future<bool> enterPip() async {
