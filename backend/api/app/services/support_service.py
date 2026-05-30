@@ -6,6 +6,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.admin_audit_log import AdminAuditLog
 from app.models.support_feedback import SupportFeedback
 from app.models.user import User
 from app.schemas.support import (
@@ -96,11 +97,25 @@ async def update_status(
     if row is None:
         raise NotFoundError("Support request not found")
 
+    previous_status = row.status
     row.status = status
     row.handled_by = admin_email
     row.resolved_at = (
         datetime.now(timezone.utc) if status == "resolved" else None
     )
+
+    # Append-only audit trail: handled_by/resolved_at on the row only ever show
+    # the *latest* change, so record each transition immutably for compliance.
+    db.add(
+        AdminAuditLog(
+            admin_email=admin_email,
+            action="support.status_change",
+            target_type="support_feedback",
+            target_id=request_id,
+            detail={"from": previous_status, "to": status},
+        )
+    )
+
     await db.commit()
     await db.refresh(row)
     return row

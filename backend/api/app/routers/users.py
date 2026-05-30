@@ -36,6 +36,18 @@ async def update_profile(
     return me
 
 
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_account(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """
+    Permanently delete (anonymize) the caller's own account. Irreversible:
+    revokes all sessions, scrubs personal data, and deactivates the login.
+    """
+    await user_service.delete_account(db, current_user)
+
+
 @router.get("/{user_id}", response_model=UserPublic)
 async def get_user(
     user_id: UUID,

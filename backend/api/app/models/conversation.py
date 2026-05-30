@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Integer, func
+from sqlalchemy import DateTime, ForeignKey, Integer, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -17,6 +17,12 @@ if TYPE_CHECKING:
 
 class Conversation(Base):
     __tablename__ = "conversations"
+    # Mirrors the DB-level unique constraint from migration 0001 so the ORM
+    # metadata matches reality. (participant_a, participant_b) are normalized
+    # (sorted) before insert, so this also backs the ON CONFLICT upsert.
+    __table_args__ = (
+        UniqueConstraint("participant_a", "participant_b"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         PGUUID(as_uuid=True), primary_key=True, default=uuid.uuid4

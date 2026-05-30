@@ -15,14 +15,14 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import redis.asyncio as aioredis
-from sqlalchemy import and_, func, or_, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.contact import Contact
 from app.models.conversation import Conversation
 from app.models.media import MediaFile
-from app.models.message import Message, MessageReceipt
+from app.models.message import Message, MessageReaction, MessageReceipt
 from app.models.user import User
 from app.schemas.message import (
     MessagePage,
@@ -251,7 +251,7 @@ async def fetch_messages(
     # Disappearing messages — lazy cleanup. Scrub any messages whose TTL has
     # passed (clears content/media for privacy) and exclude them from the page.
     now = datetime.now(timezone.utc)
-    await db.execute(
+    scrub_result = await db.execute(
         update(Message)
         .where(
             Message.conversation_id == conversation_id,
@@ -261,6 +261,20 @@ async def fetch_messages(
         )
         .values(deleted_at=now, content=None, media_id=None, updated_at=now)
     )
+    # Reactions on a scrubbed message are dead weight (the tombstone returns no
+    # reactions). Only run the extra delete when something actually expired.
+    if scrub_result.rowcount:
+        await db.execute(
+            delete(MessageReaction).where(
+                MessageReaction.message_id.in_(
+                    select(Message.id).where(
+                        Message.conversation_id == conversation_id,
+                        Message.expires_at.is_not(None),
+                        Message.expires_at <= now,
+                    )
+                )
+            )
+        )
 
     query = (
         select(Message)
@@ -272,7 +286,12 @@ async def fetch_messages(
     )
 
     if cursor:
-        cursor_at, cursor_id = decode_cursor(cursor)
+        try:
+            cursor_at, cursor_id = decode_cursor(cursor)
+        except (ValueError, TypeError) as exc:
+            # Malformed/garbage cursor from the client — a 422 is the honest
+            # answer, not a 500 from an unhandled base64/UUID/ISO parse error.
+            raise ValidationFailedError("Invalid pagination cursor") from exc
         query = query.where(
             (Message.created_at < cursor_at)
             | (
@@ -496,6 +515,10 @@ async def soft_delete(
     msg.content = None
     msg.media_id = None
     msg.updated_at = now
+    # Prune reactions — the tombstone is inert, so leftover rows are dead weight.
+    await db.execute(
+        delete(MessageReaction).where(MessageReaction.message_id == msg.id)
+    )
     await db.flush()
 
     response = _msg_to_response(msg)

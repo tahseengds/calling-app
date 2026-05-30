@@ -21,7 +21,11 @@ async def refresh(
     req: RefreshRequest,
     db: AsyncSession = Depends(get_db),
     redis: aioredis.Redis = Depends(get_redis),
+    _rl: None = Depends(rate_limit("refresh_token", 30, 60)),
 ) -> TokenResponse:
+    # Rate-limited per-IP: refresh is unauthenticated (the refresh token is the
+    # only credential), so an open endpoint invites brute-forcing. 30/min is
+    # generous for a legit client rotating tokens but throttles guessing.
     return await auth_service.refresh(db, redis, req)
 
 

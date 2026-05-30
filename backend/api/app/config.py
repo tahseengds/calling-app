@@ -33,6 +33,12 @@ class Settings(BaseSettings):
     MAX_DOCUMENT_SIZE_MB: int = 25
     MAX_AVATAR_SIZE_MB: int = 5
 
+    # Hard ceiling on any single request body, enforced app-side via the
+    # Content-Length header. Must sit above the largest media upload
+    # (MAX_VIDEO_SIZE_MB) plus multipart overhead so legitimate uploads pass
+    # while arbitrarily huge payloads are rejected early (DoS / OOM guard).
+    MAX_REQUEST_BODY_MB: int = 200
+
     # Firebase
     FIREBASE_PROJECT_ID: str = ""
     FIREBASE_SERVICE_ACCOUNT_PATH: str = "/app/firebase-service-account.json"

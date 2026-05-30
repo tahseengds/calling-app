@@ -1,3 +1,4 @@
+from .admin_audit_log import AdminAuditLog
 from .base import Base
 from .call_record import CallRecord
 from .contact import Contact
@@ -9,6 +10,7 @@ from .support_feedback import SupportFeedback
 from .user import User
 
 __all__ = [
+    "AdminAuditLog",
     "Base",
     "CallRecord",
     "Contact",

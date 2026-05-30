@@ -1,6 +1,7 @@
 """
 Lumin FastAPI application factory.
 """
+import asyncio
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -38,6 +39,42 @@ logger = logging.getLogger(__name__)
 templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent / "templates"))
 
 
+class BodySizeLimitMiddleware:
+    """
+    Reject oversized request bodies up front using the Content-Length header.
+
+    A pure-ASGI middleware so it runs before the body is read into memory. This
+    catches the common DoS shape (a declared multi-gigabyte payload) cheaply;
+    a chunked request without Content-Length still streams, but FastAPI's
+    per-endpoint upload size checks remain the backstop there.
+    """
+
+    def __init__(self, app, max_bytes: int) -> None:
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] == "http":
+            for name, value in scope.get("headers", []):
+                if name == b"content-length":
+                    try:
+                        declared = int(value)
+                    except ValueError:
+                        break
+                    if declared > self.max_bytes:
+                        response = JSONResponse(
+                            status_code=413,
+                            content={
+                                "detail": "Request body too large",
+                                "code": "file_too_large",
+                            },
+                        )
+                        await response(scope, receive, send)
+                        return
+                    break
+        await self.app(scope, receive, send)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ── Startup ──────────────────────────────────────────────────────────────
@@ -46,9 +83,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         encoding="utf-8",
         decode_responses=True,
     )
-    await redis_client.ping()
+    # Bounded ping so a slow/unreachable Redis fails startup fast instead of
+    # hanging the boot indefinitely.
+    await asyncio.wait_for(redis_client.ping(), timeout=5.0)
     app.state.redis = redis_client
     logger.info("Redis connected at %s", settings.REDIS_URL)
+
+    # Loud warning if the deployment is still running on placeholder domains —
+    # CORS and TURN silently break when DOMAIN/TURN_HOST are left as examples.
+    if "example.com" in (settings.DOMAIN, settings.TURN_HOST) or \
+            settings.DOMAIN.endswith("example.com") or \
+            settings.TURN_HOST.endswith("example.com"):
+        logger.warning(
+            "DOMAIN=%r / TURN_HOST=%r still use placeholder 'example.com' "
+            "values — CORS and TURN will not work until these are set.",
+            settings.DOMAIN,
+            settings.TURN_HOST,
+        )
 
     async with engine.connect() as conn:
         await conn.execute(text("SELECT 1"))
@@ -75,21 +126,28 @@ def create_app() -> FastAPI:
         redoc_url=None,
     )
 
+    # ── Request body ceiling ──────────────────────────────────────────────────
+    app.add_middleware(
+        BodySizeLimitMiddleware,
+        max_bytes=settings.MAX_REQUEST_BODY_MB * 1024 * 1024,
+    )
+
     # ── CORS ──────────────────────────────────────────────────────────────────
     # Mobile clients don't enforce CORS, so the only callers this matters for
     # are browser-based tools (Swagger docs, ad-hoc Postman browser plugins).
     # Allow just the production HTTPS origin with the verbs we actually use —
     # cuts down on the surface a malicious page could probe through a browser.
     _allowed_origins = [f"https://{settings.DOMAIN}"]
-    # In DEBUG, also accept localhost so dev tools can hit the API.
-    if settings.DEBUG:
-        _allowed_origins.extend([
-            "http://localhost",
-            "http://127.0.0.1",
-        ])
+    # In DEBUG, also accept localhost on any port so dev tools (Swagger on a
+    # random port, a local web build on :3000, etc.) can hit the API without
+    # CORS friction. The regex covers localhost / 127.0.0.1 with or without a port.
+    _origin_regex = (
+        r"^http://(localhost|127\.0\.0\.1)(:\d+)?$" if settings.DEBUG else None
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_allowed_origins,
+        allow_origin_regex=_origin_regex,
         allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["Authorization", "Content-Type"],
     )
