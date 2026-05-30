@@ -102,20 +102,39 @@ class CallService : Service() {
         ensureCallNotificationChannel()
 
         val notif = buildIncomingNotification(intent)
-        val foregroundType =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL or
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
-            } else {
-                0
-            }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && foregroundType != 0) {
-            startForeground(CALL_NOTIFICATION_ID, notif, foregroundType)
-        } else {
-            startForeground(CALL_NOTIFICATION_ID, notif)
+        // Ring as a PHONE_CALL foreground service ONLY — never microphone. The
+        // mic isn't needed until the user answers (ActiveCallService starts the
+        // mic FGS then, while the app is foregrounded and therefore eligible).
+        // On Android 14 a `microphone`-typed FGS started from the background —
+        // which an FCM-triggered ring is — is disallowed and throws a
+        // SecurityException; `phoneCall` is exempt because the app holds
+        // MANAGE_OWN_CALLS. The whole start is wrapped so that if the platform
+        // still denies the foreground start (general background-FGS restriction,
+        // or the FCM grace window elapsed), we don't crash: we post the
+        // incoming-call notification directly (its IMPORTANCE_HIGH calls channel
+        // + full-screen intent still ring and present the UI), bridge to Flutter,
+        // then stop cleanly so the "didn't call startForeground in time"
+        // watchdog can't fire.
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                startForeground(
+                    CALL_NOTIFICATION_ID,
+                    notif,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL,
+                )
+            } else {
+                startForeground(CALL_NOTIFICATION_ID, notif)
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "startForeground denied (${t.javaClass.simpleName}): ${t.message}; notification fallback")
+            try {
+                (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                    .notify(CALL_NOTIFICATION_ID, notif)
+            } catch (_: Throwable) { /* ignore */ }
+            forwardIncomingToFlutter(intent)
+            stopSelfCleanly()
+            return
         }
 
         acquireWakeLockBounded()
@@ -126,6 +145,11 @@ class CallService : Service() {
         // If the Flutter engine is already alive (app foregrounded), forward
         // the FCM payload over the bus so the in-app UI matches. The CallNotifier
         // will dedup by call_id against any socket call:incoming it also receives.
+        forwardIncomingToFlutter(intent)
+    }
+
+    /** Forward the incoming-call payload to the Flutter engine (if alive). */
+    private fun forwardIncomingToFlutter(intent: Intent) {
         val payloadForFlutter = HashMap<String, Any?>().apply {
             for (key in PAYLOAD_KEYS) {
                 val v = intent.getStringExtra(key)

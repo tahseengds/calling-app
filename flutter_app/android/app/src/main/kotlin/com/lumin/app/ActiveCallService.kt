@@ -71,10 +71,25 @@ class ActiveCallService : Service() {
             } else {
                 0
             }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && type != 0) {
-            startForeground(NOTIFICATION_ID, notif, type)
-        } else {
-            startForeground(NOTIFICATION_ID, notif)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && type != 0) {
+                startForeground(NOTIFICATION_ID, notif, type)
+            } else {
+                startForeground(NOTIFICATION_ID, notif)
+            }
+        } catch (t: Throwable) {
+            // ActiveCallService is normally started right after the user answers
+            // (app foregrounded → eligible for a microphone FGS). If it's somehow
+            // denied, don't crash: show the ongoing-call notification directly and
+            // stop so the "didn't call startForeground in time" watchdog can't
+            // fire. The Flutter/WebRTC layer still drives the live call.
+            Log.w(TAG, "startForeground denied (${t.javaClass.simpleName}): ${t.message}; notification fallback")
+            try {
+                (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                    .notify(NOTIFICATION_ID, notif)
+            } catch (_: Throwable) { /* ignore */ }
+            stopSelfCleanly()
+            return
         }
     }
 
