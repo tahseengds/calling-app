@@ -1,31 +1,27 @@
 // Build-time configuration.
 //
-// Defaults are chosen by build mode, so no flags are needed for the common
-// cases:
-//   • Release builds (`flutter build apk --release`, `--split-per-abi`, etc.)
-//     default to the live production backend.
-//   • Debug / profile builds (`flutter run`) default to the local emulator
-//     host (10.0.2.2), so on-device dev hits a local backend out of the box.
+// Both debug and release builds default to the LIVE production backend, so
+// `flutter run` (incl. on a physical device) and `flutter build apk` hit
+// https://lumin.tahseen.tech out of the box — no flags needed.
 //
-// Any value can still be overridden explicitly, e.g.:
+// To target a LOCAL backend instead, override explicitly, e.g. on the emulator:
 //   flutter run \
-//     --dart-define=API_BASE_URL=https://staging.example.com \
-//     --dart-define=SIGNALING_URL=wss://staging.example.com \
-//     --dart-define=APP_ENV=prod
+//     --dart-define=API_BASE_URL=http://10.0.2.2:8000 \
+//     --dart-define=SIGNALING_URL=ws://10.0.2.2:8001
+// (cleartext http:// to a local host also needs a debug network-security-config
+// since targetSdk 34 blocks it by default.)
 
 import 'package:flutter/foundation.dart' show kReleaseMode;
 
 abstract final class AppConfig {
   static const String apiBaseUrl = String.fromEnvironment(
     'API_BASE_URL',
-    defaultValue:
-        kReleaseMode ? 'https://lumin.tahseen.tech' : 'http://10.0.2.2:8000',
+    defaultValue: 'https://lumin.tahseen.tech',
   );
 
   static const String signalingUrl = String.fromEnvironment(
     'SIGNALING_URL',
-    defaultValue:
-        kReleaseMode ? 'wss://lumin.tahseen.tech' : 'ws://10.0.2.2:8001',
+    defaultValue: 'wss://lumin.tahseen.tech',
   );
 
   static const String appEnv = String.fromEnvironment(

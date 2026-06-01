@@ -38,6 +38,11 @@ enum NativeCallEventKind {
   /// FIX 7: User tapped Hang Up on the persistent in-call notification while
   /// the app was backgrounded. Payload carries only call_id + native_action.
   hangup,
+
+  /// The caller cancelled a still-ringing call. Pushed natively (FcmService)
+  /// when the socket `call:hangup` couldn't reach a backgrounded/killed callee.
+  /// Payload carries only call_id + native_action.
+  cancelled,
 }
 
 class NativeCallEvent {
@@ -271,6 +276,33 @@ class NativeCallBridge {
     }
   }
 
+  /// Start the foreground incoming-call ringtone (the device ringtone, on the
+  /// ring stream at the device ring volume). Routes through the same
+  /// single-instance native ringer the background CallService uses, so the two
+  /// paths can never produce a double-ring. Idempotent on the native side.
+  Future<void> startRingtone() async {
+    if (kIsWeb) return;
+    try {
+      await _channel.invokeMethod<void>('startRingtone');
+    } on PlatformException catch (e) {
+      debugPrint('[native_call_bridge] startRingtone failed: $e');
+    } on MissingPluginException {
+      /* tests / iOS */
+    }
+  }
+
+  /// Stop the foreground incoming-call ringtone started by [startRingtone].
+  Future<void> stopRingtone() async {
+    if (kIsWeb) return;
+    try {
+      await _channel.invokeMethod<void>('stopRingtone');
+    } on PlatformException catch (e) {
+      debugPrint('[native_call_bridge] stopRingtone failed: $e');
+    } on MissingPluginException {
+      /* tests / iOS */
+    }
+  }
+
   /// Cold-start: the conversation_id from a message notification that launched
   /// the app (null if it wasn't launched from one).
   Future<String?> getInitialConversation() async {
@@ -394,6 +426,7 @@ class NativeCallBridge {
       'accept' => NativeCallEventKind.accept,
       'decline' => NativeCallEventKind.decline,
       'hangup' => NativeCallEventKind.hangup,
+      'cancelled' => NativeCallEventKind.cancelled,
       _ => null,
     };
     if (kind == null) return null;

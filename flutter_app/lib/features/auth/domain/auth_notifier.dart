@@ -49,10 +49,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
   final FirebaseAuth? _firebaseOverride;
   FirebaseAuth get _firebase => _firebaseOverride ?? FirebaseAuth.instance;
 
-  /// Google sign-in client. Lazy for the same Firebase-init reason as above.
-  GoogleSignIn? _googleOverride;
-  GoogleSignIn get _google =>
-      _googleOverride ??= GoogleSignIn(scopes: const ['email']);
+  /// Google sign-in client. v7 exposes a single [GoogleSignIn.instance] which
+  /// must be [GoogleSignIn.initialize]d exactly once before [authenticate].
+  /// We initialize lazily (see [_ensureGoogleInitialized]) so construction
+  /// stays Firebase-init-free, for the same reason as above.
+  GoogleSignIn get _google => GoogleSignIn.instance;
+  Future<void>? _googleInit;
+
+  /// Runs [GoogleSignIn.initialize] once, caching the future so repeat calls
+  /// are no-ops. No clientId/serverClientId is passed: on Android it is read
+  /// from google-services.json's web OAuth client entry, and on iOS from the
+  /// bundled GoogleService-Info plist.
+  Future<void> _ensureGoogleInitialized() =>
+      _googleInit ??= _google.initialize();
 
   /// Set while [_tryRestoreSession] is doing a `POST /api/auth/refresh`.
   /// Exposed so the Dio interceptor can await this instead of firing its
@@ -67,9 +76,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     this._secure,
     this._ref, {
     FirebaseAuth? firebase,
-    GoogleSignIn? google,
   })  : _firebaseOverride = firebase,
-        _googleOverride = google,
         super(const AuthUnknown()) {
     _tryRestoreSession();
   }
@@ -189,25 +196,35 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// Run the native Google account picker, exchange the result for a
   /// Firebase credential, and complete the backend handshake.
   ///
-  /// Throws [FirebaseAuthException] on Firebase-side failures and a plain
-  /// [Exception] with a friendly message on Google-side failures (cancel,
-  /// no network, etc.).
+  /// Returns silently if the user dismisses the picker. Throws a
+  /// [FirebaseAuthException] on Firebase-side failures and a
+  /// [GoogleSignInException] / [Exception] on other Google-side failures —
+  /// the login screen turns either into a friendly snackbar.
   Future<void> signInWithGoogle() async {
-    final GoogleSignInAccount? account = await _google.signIn();
-    if (account == null) {
-      // User cancelled — drop back to the login screen silently.
-      return;
+    await _ensureGoogleInitialized();
+
+    final GoogleSignInAccount account;
+    try {
+      // scopeHint nudges platforms that support a combined auth+authz flow;
+      // we only need basic profile/email, which Firebase reads from the ID
+      // token, so no separate authorizationClient call is required.
+      account = await _google.authenticate(scopeHint: const ['email']);
+    } on GoogleSignInException catch (e) {
+      // The user dismissing the picker surfaces as `canceled` — mirror the
+      // old v6 `signIn() == null` path and drop back to login silently.
+      if (e.code == GoogleSignInExceptionCode.canceled) return;
+      rethrow;
     }
 
-    final auth = await account.authentication;
-    if (auth.idToken == null && auth.accessToken == null) {
-      throw Exception('Google sign-in did not return any tokens.');
+    // v7's authentication only carries the ID token, which is all Firebase
+    // needs for a Google credential (access tokens now come from the separate
+    // authorizationClient, which we don't use).
+    final idToken = account.authentication.idToken;
+    if (idToken == null) {
+      throw Exception('Google sign-in did not return an ID token.');
     }
 
-    final credential = GoogleAuthProvider.credential(
-      idToken: auth.idToken,
-      accessToken: auth.accessToken,
-    );
+    final credential = GoogleAuthProvider.credential(idToken: idToken);
 
     final userCred = await _firebase.signInWithCredential(credential);
     await _completeBackendSignIn(

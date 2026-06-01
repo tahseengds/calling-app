@@ -14,22 +14,23 @@ export function PhoneFrame({
   return (
     <div
       className={clsx('relative shrink-0', className)}
+      data-tilt={tilt}
       style={{ width: 272, height: 554 }}
     >
-      {/* Outer metallic shell */}
+      {/* Outer machined shell (cool neutral metal) */}
       <div
         className="absolute inset-0 rounded-[52px]"
         style={{
-          background: 'linear-gradient(160deg, #252535 0%, #17172a 45%, #0e0e1c 100%)',
+          background: 'linear-gradient(160deg, #2b2e3a 0%, #15161d 45%, #0c0d11 100%)',
           boxShadow: `
-            inset 0 1.5px 0 rgba(255,255,255,0.13),
+            inset 0 1.5px 0 rgba(255,255,255,0.10),
             inset 0 -1.5px 0 rgba(0,0,0,0.55),
-            inset 1.5px 0 0 rgba(255,255,255,0.06),
+            inset 1.5px 0 0 rgba(255,255,255,0.05),
             inset -1.5px 0 0 rgba(0,0,0,0.35),
             0 0 0 1px rgba(0,0,0,0.75),
             0 50px 100px -20px rgba(0,0,0,0.85),
             0 10px 40px -10px rgba(0,0,0,0.5),
-            0 0 80px -30px rgba(109,124,255,0.3)
+            0 0 80px -30px rgba(47,107,255,0.28)
           `,
         }}
       />
@@ -42,7 +43,7 @@ export function PhoneFrame({
           top: 80,
           width: 4,
           height: 20,
-          background: 'linear-gradient(to right, #141424, #1e1e32)',
+          background: 'linear-gradient(to right, #101116, #1e2029)',
           boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), 0 1px 0 rgba(0,0,0,0.4)',
         }}
       />
@@ -54,7 +55,7 @@ export function PhoneFrame({
           top: 116,
           width: 4,
           height: 34,
-          background: 'linear-gradient(to right, #141424, #1e1e32)',
+          background: 'linear-gradient(to right, #101116, #1e2029)',
           boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), 0 1px 0 rgba(0,0,0,0.4)',
         }}
       />
@@ -66,7 +67,7 @@ export function PhoneFrame({
           top: 162,
           width: 4,
           height: 34,
-          background: 'linear-gradient(to right, #141424, #1e1e32)',
+          background: 'linear-gradient(to right, #101116, #1e2029)',
           boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), 0 1px 0 rgba(0,0,0,0.4)',
         }}
       />
@@ -78,7 +79,7 @@ export function PhoneFrame({
           top: 130,
           width: 4,
           height: 52,
-          background: 'linear-gradient(to left, #141424, #1e1e32)',
+          background: 'linear-gradient(to left, #101116, #1e2029)',
           boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07), 0 1px 0 rgba(0,0,0,0.4)',
         }}
       />
@@ -169,20 +170,20 @@ export function AppScreen({ variant }: { variant: 'chat' | 'call' | 'privacy' })
     return (
       <div
         className="relative flex h-full flex-col items-center justify-between px-5 pb-4 pt-2"
-        style={{ background: 'linear-gradient(180deg, #1c0b4a 0%, #0e0528 55%, #060310 100%)' }}
+        style={{ background: 'linear-gradient(180deg, #14224a 0%, #0c1124 55%, #08090c 100%)' }}
       >
         {/* Top bar */}
         <div className="flex w-full items-center justify-between">
           <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)' }}>swipe to minimize</span>
           <div
             style={{
-              background: 'rgba(70,224,208,0.12)',
-              border: '1px solid rgba(70,224,208,0.3)',
+              background: 'rgba(47,107,255,0.14)',
+              border: '1px solid rgba(47,107,255,0.35)',
               borderRadius: 999,
               padding: '2px 8px',
             }}
           >
-            <span style={{ fontSize: 9, color: '#46e0d0' }}>HD · E2E</span>
+            <span style={{ fontSize: 9, color: '#7aa5ff' }}>HD · E2E</span>
           </div>
         </div>
 
@@ -193,7 +194,7 @@ export function AppScreen({ variant }: { variant: 'chat' | 'call' | 'privacy' })
               className="absolute rounded-full"
               style={{
                 inset: -16,
-                background: 'rgba(109,124,255,0.12)',
+                background: 'rgba(47,107,255,0.12)',
                 animation: 'ping-slow 2s ease-out infinite',
               }}
             />
@@ -201,7 +202,7 @@ export function AppScreen({ variant }: { variant: 'chat' | 'call' | 'privacy' })
               className="absolute rounded-full"
               style={{
                 inset: -8,
-                background: 'rgba(109,124,255,0.18)',
+                background: 'rgba(47,107,255,0.18)',
                 animation: 'ping-slow 2s ease-out 0.5s infinite',
               }}
             />
@@ -210,8 +211,8 @@ export function AppScreen({ variant }: { variant: 'chat' | 'call' | 'privacy' })
                 width: 90,
                 height: 90,
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, #9c93ff 0%, #6d7cff 50%, #46e0d0 100%)',
-                boxShadow: '0 0 40px rgba(109,124,255,0.5), 0 0 80px rgba(109,124,255,0.2)',
+                background: 'linear-gradient(135deg, #7aa5ff 0%, #2f6bff 50%, #1a44b8 100%)',
+                boxShadow: '0 0 40px rgba(47,107,255,0.45), 0 0 80px rgba(47,107,255,0.18)',
               }}
             />
           </div>
@@ -254,7 +255,7 @@ export function AppScreen({ variant }: { variant: 'chat' | 'call' | 'privacy' })
     return (
       <div
         className="flex h-full flex-col gap-1.5 px-3 py-2"
-        style={{ background: 'linear-gradient(180deg, #080f1e 0%, #050912 100%)' }}
+        style={{ background: 'linear-gradient(180deg, #101116 0%, #08090c 100%)' }}
       >
         <p style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.9)', padding: '0 4px 6px' }}>
           Privacy
@@ -285,7 +286,7 @@ export function AppScreen({ variant }: { variant: 'chat' | 'call' | 'privacy' })
                 width: 30,
                 height: 17,
                 borderRadius: 999,
-                background: on ? '#6d7cff' : 'rgba(255,255,255,0.08)',
+                background: on ? '#2f6bff' : 'rgba(255,255,255,0.08)',
                 padding: '2.5px',
                 display: 'flex',
                 alignItems: 'center',
@@ -305,7 +306,7 @@ export function AppScreen({ variant }: { variant: 'chat' | 'call' | 'privacy' })
   return (
     <div
       className="flex h-full flex-col"
-      style={{ background: 'linear-gradient(180deg, #0c0c1c 0%, #07070f 100%)' }}
+      style={{ background: 'linear-gradient(180deg, #101116 0%, #08090c 100%)' }}
     >
       {/* Chat header */}
       <div
@@ -323,13 +324,13 @@ export function AppScreen({ variant }: { variant: 'chat' | 'call' | 'privacy' })
             width: 30,
             height: 30,
             borderRadius: '50%',
-            background: 'linear-gradient(135deg, #ff9ad5, #c8b4ff)',
+            background: 'linear-gradient(135deg, #7aa5ff, #1f54e0)',
             flexShrink: 0,
           }}
         />
         <div style={{ minWidth: 0, flex: 1 }}>
           <p style={{ fontSize: 11, fontWeight: 600, color: '#fff', lineHeight: 1.2 }}>Sofia</p>
-          <p style={{ fontSize: 9, color: '#4ade80', lineHeight: 1.2 }}>online</p>
+          <p style={{ fontSize: 9, color: '#7aa5ff', lineHeight: 1.2 }}>online</p>
         </div>
         <div style={{ display: 'flex', gap: 10, fontSize: 15 }}>
           <span>📞</span>
@@ -356,7 +357,7 @@ export function AppScreen({ variant }: { variant: 'chat' | 'call' | 'privacy' })
               width: 22,
               height: 22,
               borderRadius: '50%',
-              background: 'linear-gradient(135deg, #ff9ad5, #c8b4ff)',
+              background: 'linear-gradient(135deg, #7aa5ff, #1f54e0)',
               flexShrink: 0,
             }}
           />
@@ -371,26 +372,26 @@ export function AppScreen({ variant }: { variant: 'chat' | 'call' | 'privacy' })
               }}
             >
               <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.88)', lineHeight: 1.4 }}>
-                Landing at 7 — kettle on? ☕
+                Landing at 7, kettle on? ☕
               </p>
             </div>
           </div>
         </div>
 
-        {/* sent */}
+        {/* sent (brand bubble, white text — AA contrast on #2f6bff) */}
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <div>
             <div
               style={{
                 display: 'inline-block',
-                background: '#6d7cff',
+                background: '#2f6bff',
                 borderRadius: '14px 14px 4px 14px',
                 padding: '7px 10px',
                 maxWidth: 150,
               }}
             >
-              <p style={{ fontSize: 10, color: '#fff', lineHeight: 1.4 }}>
-                Already on! Drive safe 💜
+              <p style={{ fontSize: 10, color: '#fff', lineHeight: 1.4, fontWeight: 500 }}>
+                Already on. Drive safe
               </p>
             </div>
             <p style={{ textAlign: 'right', fontSize: 8, color: 'rgba(255,255,255,0.3)', marginTop: 2 }}>✓✓</p>
@@ -404,7 +405,7 @@ export function AppScreen({ variant }: { variant: 'chat' | 'call' | 'privacy' })
               width: 22,
               height: 22,
               borderRadius: '50%',
-              background: 'linear-gradient(135deg, #ff9ad5, #c8b4ff)',
+              background: 'linear-gradient(135deg, #7aa5ff, #1f54e0)',
               flexShrink: 0,
             }}
           />
@@ -443,7 +444,7 @@ export function AppScreen({ variant }: { variant: 'chat' | 'call' | 'privacy' })
               width: 88,
               height: 66,
               borderRadius: 12,
-              background: 'linear-gradient(135deg, #8b95ff, #46e0d0)',
+              background: 'linear-gradient(135deg, #4f86fb, #1a44b8)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -475,7 +476,7 @@ export function AppScreen({ variant }: { variant: 'chat' | 'call' | 'privacy' })
               width: 22,
               height: 22,
               borderRadius: '50%',
-              background: '#6d7cff',
+              background: '#2f6bff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',

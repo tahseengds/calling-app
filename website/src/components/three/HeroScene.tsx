@@ -19,9 +19,9 @@ export default function HeroScene() {
       frameloop={reduced ? 'demand' : 'always'}
       performance={{ min: 0.5 }}
     >
-      <ambientLight intensity={0.3} />
-      <pointLight position={[-5, 2, 3]} intensity={20} color="#7c5cff" />
-      <pointLight position={[5, -2, 2]} intensity={14} color="#46e0d0" />
+      <ambientLight intensity={0.35} />
+      <pointLight position={[-5, 2, 3]} intensity={18} color="#2f6bff" />
+      <pointLight position={[5, -2, 2]} intensity={12} color="#7aa5ff" />
 
       <Suspense fallback={null}>
         <Particles count={isMobile ? 300 : 700} />
@@ -30,12 +30,12 @@ export default function HeroScene() {
       {!isMobile && !reduced && (
         <EffectComposer>
           <Bloom
-            intensity={0.7}
-            luminanceThreshold={0.25}
+            intensity={0.55}
+            luminanceThreshold={0.3}
             luminanceSmoothing={0.4}
             mipmapBlur
           />
-          <Vignette offset={0.25} darkness={0.65} eskil={false} />
+          <Vignette offset={0.25} darkness={0.6} eskil={false} />
         </EffectComposer>
       )}
     </Canvas>

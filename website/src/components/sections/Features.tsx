@@ -1,30 +1,28 @@
 'use client';
 
-import { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { site } from '@/lib/site';
 import { FeatureIcon } from '@/components/ui/Icons';
+import { Reveal } from '@/components/ui/Reveal';
 
 const ease = [0.16, 1, 0.3, 1] as const;
 
 export function Features() {
   return (
     <section id="features" className="relative mx-auto max-w-6xl px-6 py-24 md:py-32">
-
-      {/* Section label */}
-      <motion.div
-        className="mb-16 flex items-center gap-5"
-        initial={{ opacity: 0 }}
-        whileInView={{ opacity: 1 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.8 }}
-      >
-        <span className="h-px flex-1 bg-white/[0.07]" />
-        <span className="text-[11px] uppercase tracking-[0.22em] text-white/35">
-          What makes it different
-        </span>
-        <span className="h-px flex-1 bg-white/[0.07]" />
-      </motion.div>
+      {/* Editorial header — headline carries it, no eyebrow */}
+      <div className="mb-14 max-w-2xl md:mb-20">
+        <Reveal>
+          <h2 className="font-display text-4xl font-semibold leading-[1.05] tracking-tight text-bone md:text-5xl lg:text-6xl">
+            Everything a call <span className="italic text-brand-300">should be</span>.
+          </h2>
+        </Reveal>
+        <Reveal index={1}>
+          <p className="mt-5 max-w-lg text-lg leading-relaxed text-bone/55">
+            Six things we got right, so the conversation is the only thing you notice.
+          </p>
+        </Reveal>
+      </div>
 
       {/* Feature list */}
       <div>
@@ -52,50 +50,37 @@ function FeatureRow({
       className="group relative"
     >
       {/* Top divider */}
-      <div className="h-px bg-white/[0.07] transition-colors duration-500 group-hover:bg-white/[0.14]" />
+      <div className="h-px bg-bone/[0.07] transition-colors duration-500 group-hover:bg-bone/[0.16]" />
 
       <div className="flex items-start gap-5 py-7 md:gap-8 md:py-8">
         {/* Number */}
-        <span className="w-10 shrink-0 pt-0.5 font-display text-[11px] font-bold tracking-[0.15em] text-white/18">
+        <span className="w-9 shrink-0 pt-1 font-mono text-[12px] tracking-[0.1em] text-brand-400/60 nums">
           {String(index + 1).padStart(2, '0')}
         </span>
 
         {/* Icon */}
-        <div
-          className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-all duration-300 group-hover:scale-110"
-          style={{
-            background: `${feature.accent}18`,
-            border: `1px solid ${feature.accent}28`,
-          }}
-        >
-          <FeatureIcon
-            name={feature.icon}
-            className="h-5 w-5 transition-colors"
-            style={{ color: feature.accent }}
-          />
+        <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-brand-400/25 bg-brand-400/[0.08] transition-transform duration-300 group-hover:scale-110">
+          <FeatureIcon name={feature.icon} className="h-5 w-5 text-brand-300" />
         </div>
 
         {/* Text */}
-        <div className="flex-1 min-w-0">
-          <h3 className="font-display text-xl font-bold tracking-tight text-white/90 transition-colors group-hover:text-white md:text-2xl">
+        <div className="min-w-0 flex-1">
+          <h3 className="font-sans text-xl font-semibold tracking-tight text-bone/90 transition-colors group-hover:text-bone md:text-2xl">
             {feature.title}
           </h3>
-          <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-white/40 transition-colors group-hover:text-white/55">
+          <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-bone/45 transition-colors group-hover:text-bone/60">
             {feature.body}
           </p>
         </div>
 
         {/* Arrow */}
-        <span className="shrink-0 pt-1 text-lg text-white/15 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-white/40">
+        <span className="shrink-0 pt-1 text-lg text-bone/15 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-brand-400">
           ↗
         </span>
       </div>
 
       {/* Left accent bar (on hover) */}
-      <div
-        className="absolute bottom-0 left-0 top-px w-0.5 scale-y-0 origin-top rounded-full transition-transform duration-500 group-hover:scale-y-100"
-        style={{ background: feature.accent }}
-      />
+      <div className="absolute bottom-0 left-0 top-px w-0.5 origin-top scale-y-0 rounded-full bg-brand-400 transition-transform duration-500 group-hover:scale-y-100" />
     </motion.div>
   );
 }

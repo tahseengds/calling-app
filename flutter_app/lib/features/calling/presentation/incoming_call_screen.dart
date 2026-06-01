@@ -10,9 +10,9 @@ import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../shared/widgets/avatar.dart';
 import '../../../shared/widgets/lumio_icons.dart';
+import '../../../core/services/native_call_bridge.dart';
 import '../../chat/data/conversation_repository.dart';
 import '../../chat/domain/chat_notifier.dart';
-import '../data/ringtone_player.dart';
 import '../domain/call_notifier.dart';
 import '../domain/call_state.dart';
 
@@ -30,10 +30,12 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
   late AnimationController _ring2;
   late AnimationController _bob;
 
-  // Receiver-side ringtone (loudspeaker) + a repeating buzz, started while the
-  // call is ringing and stopped the moment it's answered/declined/ended.
-  final RingtonePlayer _ringtone = RingtonePlayer();
-  Timer? _vibrateTimer;
+  // Receiver-side ringtone + vibration are owned by the native single-instance
+  // [IncomingRinger] (the device ringtone on the ring stream, respecting the
+  // device ring volume). Driving it through the bridge — rather than a separate
+  // Dart tone — means the foreground screen and the background CallService can
+  // never both ring at once. Captured in initState so dispose can stop it.
+  NativeCallBridge? _bridge;
   bool _ringStopped = false;
 
   @override
@@ -59,12 +61,9 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
       duration: const Duration(milliseconds: 1000),
     )..repeat(reverse: true);
 
-    // Ring out loud + vibrate on the classic cadence until the call is handled.
-    _ringtone.start();
-    HapticFeedback.heavyImpact();
-    _vibrateTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) {
-      HapticFeedback.heavyImpact();
-    });
+    // Ring out loud + vibrate (device ringtone, native ringer) until handled.
+    _bridge = ref.read(nativeCallBridgeProvider);
+    _bridge?.startRingtone();
   }
 
   /// Stop the ringtone + vibration. Idempotent — called both when the call
@@ -72,14 +71,12 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
   void _stopRinging() {
     if (_ringStopped) return;
     _ringStopped = true;
-    _vibrateTimer?.cancel();
-    _ringtone.stop();
+    _bridge?.stopRingtone();
   }
 
   @override
   void dispose() {
     _stopRinging();
-    _ringtone.dispose();
     _ring1.dispose();
     _ring2.dispose();
     _bob.dispose();
@@ -140,18 +137,23 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
       if (next == null ||
           next.phase == CallPhase.ended ||
           next.phase == CallPhase.failed) {
+        // Caller cancelled before we answered — close the screen and tell the
+        // user why. Shown on the root messenger (this screen has no Scaffold
+        // messenger of its own), so the snackbar survives the pop below.
+        if (next?.endReason == EndReason.cancelled) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Call cancelled')),
+          );
+        }
         if (context.canPop()) {
           context.pop();
         }
         return;
       }
-      if (next.phase == CallPhase.connecting ||
-          next.phase == CallPhase.connected) {
-        final route = next.callType == CallType.video
-            ? '/call/video'
-            : '/call/active';
-        context.pushReplacement(route);
-      }
+      // Navigating to the active/video screen once the call connects is owned
+      // by the single call-navigation authority in LuminApp (app.dart), so this
+      // screen no longer pushReplacement's itself — doing both could stack two
+      // call screens (a duplicate self-view PiP).
     });
 
     if (session == null) {
@@ -162,10 +164,12 @@ class _IncomingCallScreenState extends ConsumerState<IncomingCallScreen>
 
     // Self-view while ringing: if the incoming video preview has acquired the
     // camera, show it full-bleed (mirrored) behind a scrim so the user can
-    // check their framing before answering.
+    // check their framing before answering. Readiness comes from the reactive
+    // session flag (set when the preview stream goes live) rather than probing
+    // the renderer imperatively, so it appears deterministically.
     final webrtc = ref.read(callSessionProvider.notifier).webrtcService;
     final showSelfView =
-        isVideo && webrtc != null && webrtc.localRenderer.srcObject != null;
+        isVideo && webrtc != null && session.isLocalVideoReady;
 
     return Scaffold(
       body: Stack(

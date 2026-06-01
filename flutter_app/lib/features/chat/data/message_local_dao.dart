@@ -41,6 +41,30 @@ class MessageLocalDao {
         MessagesTableCompanion(status: Value(status.name)),
       );
 
+  /// Apply a delivered/read receipt without ever downgrading a tick. Receipts
+  /// can arrive out of order (a 'delivered' after a 'read', since the recipient
+  /// marks both in quick succession and Redis pub/sub + sockets don't guarantee
+  /// ordering); a plain write would flip a blue tick back to grey. This only
+  /// advances along sending → sent → delivered → read via a WHERE on the
+  /// current status, so it also never clobbers a local 'failed' state.
+  Future<void> applyReceiptStatus(String id, MessageStatus status) {
+    final List<String> advanceableFrom;
+    switch (status) {
+      case MessageStatus.delivered:
+        advanceableFrom = ['sending', 'sent'];
+      case MessageStatus.read:
+        advanceableFrom = ['sending', 'sent', 'delivered'];
+      case MessageStatus.sending:
+      case MessageStatus.sent:
+      case MessageStatus.failed:
+        // Not a receipt status — local send transitions own these.
+        return Future.value();
+    }
+    return (_db.update(_db.messagesTable)
+          ..where((m) => m.id.equals(id) & m.status.isIn(advanceableFrom)))
+        .write(MessagesTableCompanion(status: Value(status.name)));
+  }
+
   Future<void> markDeleted(String id) =>
       _db.messagesDao.markDeleted(id);
 

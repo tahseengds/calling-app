@@ -137,6 +137,18 @@ class WebRTCServiceImpl implements WebRTCService {
   bool _isCameraOn = true;
   bool _renderersInitialized = false;
   bool _tracksAdded = false;
+  bool _disposed = false;
+
+  // ── Trickle-ICE buffering ───────────────────────────────────────────────────
+  // Remote `call:ice` candidates can arrive before we've applied the remote
+  // description — on the callee this is a real race: a candidate can land
+  // between initialize() (which creates _pc) and createAnswer()'s
+  // setRemoteDescription(). addCandidate() before the remote description is
+  // rejected by WebRTC and the candidate is silently dropped, which on some NAT
+  // layouts means media never connects. Buffer early candidates and flush them
+  // the moment the remote description is in place.
+  bool _remoteDescriptionSet = false;
+  final List<RTCIceCandidate> _pendingRemoteCandidates = [];
 
   void Function(Map<String, dynamic>)? _onIceCandidate;
   void Function(WebRTCConnectionState)? _onConnectionStateChange;
@@ -254,6 +266,10 @@ class WebRTCServiceImpl implements WebRTCService {
     }
     final desc = RTCSessionDescription(sdp, type);
     await _pc!.setRemoteDescription(desc);
+    // Remote description is now in place — any candidates that arrived early can
+    // be applied.
+    _remoteDescriptionSet = true;
+    await _flushPendingCandidates();
   }
 
   @override
@@ -286,7 +302,30 @@ class WebRTCServiceImpl implements WebRTCService {
       candidateMap['sdpMid'] as String?,
       candidateMap['sdpMLineIndex'] as int?,
     );
-    await _pc?.addCandidate(candidate);
+    // Hold candidates until the remote description exists, otherwise
+    // addCandidate() is rejected and the candidate is lost (see
+    // _pendingRemoteCandidates).
+    if (_pc == null || !_remoteDescriptionSet) {
+      _pendingRemoteCandidates.add(candidate);
+      return;
+    }
+    await _pc!.addCandidate(candidate);
+  }
+
+  /// Apply (and clear) any remote candidates that were buffered before the
+  /// remote description was set.
+  Future<void> _flushPendingCandidates() async {
+    if (_pendingRemoteCandidates.isEmpty || _pc == null) return;
+    final pending = List<RTCIceCandidate>.of(_pendingRemoteCandidates);
+    _pendingRemoteCandidates.clear();
+    for (final c in pending) {
+      try {
+        await _pc!.addCandidate(c);
+      } catch (e) {
+        // One bad candidate shouldn't sink the call; log and keep going.
+        debugPrint('[webrtc] flush addCandidate failed: $e');
+      }
+    }
   }
 
   @override
@@ -417,6 +456,7 @@ class WebRTCServiceImpl implements WebRTCService {
 
   @override
   Future<void> dispose() async {
+    _disposed = true;
     _localStream?.getTracks().forEach((t) => t.stop());
     _remoteStream?.getTracks().forEach((t) => t.stop());
     _localRenderer.srcObject = null;
@@ -427,6 +467,8 @@ class WebRTCServiceImpl implements WebRTCService {
     await _remoteRenderer.dispose();
     _renderersInitialized = false;
     _tracksAdded = false;
+    _remoteDescriptionSet = false;
+    _pendingRemoteCandidates.clear();
     _localStream = null;
     _remoteStream = null;
   }
@@ -440,10 +482,40 @@ class WebRTCServiceImpl implements WebRTCService {
     _renderersInitialized = true;
   }
 
+  // ── Echo + noise cancellation (audio AND video calls) ─────────────────────
+  // Two layers run together:
+  //   1. HARDWARE (native Android): flutter_webrtc's JavaAudioDeviceModule
+  //      enables the device's built-in AcousticEchoCanceler + NoiseSuppressor
+  //      by default on Android 10+, capturing from the VOICE_COMMUNICATION
+  //      source with the audio mode set to MODE_IN_COMMUNICATION. That's the
+  //      platform/DSP cancellation and needs no constraints here.
+  //   2. SOFTWARE (WebRTC APM): the cross-device fallback (and extra polish on
+  //      top of hardware) — echo cancellation, noise suppression, auto gain,
+  //      high-pass filter, typing-noise detection.
+  //
+  // IMPORTANT: on Android, flutter_webrtc only reads audio constraints from the
+  // legacy `mandatory`/`optional` shape (MediaConstraintsUtils.parseMediaConstraints).
+  // A flat `{echoCancellation: true}` map — which is what we used to pass — is
+  // silently ignored, so the software APM ran on bare defaults and the goog
+  // DSP knobs were never requested. Pass the full suite under `optional` so it
+  // actually reaches PeerConnectionFactory.createAudioSource. Both the W3C keys
+  // and their `goog*` equivalents are listed because WebRTC's APM honours the
+  // goog* names on Android.
   static const Map<String, dynamic> _audioConstraints = {
-    'echoCancellation': true,
-    'noiseSuppression': true,
-    'autoGainControl': true,
+    'mandatory': {},
+    'optional': [
+      {'echoCancellation': true},
+      {'googEchoCancellation': true},
+      {'googEchoCancellation2': true},
+      {'googDAEchoCancellation': true},
+      {'noiseSuppression': true},
+      {'googNoiseSuppression': true},
+      {'googNoiseSuppression2': true},
+      {'autoGainControl': true},
+      {'googAutoGainControl': true},
+      {'googHighpassFilter': true},
+      {'googTypingNoiseDetection': true},
+    ],
   };
   static const Map<String, dynamic> _videoConstraints = {
     'facingMode': 'user',
@@ -457,10 +529,18 @@ class WebRTCServiceImpl implements WebRTCService {
   Future<void> _ensureLocalStream(
       {required bool audio, required bool video}) async {
     if (_localStream == null) {
-      _localStream = await navigator.mediaDevices.getUserMedia({
+      final stream = await navigator.mediaDevices.getUserMedia({
         'audio': audio ? _audioConstraints : false,
         'video': video ? _videoConstraints : false,
       });
+      // dispose() may have run while getUserMedia was in flight (e.g. the user
+      // declined a ringing video call mid-preview). Don't hold a camera we'll
+      // never use — stop it so the camera LED doesn't linger.
+      if (_disposed) {
+        stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      _localStream = stream;
       _localRenderer.srcObject = _localStream;
       return;
     }

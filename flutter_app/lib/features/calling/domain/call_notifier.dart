@@ -215,6 +215,11 @@ class CallNotifier extends Notifier<CallSession?> {
       final offer =
           await _webrtc!.createOffer(videoEnabled: callType == CallType.video);
 
+      // createOffer acquired the local camera — surface the self-view reactively.
+      if (callType == CallType.video && state?.callId == callId) {
+        state = state?.copyWith(isLocalVideoReady: true);
+      }
+
       ref.read(signalingServiceProvider).emitCallInitiate(
             callId: callId,
             to: peer.id,
@@ -339,10 +344,10 @@ class CallNotifier extends Notifier<CallSession?> {
       if (state?.phase != CallPhase.incomingRinging) return;
       _webrtc ??= createWebRTCService();
       await _webrtc!.startLocalPreview(video: true);
-      // Nudge the UI so the incoming screen picks up the now-live renderer.
+      // Flag the self-view live so the incoming screen shows it reactively.
       final s = state;
       if (s != null && s.phase == CallPhase.incomingRinging) {
-        state = s.copyWith();
+        state = s.copyWith(isLocalVideoReady: true);
       }
     } catch (e) {
       debugPrint('[call] incoming video preview failed: $e');
@@ -408,8 +413,13 @@ class CallNotifier extends Notifier<CallSession?> {
 
     _ringTimeoutTimer?.cancel();
     _ringTimeoutTimer = null;
-    // Tell the native CallService to stop ringing.
+    // Tell the native CallService to stop ringing. Also stop the foreground
+    // ringtone explicitly: accept is the one end-of-ring path that does NOT
+    // funnel through _endWithReason (the call continues), so without this the
+    // foreground IncomingRinger could keep looping under the live call if the
+    // incoming screen's own stop didn't run.
     _bridge?.acceptCall(session.callId);
+    _bridge?.stopRingtone();
     state = session.copyWith(phase: CallPhase.connecting);
 
     // Same voice-call mode as the caller: STREAM_VOICE_CALL volume + earpiece
@@ -439,6 +449,18 @@ class CallNotifier extends Notifier<CallSession?> {
         offer,
         videoEnabled: session.callType == CallType.video,
       );
+
+      // The await chain above (TURN fetch, init, createAnswer) yields control,
+      // during which the caller may have cancelled — _handleRemoteHangup would
+      // have torn the session down. Don't emit an answer for a call the user is
+      // no longer in.
+      final cur = state;
+      if (cur == null || cur.callId != session.callId) {
+        return;
+      }
+      if (session.callType == CallType.video) {
+        state = cur.copyWith(isLocalVideoReady: true);
+      }
 
       ref.read(signalingServiceProvider).emitCallAnswer(
             callId: session.callId,
@@ -497,14 +519,14 @@ class CallNotifier extends Notifier<CallSession?> {
     if (session == null) {
       return;
     }
-    // Whether ringing or live, tell native to drop the service.
-    _bridge?.endCall(session.callId);
     if (session.phase != CallPhase.incomingRinging) {
       ref.read(signalingServiceProvider).emitCallHangup(
             callId: session.callId,
             to: session.peerUser.id,
           );
     }
+    // Native service teardown (ringer / active-call FGS) is centralized in
+    // _endWithReason, which every end path funnels through.
     // _endWithReason now centralizes WebRTC teardown — no explicit await
     // here. Keeping endCall async-signatured for API stability.
     _endWithReason(EndReason.hungUp);
@@ -514,19 +536,22 @@ class CallNotifier extends Notifier<CallSession?> {
 
   Future<void> toggleMic() async {
     final session = state;
-    if (session == null) {
+    // Guard on _webrtc too: optimistically flipping the UI when there's no peer
+    // connection (e.g. a teardown race) would show a mute state that matches no
+    // real track.
+    if (session == null || _webrtc == null) {
       return;
     }
-    await _webrtc?.toggleMic();
+    await _webrtc!.toggleMic();
     state = session.copyWith(isMuted: !session.isMuted);
   }
 
   Future<void> toggleCamera() async {
     final session = state;
-    if (session == null) {
+    if (session == null || _webrtc == null) {
       return;
     }
-    await _webrtc?.toggleCamera();
+    await _webrtc!.toggleCamera();
     state = session.copyWith(isCameraOff: !session.isCameraOff);
   }
 
@@ -656,6 +681,18 @@ class CallNotifier extends Notifier<CallSession?> {
         if (state != null) {
           await endCall();
         }
+      case NativeCallEventKind.cancelled:
+        // The caller cancelled before we answered (native FCM fallback — the
+        // socket call:hangup couldn't reach us). Tear down the ringing session
+        // so the incoming screen closes and the ringer stops. No signaling to
+        // emit: the caller already ended it and the backend session is gone.
+        final session = state;
+        final cancelledId = event.callId;
+        if (session != null &&
+            (cancelledId == null || session.callId == cancelledId) &&
+            session.phase == CallPhase.incomingRinging) {
+          _endWithReason(EndReason.cancelled);
+        }
     }
   }
 
@@ -748,6 +785,11 @@ class CallNotifier extends Notifier<CallSession?> {
       await _webrtc?.setRemoteDescription(answer);
     } catch (e, st) {
       debugPrint('[call] setRemoteDescription (answer) failed: $e\n$st');
+      // setRemoteDescription awaited above — re-check the call is still live and
+      // the same one before reacting (a remote hangup could have ended it in the
+      // gap, in which case _endWithReason already ran).
+      final cur = state;
+      if (cur == null || cur.callId != session.callId) return;
       // For an original answer, the call hasn't connected — fail it. For a
       // restart answer, the OLD media path may still be alive; let the
       // fail-timer (or eventual ICE success) decide instead of immediately
@@ -807,7 +849,14 @@ class CallNotifier extends Notifier<CallSession?> {
     if (session == null || session.callId != event.callId) {
       return;
     }
-    _endWithReason(EndReason.hungUp);
+    // A hangup that arrives while we're still ringing (we hadn't answered yet)
+    // means the caller cancelled the call — surface that distinctly so the
+    // callee sees "Call cancelled" rather than a generic end. Once answered /
+    // connected, a remote hangup is just the peer ending the call.
+    final reason = session.phase == CallPhase.incomingRinging
+        ? EndReason.cancelled
+        : EndReason.hungUp;
+    _endWithReason(reason);
   }
 
   void _handleCallRejected(CallRejectedEvent event) {
@@ -1050,19 +1099,35 @@ class CallNotifier extends Notifier<CallSession?> {
       return;
     }
     final stats = await _webrtc!.getStats();
-    state = session.copyWith(
-      quality: stats.level,
-      localAudioLevel: stats.localAudioLevel,
-      remoteAudioLevel: stats.remoteAudioLevel,
-    );
+    // Re-read after the await — the call may have ended mid-sample.
+    final s = state;
+    if (s == null || !s.isActive) return;
+
+    // Only emit a new session when a displayed value actually moved. Otherwise
+    // the notifier churns out a fresh CallSession (and notifies every listener)
+    // twice a second for nothing — e.g. while no one is speaking the audio
+    // levels sit at ~0 and the quality holds steady.
+    const eps = 0.02;
+    final changed = s.quality != stats.level ||
+        (s.localAudioLevel - stats.localAudioLevel).abs() > eps ||
+        (s.remoteAudioLevel - stats.remoteAudioLevel).abs() > eps;
+    if (changed) {
+      state = s.copyWith(
+        quality: stats.level,
+        localAudioLevel: stats.localAudioLevel,
+        remoteAudioLevel: stats.remoteAudioLevel,
+      );
+    }
 
     // Suggest audio-only if video FPS collapses
-    if (session.callType == CallType.video &&
-        !session.isCameraOff &&
+    final cur = state;
+    if (cur != null &&
+        cur.callType == CallType.video &&
+        !cur.isCameraOff &&
         stats.videoFps != null &&
         stats.videoFps! < 5 &&
-        !session.showSwitchToAudioPrompt) {
-      state = state?.copyWith(showSwitchToAudioPrompt: true);
+        !cur.showSwitchToAudioPrompt) {
+      state = cur.copyWith(showSwitchToAudioPrompt: true);
     }
   }
 
@@ -1102,8 +1167,18 @@ class CallNotifier extends Notifier<CallSession?> {
     // rejected, hung up, etc. all need the loop to stop immediately.
     _ringback?.stop();
 
-    // Drop the dedup record so a future call to the same peer can ring again.
+    // Silence the incoming ringtone on EVERY end path, regardless of which one
+    // is/was active: the foreground ringtone (started by the incoming screen)
+    // and the background native CallService ringer both stop here. Without this
+    // a remotely-ended ring (caller cancelled, timeout) could keep the native
+    // ringer going since those paths never tapped accept/decline.
     final endingId = session?.callId;
+    if (endingId != null) {
+      _bridge?.stopRingtone();
+      _bridge?.endCall(endingId);
+    }
+
+    // Drop the dedup record so a future call to the same peer can ring again.
     if (endingId != null) _seenIncomingIds.remove(endingId);
 
     debugPrint('[call] ending with reason=$reason (callId=$endingId)');
@@ -1192,6 +1267,7 @@ class CallNotifier extends Notifier<CallSession?> {
       case EndReason.rejected:
       case EndReason.busy:
       case EndReason.missed:
+      case EndReason.cancelled:
       case EndReason.timeout:
         return false;
     }
@@ -1243,6 +1319,7 @@ class CallNotifier extends Notifier<CallSession?> {
       sub.cancel();
     }
     _subs.clear();
+    _seenIncomingIds.clear();
     _ringTimeoutTimer?.cancel();
     _reconnectTimer?.cancel();
     _failTimer?.cancel();

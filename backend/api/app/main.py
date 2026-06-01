@@ -228,9 +228,15 @@ def create_app() -> FastAPI:
         )
 
     @app.get("/metrics", tags=["infra"])
-    async def metrics(request: Request):
+    async def metrics_endpoint(request: Request):
         """
         Prometheus exposition of DB connection-pool saturation + liveness.
+
+        NOTE: this handler must NOT be named `metrics` — that shadows the
+        imported `metrics` HttpMetrics singleton in the enclosing scope, so the
+        `metrics.render()` call below would resolve to this function object and
+        raise `AttributeError: 'function' object has no attribute 'render'`
+        (every scrape 500s).
 
         Internal-only (same RFC-1918 / localhost gate as the detailed health
         report) — pool internals shouldn't be world-readable, and a public

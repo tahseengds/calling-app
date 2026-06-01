@@ -22,7 +22,13 @@ node_modules/
 # Flutter / Dart
 .dart_tool/
 build/
+.kotlin/
 # Note: *.g.dart files are committed (generated code is checked in for reproducibility)
+
+# Local dev tooling (Claude Code / agent setup — machine-specific)
+.claude/
+.agents/
+skills-lock.json
 
 # Media uploads
 /backend/api/media/

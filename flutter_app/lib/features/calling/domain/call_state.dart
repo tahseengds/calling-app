@@ -21,6 +21,7 @@ enum EndReason {
   rejected, // we rejected (incoming view)
   busy,     // callee is busy
   missed,   // ring timeout without answer (incoming)
+  cancelled, // caller cancelled before we (the callee) answered
   failed,   // ICE / connection failure
   timeout,  // ring timeout without answer (outgoing)
   interrupted, // OS audio interruption (cellular call, Siri, alarm)
@@ -133,6 +134,12 @@ class CallSession {
   final double localAudioLevel;
   final double remoteAudioLevel;
 
+  /// True once the local camera self-view stream is live. Call screens watch
+  /// this to show the self-view reactively, instead of imperatively poking the
+  /// renderer's srcObject (which only updated as a side-effect of unrelated
+  /// rebuilds).
+  final bool isLocalVideoReady;
+
   const CallSession({
     required this.callId,
     required this.peerUser,
@@ -152,6 +159,7 @@ class CallSession {
     this.errorMessage,
     this.localAudioLevel = 0.0,
     this.remoteAudioLevel = 0.0,
+    this.isLocalVideoReady = false,
   });
 
   /// Wall-clock seconds since ICE connected.
@@ -178,8 +186,10 @@ class CallSession {
     Map<String, dynamic>? pendingOffer,
     bool? peerRinging,
     String? errorMessage,
+    bool clearError = false,
     double? localAudioLevel,
     double? remoteAudioLevel,
+    bool? isLocalVideoReady,
   }) =>
       CallSession(
         callId: callId,
@@ -198,8 +208,9 @@ class CallSession {
             showSwitchToAudioPrompt ?? this.showSwitchToAudioPrompt,
         pendingOffer: pendingOffer ?? this.pendingOffer,
         peerRinging: peerRinging ?? this.peerRinging,
-        errorMessage: errorMessage ?? this.errorMessage,
+        errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
         localAudioLevel: localAudioLevel ?? this.localAudioLevel,
         remoteAudioLevel: remoteAudioLevel ?? this.remoteAudioLevel,
+        isLocalVideoReady: isLocalVideoReady ?? this.isLocalVideoReady,
       );
 }

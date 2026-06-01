@@ -34,11 +34,7 @@ export function Experience() {
 
           {/* Left — copy */}
           <div className="order-2 md:order-1">
-            <span className="font-serif italic text-base text-white/35">
-              The experience
-            </span>
-
-            <div className="relative mt-6 h-[240px]">
+            <div className="relative h-[260px]">
               <AnimatePresence mode="wait">
                 <motion.div
                   key={active}
@@ -48,13 +44,13 @@ export function Experience() {
                   transition={{ duration: 0.55, ease: [0.16, 1, 0.3, 1] }}
                   className="absolute inset-0"
                 >
-                  <p className="text-sm font-medium text-brand-400">
+                  <span className="font-mono text-xs uppercase tracking-label text-brand-400/85">
                     {site.showcase[active].kicker}
-                  </p>
-                  <h3 className="mt-3 font-display text-4xl font-bold leading-tight tracking-tightest text-white md:text-5xl">
+                  </span>
+                  <h3 className="mt-4 font-display text-4xl font-semibold leading-[1.05] tracking-tight text-bone md:text-5xl">
                     {site.showcase[active].title}
                   </h3>
-                  <p className="mt-5 max-w-md text-lg leading-relaxed text-white/50">
+                  <p className="mt-5 max-w-md text-lg leading-relaxed text-bone/55">
                     {site.showcase[active].body}
                   </p>
                 </motion.div>
@@ -66,7 +62,7 @@ export function Experience() {
                   <span
                     key={i}
                     className={`h-1 rounded-full transition-all duration-500 ${
-                      i === active ? 'w-8 bg-brand-400' : 'w-2 bg-white/15'
+                      i === active ? 'w-8 bg-brand-400' : 'w-2 bg-bone/15'
                     }`}
                   />
                 ))}
@@ -82,7 +78,7 @@ export function Experience() {
               animate={{ y: [0, -10, 0] }}
               transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
             >
-              <div style={{ filter: 'drop-shadow(0 40px 60px rgba(109,124,255,0.25))' }}>
+              <div style={{ filter: 'drop-shadow(0 40px 60px rgba(47,107,255,0.20))' }}>
                 <PhoneFrame>
                   <AnimatePresence mode="wait">
                     <motion.div

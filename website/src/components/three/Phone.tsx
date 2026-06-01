@@ -13,22 +13,22 @@ const vertexShader = /* glsl */ `
   }
 `;
 
-// Animated "app screen": flowing brand gradient + faint message rows + glow.
+// Animated "app screen": cool dark base with a slow brand-blue glow + faint rows.
 const fragmentShader = /* glsl */ `
   varying vec2 vUv;
   uniform float uTime;
   void main() {
     vec2 uv = vUv;
-    vec3 brand = vec3(0.43, 0.49, 1.0);
-    vec3 violet = vec3(0.49, 0.36, 1.0);
-    vec3 aqua  = vec3(0.27, 0.88, 0.82);
+    vec3 dark = vec3(0.031, 0.035, 0.047);
+    vec3 blue = vec3(0.184, 0.420, 1.0);
+    vec3 bone = vec3(0.93, 0.945, 0.97);
     float t = uv.y + 0.15 * sin(uv.x * 6.0 + uTime * 0.8);
-    vec3 col = mix(brand, violet, smoothstep(0.0, 1.0, t));
-    col = mix(col, aqua, 0.18 + 0.18 * sin(uTime * 0.5 + uv.y * 3.0));
+    vec3 col = mix(dark, blue, smoothstep(0.15, 1.0, t) * 0.62);
+    col += bone * (0.05 + 0.05 * sin(uTime * 0.5 + uv.y * 3.0)) * smoothstep(0.6, 1.0, t);
     float rows = smoothstep(0.02, 0.0, abs(fract(uv.y * 9.0 - uTime * 0.04) - 0.5) - 0.36);
-    col += rows * 0.06;
+    col += rows * 0.05;
     float v = smoothstep(1.1, 0.2, length(uv - 0.5));
-    col *= 0.82 + 0.32 * v;
+    col *= 0.82 + 0.30 * v;
     gl_FragColor = vec4(col, 1.0);
   }
 `;
@@ -54,13 +54,13 @@ export function Phone() {
     <group ref={group} rotation={[0, 0, 0]} scale={1}>
       {/* Body */}
       <RoundedBox args={[1.62, 3.34, 0.2]} radius={0.18} smoothness={8} castShadow>
-        <meshStandardMaterial color="#0b0d16" metalness={0.9} roughness={0.28} />
+        <meshStandardMaterial color="#101116" metalness={0.9} roughness={0.28} />
       </RoundedBox>
 
       {/* Side rail highlight */}
       <RoundedBox args={[1.68, 3.4, 0.16]} radius={0.2} smoothness={6}>
         <meshStandardMaterial
-          color="#2a2f48"
+          color="#2b2e3a"
           metalness={1}
           roughness={0.35}
           transparent
@@ -89,7 +89,7 @@ export function Phone() {
       {/* Camera dot */}
       <mesh position={[0, 1.42, 0.12]}>
         <circleGeometry args={[0.045, 24]} />
-        <meshStandardMaterial color="#05060c" metalness={1} roughness={0.2} />
+        <meshStandardMaterial color="#08090c" metalness={1} roughness={0.2} />
       </mesh>
     </group>
   );

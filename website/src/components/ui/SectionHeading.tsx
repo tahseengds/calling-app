@@ -1,30 +1,36 @@
-import { Reveal } from '@/components/ui/Reveal';
+import { Reveal } from './Reveal';
 
-type Props = {
+export function SectionHeading({
+  kicker,
+  title,
+  subtitle,
+  align = 'left',
+}: {
   kicker?: string;
   title: React.ReactNode;
   subtitle?: string;
   align?: 'center' | 'left';
-};
-
-export function SectionHeading({ kicker, title, subtitle, align = 'center' }: Props) {
+}) {
+  const alignment = align === 'center' ? 'text-center mx-auto items-center' : 'text-left items-start';
   return (
-    <div className={align === 'center' ? 'mx-auto max-w-2xl text-center' : 'max-w-2xl'}>
+    <div className={`flex max-w-3xl flex-col ${alignment}`}>
       {kicker && (
         <Reveal>
-          <span className="inline-flex items-center gap-2 rounded-full glass px-3.5 py-1.5 text-xs uppercase tracking-[0.2em] text-white/55">
-            {kicker}
-          </span>
+          <span className="eyebrow">{kicker}</span>
         </Reveal>
       )}
-      <Reveal index={1}>
-        <h2 className="mt-5 font-display text-4xl font-semibold leading-tight tracking-tightest text-balance md:text-5xl">
+      <Reveal index={kicker ? 1 : 0}>
+        <h2 className="mt-5 font-display text-4xl font-semibold leading-[1.05] tracking-tight text-bone md:text-5xl lg:text-6xl">
           {title}
         </h2>
       </Reveal>
       {subtitle && (
         <Reveal index={2}>
-          <p className="mt-4 text-balance text-lg leading-relaxed text-white/55">
+          <p
+            className={`mt-5 max-w-xl text-lg leading-relaxed text-bone/55 ${
+              align === 'center' ? 'mx-auto' : ''
+            }`}
+          >
             {subtitle}
           </p>
         </Reveal>

@@ -32,6 +32,7 @@ class FcmService : FirebaseMessagingService() {
         when (type) {
             "incoming_call" -> handleIncomingCall(message)
             "missed_call" -> handleMissedCall(message)
+            "call_cancelled" -> handleCallCancelled(message)
             "new_message" -> handleNewMessage(message)
             else -> Log.d(TAG, "unhandled FCM type=$type")
         }
@@ -88,6 +89,7 @@ class FcmService : FirebaseMessagingService() {
             CallService.EXTRA_CALL_TYPE to (data["call_type"] ?: "audio"),
             CallService.EXTRA_SDP_OFFER to data["sdp_offer"],
             CallService.EXTRA_SIGNAL_TOKEN to data["signal_token"],
+            CallService.EXTRA_INITIATED_AT to data["initiated_at"],
         )
         CallService.startIncoming(this, payload)
     }
@@ -112,6 +114,36 @@ class FcmService : FirebaseMessagingService() {
         } catch (t: Throwable) {
             Log.w(TAG, "isAppForeground check failed: ${t.message}")
             false
+        }
+    }
+
+    /**
+     * Caller cancelled / ended a call before the callee answered. Stop the
+     * native ringer + dismiss the full-screen incoming-call notification so a
+     * backgrounded or killed callee isn't left ringing forever, and so they
+     * can't "Accept" a call that no longer exists. This is the FCM fallback for
+     * when the socket `call:hangup` can't reach the callee (app killed, or
+     * backgrounded with a dropped socket).
+     */
+    private fun handleCallCancelled(message: RemoteMessage) {
+        val callId = message.data["call_id"]
+        if (callId.isNullOrBlank()) {
+            Log.w(TAG, "call_cancelled missing call_id; ignoring")
+            return
+        }
+        // Silences the ringer and removes the ongoing full-screen notification.
+        CallService.stopForCallId(this, callId)
+        // If the engine is alive, also tell Flutter so an on-screen incoming
+        // call UI closes right away (it may not have received the socket
+        // call:hangup if the socket was down while backgrounded).
+        if (NativeCallBus.isEngineAlive()) {
+            NativeCallBus.invoke(
+                "callAction",
+                mapOf(
+                    CallService.EXTRA_CALL_ID to callId,
+                    CallService.EXTRA_NATIVE_ACTION to "cancelled",
+                ),
+            )
         }
     }
 

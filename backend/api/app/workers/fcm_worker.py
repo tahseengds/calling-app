@@ -31,8 +31,10 @@ from app.models.user import User
 from app.services.fcm_service import (
     FcmResult,
     _media_preview,
+    build_call_cancelled_notification,
     build_call_notification,
     build_message_notification,
+    build_missed_call_notification,
     send_fcm,
 )
 from app.services.realtime import FCM_QUEUE_STREAM
@@ -104,7 +106,7 @@ async def _build_and_send(
             sender_id=sender_id,
         )
 
-    elif job_type in ("incoming_call", "missed_call"):
+    elif job_type == "incoming_call":
         payload = build_call_notification(
             call_id=fields.get("call_id", ""),
             caller_id=fields.get("caller_id", ""),
@@ -113,6 +115,25 @@ async def _build_and_send(
             call_type=fields.get("call_type", "video"),
             sdp_offer=fields.get("sdp_offer", ""),
             signal_token=fields.get("signal_token", ""),
+            initiated_at=fields.get("initiated_at", ""),
+        )
+
+    elif job_type == "missed_call":
+        # Distinct builder: must send type=missed_call so the device shows a
+        # quiet missed-call notification instead of ringing for a dead call.
+        payload = build_missed_call_notification(
+            call_id=fields.get("call_id", ""),
+            caller_id=fields.get("caller_id", ""),
+            caller_name=fields.get("caller_name", ""),
+            caller_avatar=fields.get("caller_avatar") or None,
+            call_type=fields.get("call_type", "video"),
+        )
+
+    elif job_type == "call_cancelled":
+        # Caller cancelled a still-ringing call — silent control push that
+        # tells the native side to stop the ringer + dismiss the incoming UI.
+        payload = build_call_cancelled_notification(
+            call_id=fields.get("call_id", ""),
         )
 
     else:

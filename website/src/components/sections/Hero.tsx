@@ -16,9 +16,9 @@ const HeroScene = dynamic(() => import('@/components/three/HeroScene'), {
 const ease = [0.16, 1, 0.3, 1] as const;
 
 const marqueeItems = [
-  'Voice calls', 'Video calls', 'Group chats', 'E2E encrypted',
+  'Voice calls', 'Video calls', 'Group chats', 'End-to-end encrypted',
   'Picture-in-picture', 'Reactions', 'Voice messages', 'File sharing',
-  'Read receipts', 'Smart notifications', 'Live presence', 'Sticker support',
+  'Read receipts', 'Smart notifications', 'Live presence', 'Stickers',
 ];
 
 export function Hero() {
@@ -55,63 +55,55 @@ export function Hero() {
       {/* Main content */}
       <motion.div
         style={{ y: textY, opacity: textOpacity }}
-        className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 items-center px-6 pt-28 pb-20"
+        className="relative z-10 mx-auto flex w-full max-w-6xl flex-1 items-center px-6 pt-24 pb-20"
       >
         <div className="grid w-full grid-cols-1 items-center gap-16 md:grid-cols-[1fr_auto]">
 
           {/* Left — text */}
           <div className="max-w-xl">
-            {/* Badge */}
+            {/* Eyebrow (the page's single hero label) */}
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 1.8, ease }}
-              className="mb-8 inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.04] px-4 py-1.5"
+              className="mb-8 inline-flex items-center gap-2.5 rounded-sm border border-bone/10 bg-ink-900/40 px-3.5 py-1.5"
             >
-              <span className="h-1.5 w-1.5 rounded-full bg-aqua animate-pulse-glow" />
-              <span className="text-xs text-white/60">Now available · iOS & Android</span>
+              <span className="h-1.5 w-1.5 rounded-full bg-brand-400 animate-pulse-glow" />
+              <span className="font-mono text-[11px] uppercase tracking-label text-bone/55">
+                Now on iOS &amp; Android
+              </span>
             </motion.div>
 
-            {/* Headline */}
-            <div className="overflow-hidden">
-              <motion.span
-                className="block font-display text-[64px] font-extrabold leading-[0.9] tracking-tightest text-white md:text-[80px] lg:text-[88px]"
-                initial={{ y: 80, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.9, delay: 1.85, ease }}
-              >
-                Calls that
-              </motion.span>
-              <motion.span
-                className="block font-display text-[64px] font-extrabold leading-[0.9] tracking-tightest text-white md:text-[80px] lg:text-[88px]"
-                initial={{ y: 80, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.9, delay: 1.95, ease }}
-              >
-                feel like
-              </motion.span>
-              <motion.em
-                className="not-italic block font-serif text-[66px] italic leading-[0.95] md:text-[82px] lg:text-[90px]"
-                style={{
-                  background: 'linear-gradient(110deg, #8b95ff 0%, #c8b4ff 50%, #46e0d0 100%)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  backgroundClip: 'text',
-                }}
-                initial={{ y: 80, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ duration: 0.9, delay: 2.05, ease }}
-              >
-                presence.
-              </motion.em>
-            </div>
+            {/* Headline — editorial serif, two lines, same-family italic emphasis */}
+            <h1 className="font-display text-bone">
+              <div className="overflow-hidden">
+                <motion.span
+                  className="block text-[52px] font-semibold leading-[1.02] tracking-tight md:text-[68px] lg:text-[76px]"
+                  initial={{ y: 80, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ duration: 0.9, delay: 1.85, ease }}
+                >
+                  Calls that feel
+                </motion.span>
+              </div>
+              <div className="overflow-hidden pb-2">
+                <motion.span
+                  className="block text-[52px] font-medium italic leading-[1.1] tracking-tight text-brand-300 md:text-[68px] lg:text-[76px]"
+                  initial={{ y: 80, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ duration: 0.9, delay: 1.98, ease }}
+                >
+                  like presence.
+                </motion.span>
+              </div>
+            </h1>
 
             {/* Description */}
             <motion.p
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 2.3, ease }}
-              className="mt-7 max-w-md text-lg leading-relaxed text-white/50"
+              className="mt-7 max-w-md text-lg leading-relaxed text-bone/55"
             >
               {site.description}
             </motion.p>
@@ -123,27 +115,10 @@ export function Hero() {
               transition={{ duration: 0.8, delay: 2.45, ease }}
               className="mt-9 flex flex-wrap items-center gap-3"
             >
-              <MagneticButton href="#download">{site.cta.primary.label}</MagneticButton>
-              <MagneticButton href="#experience" variant="ghost">
-                ▶ {site.cta.secondary.label}
+              <MagneticButton href={site.cta.primary.href}>{site.cta.primary.label}</MagneticButton>
+              <MagneticButton href={site.cta.secondary.href} variant="ghost">
+                {site.cta.secondary.label}
               </MagneticButton>
-            </motion.div>
-
-            {/* Trust chips */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 1, delay: 2.7 }}
-              className="mt-8 flex flex-wrap gap-2"
-            >
-              {['E2E encrypted', '40ms calls', 'Zero data sold'].map((b) => (
-                <span
-                  key={b}
-                  className="rounded-full border border-white/[0.08] px-3 py-1 text-xs text-white/40"
-                >
-                  {b}
-                </span>
-              ))}
             </motion.div>
           </div>
 
@@ -156,7 +131,7 @@ export function Hero() {
           >
             <motion.div
               style={{
-                filter: 'drop-shadow(0 60px 80px rgba(109,124,255,0.28))',
+                filter: 'drop-shadow(0 60px 80px rgba(47,107,255,0.22))',
                 rotateY: phoneRotateY,
                 rotateX: phoneRotateX,
               }}
@@ -172,13 +147,16 @@ export function Hero() {
         </div>
       </motion.div>
 
-      {/* Bottom marquee strip */}
-      <div className="relative z-10 border-t border-white/[0.06] py-3.5 overflow-hidden">
+      {/* Bottom capability strip (the page's single marquee) */}
+      <div className="relative z-10 mask-fade-x overflow-hidden border-t border-bone/[0.07] py-3.5">
         <div className="flex gap-0 whitespace-nowrap animate-marquee">
           {[...marqueeItems, ...marqueeItems].map((item, i) => (
-            <span key={i} className="inline-flex items-center gap-5 px-5 text-sm text-white/25">
+            <span
+              key={i}
+              className="inline-flex items-center gap-5 px-5 font-mono text-xs uppercase tracking-[0.15em] text-bone/30"
+            >
               {item}
-              <span className="text-white/10">·</span>
+              <span className="text-brand-400/40">/</span>
             </span>
           ))}
         </div>

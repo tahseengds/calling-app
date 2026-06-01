@@ -16,7 +16,7 @@ class OfflineBanner extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Default to "online" until the stream emits so we don't show the banner
     // before connectivity has been determined.
-    final online = ref.watch(isOnlineProvider).valueOrNull ?? true;
+    final online = ref.watch(isOnlineProvider).value ?? true;
     if (online) return const SizedBox.shrink();
 
     return Material(

@@ -1,65 +1,109 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
-import clsx from 'clsx';
+import { useState } from 'react';
+import { motion, useScroll, useMotionValueEvent } from 'framer-motion';
 import { site } from '@/lib/site';
 import { MagneticButton } from '@/components/ui/MagneticButton';
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
+  const [open, setOpen] = useState(false);
+  const { scrollY } = useScroll();
 
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 40);
-    onScroll();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+  useMotionValueEvent(scrollY, 'change', (v) => setScrolled(v > 24));
 
   return (
     <motion.header
-      initial={{ y: -80, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.9, delay: 1.8, ease: [0.16, 1, 0.3, 1] }}
-      className="fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-4"
+      initial={{ y: -100 }}
+      animate={{ y: 0 }}
+      transition={{ duration: 0.8, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+      className="fixed inset-x-0 top-0 z-50"
     >
-      <nav
-        className={clsx(
-          'flex w-full max-w-6xl items-center justify-between rounded-2xl px-5 py-3.5 transition-all duration-500',
-          scrolled ? 'glass-strong shadow-card' : 'border border-transparent',
-        )}
+      <div
+        className={`transition-colors duration-500 ${
+          scrolled
+            ? 'border-b border-bone/[0.08] bg-ink-950/85 backdrop-blur-xl'
+            : 'border-b border-transparent'
+        }`}
       >
-        <a href="#top" className="flex items-center gap-2.5">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/logo.png"
-            alt={`${site.name} logo`}
-            width={28}
-            height={28}
-            className="h-7 w-7 rounded-lg shadow-glow-sm"
-          />
-          <span className="font-display text-[15px] font-bold tracking-tight text-white/90">
-            {site.name}
-          </span>
-        </a>
+        <nav className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
+          {/* Wordmark */}
+          <a href="#top" className="flex items-center gap-2.5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/logo.png"
+              alt={`${site.name} logo`}
+              width={30}
+              height={30}
+              className="h-[30px] w-[30px] rounded-lg shadow-glow-sm"
+            />
+            <span className="font-display text-lg font-semibold tracking-tight text-bone">
+              {site.name}
+            </span>
+          </a>
 
-        <ul className="hidden items-center gap-0.5 md:flex">
-          {site.nav.map((item) => (
-            <li key={item.href}>
+          {/* Desktop nav */}
+          <div className="hidden items-center gap-9 md:flex">
+            {site.nav.map((item) => (
               <a
+                key={item.label}
                 href={item.href}
-                className="rounded-full px-4 py-2 text-sm text-white/55 transition-colors hover:text-white"
+                className="group relative font-sans text-sm text-bone/55 transition-colors hover:text-bone"
               >
                 {item.label}
+                <span className="absolute -bottom-1.5 left-0 h-px w-0 bg-brand-400 transition-all duration-300 group-hover:w-full" />
               </a>
-            </li>
-          ))}
-        </ul>
+            ))}
+          </div>
 
-        <MagneticButton href={site.cta.primary.href} className="px-5 py-2.5 text-[13px]">
-          {site.cta.primary.label}
-        </MagneticButton>
-      </nav>
+          {/* CTA */}
+          <div className="hidden md:block">
+            <MagneticButton href={site.cta.primary.href} size="sm">
+              {site.cta.primary.label}
+            </MagneticButton>
+          </div>
+
+          {/* Mobile toggle */}
+          <button
+            onClick={() => setOpen((o) => !o)}
+            className="flex h-10 w-10 items-center justify-center rounded-sm border border-bone/12 md:hidden"
+            aria-label="Menu"
+            aria-expanded={open}
+          >
+            <div className="space-y-1.5">
+              <span className={`block h-px w-5 bg-bone transition-all ${open ? 'translate-y-[6px] rotate-45' : ''}`} />
+              <span className={`block h-px w-5 bg-bone transition-all ${open ? 'opacity-0' : ''}`} />
+              <span className={`block h-px w-5 bg-bone transition-all ${open ? '-translate-y-[6px] -rotate-45' : ''}`} />
+            </div>
+          </button>
+        </nav>
+      </div>
+
+      {/* Mobile menu */}
+      <motion.div
+        initial={false}
+        animate={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }}
+        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+        className="overflow-hidden md:hidden"
+      >
+        <div className="space-y-1 border-b border-bone/[0.08] bg-ink-950/95 px-6 py-5 backdrop-blur-xl">
+          {site.nav.map((item) => (
+            <a
+              key={item.label}
+              href={item.href}
+              onClick={() => setOpen(false)}
+              className="block py-2.5 text-sm text-bone/70 hover:text-bone"
+            >
+              {item.label}
+            </a>
+          ))}
+          <div className="pt-3">
+            <MagneticButton href={site.cta.primary.href} size="sm">
+              {site.cta.primary.label}
+            </MagneticButton>
+          </div>
+        </div>
+      </motion.div>
     </motion.header>
   );
 }

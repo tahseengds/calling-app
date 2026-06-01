@@ -208,19 +208,35 @@ class ChatNotifier extends Notifier<ChatState> {
           );
     });
 
-    // Mark unread as read.
-    final unread = cached
-        .where((m) => m.status != MessageStatus.read &&
-            m.senderId != _currentUserId)
+    // Optimistically clear the local unread dot — the user is now viewing this
+    // chat. Re-asserted after markRead below so a racing conversation sync can't
+    // restore it from a server count that hasn't seen the read yet.
+    dao.clearUnread(_conversationId);
+
+    // Fetch missed messages from the server FIRST, then mark read. Marking read
+    // off the initial cache only (as before) missed any messages that arrived
+    // while the app was closed: they're pulled in here by fetchMissedMessages,
+    // so without this ordering they stayed unread on the server, the
+    // conversation's unread_count never reached 0, and the chats-list dot kept
+    // reappearing on the next syncConversations.
+    await ref.read(syncServiceProvider).fetchMissedMessages(_conversationId);
+
+    // Mark every received, still-unread message read on the server, computed
+    // from the now-complete cache, then clear the local dot again.
+    final toMark = (await dao.getMessages(_conversationId))
+        .where((m) =>
+            m.status != MessageStatus.read && m.senderId != _currentUserId)
         .map((m) => m.id)
         .toList();
-    if (unread.isNotEmpty) {
-      ref.read(messageRepositoryProvider).markRead(unread).ignore();
-      dao.clearUnread(_conversationId);
+    if (toMark.isNotEmpty) {
+      try {
+        await ref.read(messageRepositoryProvider).markRead(toMark);
+      } catch (_) {
+        // Best-effort — the local dot is cleared regardless; a later open or
+        // sync will retry once connectivity returns.
+      }
     }
-
-    // Fetch missed messages from server.
-    await ref.read(syncServiceProvider).fetchMissedMessages(_conversationId);
+    dao.clearUnread(_conversationId);
 
     // Real-time events.
     _subscribeToSignaling();
@@ -262,7 +278,10 @@ class ChatNotifier extends Notifier<ChatState> {
         (e) => e.name == event.status,
         orElse: () => MessageStatus.delivered,
       );
-      ref.read(messageLocalDaoProvider).updateStatus(event.messageId, status);
+      // Monotonic apply so an out-of-order 'delivered' ack can't undo a 'read'.
+      ref
+          .read(messageLocalDaoProvider)
+          .applyReceiptStatus(event.messageId, status);
     });
 
     _msgDelSub = signaling.onMessageDeleted.listen((event) {

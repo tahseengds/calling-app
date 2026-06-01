@@ -62,10 +62,22 @@ class ActiveCallService : Service() {
         }
         ensureChannel()
         val notif = buildOngoingNotification(intent, callId)
+        val isVideo = intent.getStringExtra(EXTRA_CALL_TYPE) == "video"
         val type =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL or
+                var t = ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL or
                     ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                // A connected video call keeps the camera open. On Android 14+ a
+                // foreground service that continues camera capture in the
+                // background MUST declare the `camera` type at startForeground or
+                // the platform throws — which (via the catch below) tears the FGS
+                // down and lets the OS reclaim the process, dropping the call the
+                // moment the user backgrounds it. The manifest already declares
+                // the camera type + permission for this service.
+                if (isVideo) {
+                    t = t or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+                }
+                t
             } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL
             } else {

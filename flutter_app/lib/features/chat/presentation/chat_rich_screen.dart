@@ -18,6 +18,11 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_sound/flutter_sound.dart' hide PlayerState;
+// flutter_sound's Logger Level — used only to silence its very chatty default
+// debug logging (the 🐛 boxes) on the voice recorder; see _recorder below.
+// `logger` is flutter_sound's own transitive dependency, hence the ignore.
+// ignore: depend_on_referenced_packages
+import 'package:logger/logger.dart' show Level;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -164,6 +169,7 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
     super.initState();
     _activeConversation = ref.read(activeConversationProvider.notifier);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       _scrollToBottom();
       // Mark this chat active (so incoming messages for it don't notify) and
       // clear any tray notification / badge already showing for it.
@@ -242,11 +248,19 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
 
   @override
   void dispose() {
-    // No longer the active conversation (only clear if it's still us — the
-    // next chat may have already claimed it).
+    // No longer the active conversation. Modifying a provider synchronously
+    // inside dispose() is forbidden by Riverpod (dispose runs during the widget
+    // life-cycle / tree teardown) and throws "modify a provider while the
+    // widget tree was building". Defer the clear to a microtask. The provider
+    // is app-scoped (never autoDisposed), so it's safe to touch after unmount;
+    // only clear if this chat still owns it (the next chat may have already
+    // claimed it by the time the microtask runs).
     final active = _activeConversation;
-    if (active != null && active.state == widget.conversationId) {
-      active.state = null;
+    final convId = widget.conversationId;
+    if (active != null) {
+      Future(() {
+        if (active.state == convId) active.state = null;
+      });
     }
     _clockTicker?.cancel();
     _highlightTimer?.cancel();
@@ -3785,7 +3799,11 @@ class _ChatInputBarState extends State<_ChatInputBar>
   // Audio recorder. Pre-warmed in initState (when mic permission is already
   // granted) so the hold-to-record gesture captures instantly instead of
   // paying the permission + codec-init cost on the first press.
-  final FlutterSoundRecorder _recorder = FlutterSoundRecorder();
+  // logLevel: Level.error silences flutter_sound's default debug spew (the
+  // verbose "🐛 FS:---> openRecorder / _openAudioSession / ..." boxes that
+  // print every time a chat opens) while still surfacing real recorder errors.
+  final FlutterSoundRecorder _recorder =
+      FlutterSoundRecorder(logLevel: Level.error);
   bool _recorderOpen = false;
   String? _currentRecordingPath;
   String? _tempDirPath;

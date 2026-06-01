@@ -8,18 +8,11 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.media.AudioAttributes
-import android.media.AudioManager
-import android.media.MediaPlayer
-import android.media.RingtoneManager
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
-import android.os.VibrationEffect
-import android.os.Vibrator
-import android.os.VibratorManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -42,8 +35,6 @@ import androidx.core.content.ContextCompat
 class CallService : Service() {
 
     private var wakeLock: PowerManager.WakeLock? = null
-    private var ringtone: MediaPlayer? = null
-    private var vibrator: Vibrator? = null
     private val handler = Handler(Looper.getMainLooper())
     private var ringTimeoutRunnable: Runnable? = null
 
@@ -98,8 +89,45 @@ class CallService : Service() {
             return
         }
 
-        activeCallId = callId
         ensureCallNotificationChannel()
+
+        // ── Stale / late-delivery guard ──────────────────────────────────────
+        // OEM battery managers (notably MIUI/Xiaomi) can hold a force-closed
+        // app's FCM for tens of seconds. If the incoming_call push lands after
+        // the call's ring window has elapsed, the caller has already given up —
+        // ringing now is a confusing "ghost ring". Using the server-stamped
+        // initiated_at, ring only for the REMAINING window; if there's
+        // essentially none left, show a missed call instead of ringing.
+        val initiatedAt = intent.getStringExtra(EXTRA_INITIATED_AT)?.toLongOrNull()
+        val ringMs: Long = if (initiatedAt != null) {
+            RING_TIMEOUT_MS - (System.currentTimeMillis() - initiatedAt)
+        } else {
+            RING_TIMEOUT_MS
+        }
+        if (ringMs < STALE_RING_FLOOR_MS) {
+            Log.i(TAG, "incoming_call delivered too late (ringMs=$ringMs); missed call, not ringing")
+            // We were started via startForegroundService, so we MUST call
+            // startForeground or the OS kills us with a timeout crash. Use a
+            // silent missed-call notification (no full-screen intent → no ring,
+            // no call screen), post a standalone copy, then stop.
+            try {
+                val placeholder = buildMissedCallNotification(callId)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    startForeground(
+                        CALL_NOTIFICATION_ID,
+                        placeholder,
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL,
+                    )
+                } else {
+                    startForeground(CALL_NOTIFICATION_ID, placeholder)
+                }
+            } catch (_: Throwable) { /* FGS denied — the notify below still shows it */ }
+            postMissedCallNotification(callId)
+            stopSelfCleanly()
+            return
+        }
+
+        activeCallId = callId
 
         val notif = buildIncomingNotification(intent)
 
@@ -138,9 +166,13 @@ class CallService : Service() {
         }
 
         acquireWakeLockBounded()
-        startRingingTone()
-        startVibration()
-        armRingTimeout()
+        // Single process-wide ringer (device ringtone + vibration). Shared with
+        // the foreground IncomingCallScreen path so the two can never double up.
+        IncomingRinger.start(this)
+        // Ring only for the remaining window (full 45 s for a fresh push; less
+        // if it was delivered late) so a late call stops when the caller's
+        // window ends rather than ringing a fresh 45 s past it.
+        armRingTimeout(ringMs)
 
         // If the Flutter engine is already alive (app foregrounded), forward
         // the FCM payload over the bus so the in-app UI matches. The CallNotifier
@@ -186,10 +218,32 @@ class CallService : Service() {
             pendingFlags(),
         )
 
-        val acceptPending = PendingIntent.getBroadcast(
+        // Accept launches MainActivity DIRECTLY via a getActivity PendingIntent
+        // rather than broadcasting to CallActionReceiver (which then did
+        // context.startActivity). A background activity-start from a
+        // BroadcastReceiver is blocked on Android 10+/14, so on a fully
+        // backgrounded/killed device tapping "Accept" would connect the call with
+        // no visible call screen. A notification action backed by getActivity is
+        // allowed to bring the activity up. MainActivity reads native_action=accept
+        // (warm: onNewIntent → callAction; cold: getInitialCallData) and the
+        // CallNotifier accepts; its acceptCall then stops the ringer service.
+        val acceptIntent = Intent(this, MainActivity::class.java).apply {
+            action = Intent.ACTION_MAIN
+            addCategory(Intent.CATEGORY_LAUNCHER)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(EXTRA_FROM_CALL_NOTIFICATION, true)
+            putExtra(EXTRA_NATIVE_ACTION, "accept")
+            for (key in PAYLOAD_KEYS) {
+                val v = intent.getStringExtra(key)
+                if (v != null) putExtra(key, v)
+            }
+        }
+        val acceptPending = PendingIntent.getActivity(
             this,
             REQUEST_ACCEPT,
-            buildActionIntent(intent, CallActionReceiver.ACTION_ACCEPT, callId),
+            acceptIntent,
             pendingFlags(),
         )
         val declinePending = PendingIntent.getBroadcast(
@@ -241,66 +295,9 @@ class CallService : Service() {
 
     // ── Ringtone & vibration ────────────────────────────────────────────────────
 
-    private fun startRingingTone() {
-        try {
-            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-            val attrs = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build()
-            ringtone = MediaPlayer().apply {
-                setAudioAttributes(attrs)
-                setDataSource(this@CallService, uri)
-                isLooping = true
-                // setVolume is no-op for the ringer stream on most OEMs;
-                // ringer-mode is respected by the audio attrs above.
-                prepare()
-                start()
-            }
-        } catch (t: Throwable) {
-            Log.w(TAG, "ringtone failed: ${t.message}")
-        }
-    }
-
-    private fun startVibration() {
-        try {
-            val v: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val manager = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
-                manager.defaultVibrator
-            } else {
-                @Suppress("DEPRECATION")
-                getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-            }
-            vibrator = v
-            // Skip vibration when the ringer is silent/vibrate-off respectively.
-            val am = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            if (am.ringerMode == AudioManager.RINGER_MODE_SILENT) return
-
-            val pattern = longArrayOf(0, 800, 1000, 800, 1000)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val effect = VibrationEffect.createWaveform(pattern, 0)
-                v?.vibrate(effect)
-            } else {
-                @Suppress("DEPRECATION")
-                v?.vibrate(pattern, 0)
-            }
-        } catch (t: Throwable) {
-            Log.w(TAG, "vibration failed: ${t.message}")
-        }
-    }
-
     private fun stopRinging() {
-        try {
-            ringtone?.let {
-                if (it.isPlaying) it.stop()
-                it.release()
-            }
-        } catch (_: Throwable) { /* ignore */ }
-        ringtone = null
-        try {
-            vibrator?.cancel()
-        } catch (_: Throwable) { /* ignore */ }
-        vibrator = null
+        // Ringer is owned by the shared single-instance IncomingRinger.
+        IncomingRinger.stop()
         ringTimeoutRunnable?.let { handler.removeCallbacks(it) }
         ringTimeoutRunnable = null
     }
@@ -333,7 +330,7 @@ class CallService : Service() {
 
     // ── Timeout ─────────────────────────────────────────────────────────────────
 
-    private fun armRingTimeout() {
+    private fun armRingTimeout(durationMs: Long) {
         ringTimeoutRunnable?.let { handler.removeCallbacks(it) }
         val runnable = Runnable {
             val callId = activeCallId
@@ -344,7 +341,7 @@ class CallService : Service() {
             stopSelfCleanly()
         }
         ringTimeoutRunnable = runnable
-        handler.postDelayed(runnable, RING_TIMEOUT_MS)
+        handler.postDelayed(runnable, durationMs.coerceAtLeast(0L))
     }
 
     // ── Cleanup ─────────────────────────────────────────────────────────────────
@@ -361,10 +358,10 @@ class CallService : Service() {
         stopSelf()
     }
 
-    private fun postMissedCallNotification(callId: String) {
-        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        // Tapping the missed-call notification opens the app on call history.
+    /** Build the missed-call notification (tap → call history). No full-screen
+     * intent and on the now-silent calls channel, so it neither rings nor
+     * launches the call screen — safe to also use as a stale-call FGS notif. */
+    private fun buildMissedCallNotification(callId: String): Notification {
         val tapIntent = Intent(this, MainActivity::class.java).apply {
             action = Intent.ACTION_MAIN
             addCategory(Intent.CATEGORY_LAUNCHER)
@@ -377,8 +374,7 @@ class CallService : Service() {
             tapIntent,
             pendingFlags(),
         )
-
-        val notif = NotificationCompat.Builder(this, CALL_CHANNEL_ID)
+        return NotificationCompat.Builder(this, CALL_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.sym_call_missed)
             .setContentTitle("Missed call")
             .setContentText("Tap to open Lumin")
@@ -387,7 +383,14 @@ class CallService : Service() {
             .setAutoCancel(true)
             .setContentIntent(tapPending)
             .build()
-        nm.notify(MISSED_CALL_NOTIFICATION_ID_BASE + callId.hashCode(), notif)
+    }
+
+    private fun postMissedCallNotification(callId: String) {
+        val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.notify(
+            MISSED_CALL_NOTIFICATION_ID_BASE + callId.hashCode(),
+            buildMissedCallNotification(callId),
+        )
     }
 
     // ── Notification channel ────────────────────────────────────────────────────
@@ -402,17 +405,14 @@ class CallService : Service() {
             NotificationManager.IMPORTANCE_HIGH,
         ).apply {
             description = "Incoming call notifications"
-            enableVibration(true)
             setBypassDnd(true)
             lockscreenVisibility = Notification.VISIBILITY_PUBLIC
-            val attrs = AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build()
-            setSound(
-                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
-                attrs,
-            )
+            // No channel sound/vibration: the ringtone + vibration are driven by
+            // the shared IncomingRinger so there's exactly one source. A channel
+            // sound here would play ON TOP of it (heads-up posts ring the channel
+            // too), which is the double-ring we're eliminating.
+            setSound(null, null)
+            enableVibration(false)
         }
         nm.createNotificationChannel(channel)
     }
@@ -440,6 +440,10 @@ class CallService : Service() {
 
         const val WAKE_LOCK_TIMEOUT_MS = 2L * 60L * 1000L // 2 minutes
         const val RING_TIMEOUT_MS = 45_000L
+        // If a (delayed) incoming_call push leaves less than this much of the
+        // ring window, the call is effectively over — show a missed call rather
+        // than a brief "ghost ring". Also absorbs minor client/server clock skew.
+        const val STALE_RING_FLOOR_MS = 3_000L
 
         // Intent actions
         const val ACTION_INCOMING = "com.lumin.app.action.INCOMING"
@@ -453,6 +457,9 @@ class CallService : Service() {
         const val EXTRA_CALL_TYPE = "call_type"
         const val EXTRA_SDP_OFFER = "sdp_offer"
         const val EXTRA_SIGNAL_TOKEN = "signal_token"
+        // Epoch-ms the call was placed (server-stamped). Lets a late ring be
+        // capped to the remaining window / dropped if already expired.
+        const val EXTRA_INITIATED_AT = "initiated_at"
 
         // Internal extras (not part of the call payload).
         const val EXTRA_FROM_CALL_NOTIFICATION = "from_call_notification"
@@ -466,6 +473,7 @@ class CallService : Service() {
             EXTRA_CALL_TYPE,
             EXTRA_SDP_OFFER,
             EXTRA_SIGNAL_TOKEN,
+            EXTRA_INITIATED_AT,
         )
 
         /** Convenience: start the foreground service for an incoming call. */

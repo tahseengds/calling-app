@@ -70,17 +70,18 @@ class CallActionReceiver : BroadcastReceiver() {
             put(CallService.EXTRA_NATIVE_ACTION, nativeAction)
         }
 
-        if (NativeCallBus.isEngineAlive()) {
-            // Engine is alive — push the event; CallNotifier will resolve it.
-            NativeCallBus.invoke("callAction", payload)
-            // Decline can stop ringing immediately. For accept we leave the
-            // service running until Flutter has actually answered (it'll call
-            // stopCallService).
-            if (nativeAction == "decline") {
-                CallService.stopForCallId(context, callId)
-            }
-        } else {
-            // Engine dead — launch MainActivity to bring the app forward.
+        val engineAlive = NativeCallBus.isEngineAlive()
+
+        // ── Bring the app forward on ACCEPT ──────────────────────────────────
+        // A notification ACTION button does NOT open the app on its own (unlike
+        // tapping the notification body). So when the user accepts, the call
+        // would connect with the app still in the background and no call screen
+        // — they'd have no idea they were in a call until they manually opened
+        // the app. Launch MainActivity ourselves so it comes to the foreground
+        // and routes to the call screen. We do this whether the engine is alive
+        // or dead. Decline never opens the app; it only needs the cold-start
+        // launch (engine dead) so Flutter can record the rejection.
+        if (nativeAction == "accept" || !engineAlive) {
             val launch = Intent(context, MainActivity::class.java).apply {
                 this.action = Intent.ACTION_MAIN
                 addCategory(Intent.CATEGORY_LAUNCHER)
@@ -95,11 +96,20 @@ class CallActionReceiver : BroadcastReceiver() {
                 }
             }
             context.startActivity(launch)
-            // Decline: stop the service right away. Accept: let it stop after
-            // Flutter has wired up the answer.
-            if (nativeAction == "decline") {
-                CallService.stopForCallId(context, callId)
-            }
+        }
+
+        // If the engine is alive, also forward over the bus for instant
+        // processing. For accept this races the launched activity's onNewIntent
+        // forward, but CallNotifier.acceptCall is phase-guarded (idempotent), so
+        // processing it twice is harmless.
+        if (engineAlive) {
+            NativeCallBus.invoke("callAction", payload)
+        }
+
+        // Decline: stop the ring immediately. Accept: leave the service running
+        // until Flutter has actually answered (acceptCall → stopForCallId).
+        if (nativeAction == "decline") {
+            CallService.stopForCallId(context, callId)
         }
     }
 

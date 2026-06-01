@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -214,6 +215,11 @@ class FakeCallRepository implements CallRepository {
       ];
 
   @override
+  Future<CallHistoryPageResult> getCallHistoryPage(
+          {String? cursor, int limit = 30}) async =>
+      const CallHistoryPageResult(records: [], nextCursor: null);
+
+  @override
   Future<List<CallRecord>> getCallHistory(
           {String? cursor, int limit = 30}) async =>
       [];
@@ -268,6 +274,33 @@ void main() {
   // Initialize the Flutter binding so that any remaining platform channel
   // calls (e.g. flutter_webrtc internals) don't crash unit tests.
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  // Mock the platform channels startCall touches so the outgoing-call tests run
+  // headless: permission_handler (report granted) and flutter_secure_storage
+  // (empty store → AuthNotifier resolves to unauthenticated). Without these,
+  // startCall throws MissingPluginException before reaching any call logic.
+  setUpAll(() {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(
+      const MethodChannel('flutter.baseflow.com/permissions/methods'),
+      (call) async {
+        switch (call.method) {
+          case 'checkPermissionStatus':
+            return 1; // PermissionStatus.granted
+          case 'requestPermissions':
+            final perms = (call.arguments as List).cast<int>();
+            return {for (final p in perms) p: 1};
+          default:
+            return null;
+        }
+      },
+    );
+    messenger.setMockMethodCallHandler(
+      const MethodChannel('plugins.it_nomads.com/flutter_secure_storage'),
+      (call) async => call.method == 'readAll' ? <String, String>{} : null,
+    );
+  });
 
   late FakeSignalingService sig;
   late FakeWebRTCService webrtc;
@@ -575,6 +608,25 @@ void main() {
         container.read(callSessionProvider)?.endReason, EndReason.hungUp);
   });
 
+  test('remote hangup while still ringing ends with cancelled reason',
+      () async {
+    // Incoming call ringing, NOT yet answered → a hangup from the caller is a
+    // cancellation, surfaced distinctly so the callee sees "Call cancelled".
+    await notifier.handleIncomingCall(_incomingPayload);
+    expect(container.read(callSessionProvider)?.phase,
+        CallPhase.incomingRinging);
+
+    sig.hangupCtrl.add(CallHangupEvent(
+      callId: 'call-abc-123',
+      fromUserId: _peerUser.id,
+    ));
+    await Future.delayed(Duration.zero);
+
+    expect(container.read(callSessionProvider)?.phase, CallPhase.ended);
+    expect(container.read(callSessionProvider)?.endReason,
+        EndReason.cancelled);
+  });
+
   // ── In-call controls ──────────────────────────────────────────────────────
 
   group('in-call controls', () {
@@ -609,14 +661,24 @@ void main() {
   // ── Reconnection ──────────────────────────────────────────────────────────
 
   group('reconnection', () {
+    // ICE restart is driven by the CALLER only (glare avoidance — the callee
+    // waits to receive the caller's restart offer), so this must be an OUTGOING
+    // call for a restart to actually be emitted.
     setUp(() async {
-      await notifier.handleIncomingCall(_incomingPayload);
-      await notifier.acceptCall();
+      await notifier.startCall(_peerUser, CallType.audio);
+      sig.answeredCtrl.add(CallAnsweredEvent({
+        'call_id': container.read(callSessionProvider)!.callId,
+        'answer': {'sdp': 'answer_sdp', 'type': 'answer'},
+      }));
+      await Future.delayed(Duration.zero); // → connecting
       webrtc.simulateConnected();
-      await Future.delayed(Duration.zero);
+      await Future.delayed(Duration.zero); // → connected
     });
 
-    test('ICE failed triggers ICE restart emit', () async {
+    test('ICE failed triggers ICE restart emit (caller drives restart)',
+        () async {
+      expect(container.read(callSessionProvider)?.phase, CallPhase.connected);
+
       webrtc.simulateFailed();
       await Future.delayed(Duration.zero);
 

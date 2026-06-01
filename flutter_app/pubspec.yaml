@@ -28,17 +28,17 @@ dependencies:
   # Firebase / FCM / Auth (Google + Email/Password)
   firebase_core: ^4.9.0
   firebase_messaging: ^16.2.2
-  firebase_auth: ^6.1.1
+  firebase_auth: ^6.5.1
   # Usage analytics + crash/error reporting (issue tracking).
-  firebase_analytics: ^12.0.0
-  firebase_crashlytics: ^5.0.0
+  firebase_analytics: ^12.4.1
+  firebase_crashlytics: ^5.2.2
   # Remotely-tunable config: force-update floor, soft-update target, store URLs,
   # and a maintenance kill-switch. Ships with safe in-app defaults so it works
   # before anything is set in the Firebase Console.
-  firebase_remote_config: ^6.0.0
+  firebase_remote_config: ^6.5.1
   # Google Sign-In — runs the native Google account picker then exchanges
   # the result for a Firebase credential via GoogleAuthProvider.credential.
-  google_sign_in: ^6.2.2
+  google_sign_in: ^7.2.0
 
   # Local database (Drift + SQLite)
   drift: ^2.31.0
@@ -52,7 +52,7 @@ dependencies:
   # Media
   image_picker: ^1.2.2
   image_cropper: ^9.0.0
-  flutter_image_compress: ^2.3.0
+  flutter_image_compress: ^2.4.0
   file_picker: ^12.0.0-beta.4
   flutter_sound: ^9.30.0
   video_player: ^2.11.1
@@ -79,13 +79,13 @@ dependencies:
   share_plus: ^13.1.0
 
   # Full searchable emoji keyboard for composing messages.
-  emoji_picker_flutter: ^4.3.0
+  emoji_picker_flutter: ^4.4.0
 
   # WebRTC — flutter_webrtc 0.11+ uses Flutter plugin v2 API (no PluginRegistry.Registrar)
-  flutter_webrtc: ^0.13.0
+  flutter_webrtc: ^1.4.1
 
   # Wakelock — keeps the screen on during active calls
-  wakelock_plus: ^1.2.0
+  wakelock_plus: ^1.6.1
 
   # Routing
   go_router: ^17.2.3
@@ -100,7 +100,7 @@ dependencies:
   # Settings sub-screens (notifications, sounds, privacy, help, about)
   package_info_plus: ^10.1.0
   # Rich device/OS details attached to support requests for diagnostics.
-  device_info_plus: ">=11.0.0 <13.0.0"
+  device_info_plus: ^13.1.0
   url_launcher: ^6.3.1
   audioplayers: ^6.1.0
   local_auth: ^2.3.0

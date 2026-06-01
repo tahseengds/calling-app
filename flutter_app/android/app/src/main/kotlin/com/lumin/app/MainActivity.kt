@@ -80,14 +80,18 @@ class MainActivity : FlutterFragmentActivity() {
         captureConversationExtra(intent)
         captureNavRoute(intent)
 
-        // If the engine is already alive, forward the action immediately.
+        // If the engine is already alive, forward the launch payload now. When
+        // the launch carried an accept/decline (the user tapped a notification
+        // action), forward it as a "callAction" so CallNotifier resolves it to
+        // accept/decline — NOT "incomingCall", which would just re-present the
+        // ringing UI and drop the action. A plain notification-body tap has no
+        // action and is forwarded as "incomingCall".
         val payload = pendingCallData
         val action = pendingCallAction
-        if (payload != null) {
-            methodChannel?.invokeMethod(
-                "incomingCall",
-                payload + mapOf("native_action" to action),
-            )
+        val channel = methodChannel
+        if (payload != null && channel != null) {
+            val method = if (action != null) "callAction" else "incomingCall"
+            channel.invokeMethod(method, payload + mapOf("native_action" to action))
             pendingCallData = null
             pendingCallAction = null
         }
@@ -243,6 +247,18 @@ class MainActivity : FlutterFragmentActivity() {
                     // back to its in-app mini view.
                     result.success(enterPipMode())
                 }
+                "startRingtone" -> {
+                    // Foreground incoming-call ringtone. Routes through the same
+                    // single-instance IncomingRinger the background CallService
+                    // uses, so the two can never double-ring: the device ringtone
+                    // plays on the ring stream at the device ring volume.
+                    IncomingRinger.start(this)
+                    result.success(true)
+                }
+                "stopRingtone" -> {
+                    IncomingRinger.stop()
+                    result.success(true)
+                }
                 "getInitialConversation" -> {
                     // Cold-start: Flutter pulls the conversation_id from a
                     // tapped message notification so it can route to the chat.
@@ -369,7 +385,11 @@ class MainActivity : FlutterFragmentActivity() {
                 "lumin:call_proximity",
             )
             wl.setReferenceCounted(false)
-            wl.acquire()
+            // Backstop timeout so the lock can't leak past call end if Flutter
+            // dies without round-tripping setProximityAware(false). A normal
+            // call end releases it explicitly; this only bounds the worst case
+            // (a very long call loses screen-blanking but keeps running).
+            wl.acquire(2 * 60 * 60 * 1000L /* 2h */)
             proximityWakeLock = wl
         } catch (t: Throwable) {
             Log.w(TAG, "proximity wake lock acquire failed: ${t.message}")

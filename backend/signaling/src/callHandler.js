@@ -82,6 +82,13 @@ async function _addToFcmQueue(fields) {
 function registerCallHandlers(io, socket) {
   const { userId } = socket;
 
+  // Calls this socket is a live participant in — the caller once it initiates,
+  // the callee once it answers. If the socket drops without a clean hangup we
+  // walk this set on `disconnect` to notify the peer and clear the session,
+  // instead of leaving the peer on dead air until their ICE times out and the
+  // Redis session lingering for the full ACTIVE_TTL.
+  const activeCalls = new Set();
+
   // ── call:initiate ────────────────────────────────────────────────────────────
   socket.on('call:initiate', async (payload) => {
     if (isLimited(userId, 'call:initiate')) {
@@ -218,6 +225,10 @@ function registerCallHandlers(io, socket) {
         // sdp_offer is sent over FCM data — accept both string and {sdp,type} shapes
         sdp_offer: typeof offer === 'string' ? offer : (offer.sdp || ''),
         signal_token: signalToken,
+        // Epoch-ms the call was placed. The native callee uses this to ring only
+        // for the REMAINING ring window (and to drop an already-expired call) if
+        // the push is delivered late — e.g. OEM battery managers holding FCM.
+        initiated_at: String(Date.now()),
       });
       const calleeSocketId = await redisClient.get(`socket_sessions:${to}`);
       logger.info({
@@ -233,6 +244,7 @@ function registerCallHandlers(io, socket) {
       const timer = setTimeout(async () => {
         try {
           ringTimers.delete(callId);
+          activeCalls.delete(callId);
           const session = await _loadSession(callId);
           if (!session) return;
           if (session.state !== 'ringing') return;
@@ -278,6 +290,7 @@ function registerCallHandlers(io, socket) {
       }, RING_TIMEOUT_MS);
 
       ringTimers.set(callId, timer);
+      activeCalls.add(callId);
       logger.info({ event: 'call:initiate', callId, caller: userId, callee: to, callType });
     } catch (err) {
       logger.error({ event: 'call_initiate_error', callId, error: err.message });
@@ -295,6 +308,18 @@ function registerCallHandlers(io, socket) {
     }
 
     const session = await _loadSession(callId);
+    if (!session) {
+      // The session is gone — almost always because the caller cancelled
+      // (call:hangup) before this answer arrived: the callee tapped Accept on
+      // a ring that had already been retracted. Without a reply the answerer's
+      // UI hangs on "connecting" forever. Tell them the call is over so their
+      // CallNotifier ends it immediately (matches by call_id; `from` unused).
+      if (_isUuid(callId)) {
+        socket.emit('call:hangup', { from: null, call_id: callId });
+      }
+      logger.warn({ event: 'call_answer_no_session', callId, userId });
+      return;
+    }
     const peer = _peerOf(session, userId);
     if (!peer) {
       logger.warn({ event: 'call_answer_unauthorized', callId, userId });
@@ -313,6 +338,7 @@ function registerCallHandlers(io, socket) {
       session.state = 'in-call';
       session.answeredAt = new Date().toISOString();
       await redisClient.set(`call_sessions:${callId}`, JSON.stringify(session), 'EX', ACTIVE_TTL_S);
+      activeCalls.add(callId);
 
       io.to(peer).emit('call:answered', { from: userId, call_id: callId, answer });
       logger.info({ event: 'call:answer', callId, callee: userId, caller: peer });
@@ -350,6 +376,12 @@ function registerCallHandlers(io, socket) {
       logger.warn({ event: 'call_ice_restart_unauthorized', callId, userId });
       return;
     }
+    // ICE restart only makes sense on an answered call — ignore it while still
+    // ringing (the peer's client would have nothing to apply it to).
+    if (session.state !== 'in-call') {
+      logger.warn({ event: 'call_ice_restart_not_in_call', callId, userId, state: session.state });
+      return;
+    }
     io.to(peer).emit('call:ice_restart', { from: userId, call_id: callId, offer });
   });
 
@@ -372,6 +404,7 @@ function registerCallHandlers(io, socket) {
     try {
       const timer = ringTimers.get(callId);
       if (timer) { clearTimeout(timer); ringTimers.delete(callId); }
+      activeCalls.delete(callId);
 
       io.to(peer).emit('call:rejected', { from: userId, call_id: callId });
 
@@ -417,8 +450,31 @@ function registerCallHandlers(io, socket) {
     try {
       const timer = ringTimers.get(callId);
       if (timer) { clearTimeout(timer); ringTimers.delete(callId); }
+      activeCalls.delete(callId);
 
       io.to(peer).emit('call:hangup', { from: userId, call_id: callId });
+
+      // ── Cancellation push (background / terminated callee) ──────────────────
+      // If the CALLER cancels BEFORE the callee answered, the callee may be
+      // backgrounded or fully killed with no live socket to receive the
+      // call:hangup emitted above — so their native ringer (CallService) would
+      // ring forever and a tap on "Accept" would answer a call that no longer
+      // exists. Push an FCM `call_cancelled` data message so the native side
+      // stops ringing and dismisses the incoming-call UI even when the app is
+      // dead. Only meaningful while still ringing, and only the callee needs it.
+      if (session.state === 'ringing' && userId === session.caller) {
+        await _addToFcmQueue({
+          type: 'call_cancelled',
+          recipient_id: session.callee,
+          call_id: callId,
+          caller_id: session.caller,
+          caller_name: '',
+          caller_avatar: '',
+          call_type: session.callType || 'audio',
+          sdp_offer: '',
+          signal_token: '',
+        });
+      }
 
       // Write call record only once — ON CONFLICT DO NOTHING handles duplicates
       const endedAt = new Date();
@@ -472,8 +528,65 @@ function registerCallHandlers(io, socket) {
       logger.warn({ event: 'call_busy_unauthorized', callId, userId });
       return;
     }
+    // Only the callee can signal busy, and only while the call is still ringing
+    // — mirrors call:reject. Without this the caller (or a participant of an
+    // already-answered call) could inject a spurious busy into their own call.
+    if (session.callee !== userId || session.state !== 'ringing') {
+      logger.warn({ event: 'call_busy_wrong_role', callId, userId, state: session.state });
+      return;
+    }
     io.to(peer).emit('call:busy', { from: userId, call_id: callId });
     logger.info({ event: 'call:busy', from: userId, to: peer, callId });
+  });
+
+  // ── disconnect: tear down any call this socket was a live participant in ──────
+  // If a socket drops mid-call (network loss, app killed, crash) the peer never
+  // gets a call:hangup and sits on dead air until ICE times out, and the Redis
+  // session lingers for ACTIVE_TTL. Walk the calls this socket owned and end
+  // them cleanly. Idempotent: a call already torn down by the peer loads as a
+  // null session and is skipped.
+  socket.on('disconnect', async () => {
+    if (activeCalls.size === 0) return;
+    const callIds = [...activeCalls];
+    activeCalls.clear();
+    for (const callId of callIds) {
+      try {
+        // Cancel a ring timer this process still owns for the call.
+        const timer = ringTimers.get(callId);
+        if (timer) { clearTimeout(timer); ringTimers.delete(callId); }
+
+        const session = await _loadSession(callId);
+        if (!session) continue; // already ended by the peer / hangup / timeout
+        const peer = _peerOf(session, userId);
+
+        if (peer) {
+          // Tell the peer the call is over so they don't wait on ICE timeout.
+          io.to(peer).emit('call:hangup', { from: userId, call_id: callId });
+
+          // Caller dropped while still ringing → the backgrounded/killed callee
+          // needs the FCM cancel too (their socket may also be down), otherwise
+          // their native ringer keeps going. Mirrors the call:hangup path.
+          if (session.state === 'ringing' && userId === session.caller) {
+            await _addToFcmQueue({
+              type: 'call_cancelled',
+              recipient_id: session.callee,
+              call_id: callId,
+              caller_id: session.caller,
+              caller_name: '',
+              caller_avatar: '',
+              call_type: session.callType || 'audio',
+              sdp_offer: '',
+              signal_token: '',
+            });
+          }
+        }
+
+        await redisClient.del(`call_sessions:${callId}`);
+        logger.info({ event: 'call:disconnect_cleanup', callId, userId });
+      } catch (err) {
+        logger.error({ event: 'call_disconnect_cleanup_error', callId, userId, error: err.message });
+      }
+    }
   });
 }
 

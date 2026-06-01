@@ -5,7 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 /** A drifting, additively-blended particle field with subtle pointer parallax. */
-export function Particles({ count = 900, color = '#8b95ff' }: { count?: number; color?: string }) {
+export function Particles({ count = 900, color = '#4f86fb' }: { count?: number; color?: string }) {
   const points = useRef<THREE.Points>(null);
 
   const positions = useMemo(() => {
@@ -43,7 +43,7 @@ export function Particles({ count = 900, color = '#8b95ff' }: { count?: number; 
         color={color}
         sizeAttenuation
         transparent
-        opacity={0.8}
+        opacity={0.75}
         depthWrite={false}
         blending={THREE.AdditiveBlending}
       />

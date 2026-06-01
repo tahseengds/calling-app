@@ -100,6 +100,45 @@ services:
       - app_network
     restart: always
 
+  # ── Monitoring ──────────────────────────────────────────────────────────────
+  # Prometheus scrapes the API's /metrics directly over app_network (see
+  # monitoring/prometheus.yml). It never goes through nginx, so the API's
+  # internal-IP gate accepts it on the container's Docker address. Both the
+  # Prometheus and Grafana UIs are bound to 127.0.0.1 only — reach them via an
+  # SSH tunnel (ssh -L 9090:localhost:9090 / -L 3000:localhost:3000), never the
+  # public internet.
+  prometheus:
+    # Pinned for reproducible deploys (remote_deploy.py re-pulls on every run).
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - app_network
+    restart: always
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    depends_on:
+      - prometheus
+    environment:
+      # Set GRAFANA_ADMIN_PASSWORD in .env. Defaults to admin/admin (Grafana
+      # forces a password change on first login).
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks:
+      - app_network
+    restart: always
+
 networks:
   app_network:
     driver: bridge
@@ -110,3 +149,5 @@ volumes:
   # In production, override media_storage with a bind mount to /var/app-media
   # via a docker-compose.prod.yml so Nginx can serve files directly.
   media_storage:
+  prometheus_data:
+  grafana_data:

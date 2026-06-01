@@ -9,18 +9,12 @@ export function Stats() {
       <div className="grid grid-cols-2 gap-y-14 gap-x-8 md:grid-cols-4">
         {site.stats.map((s, i) => (
           <Reveal key={s.label} index={i} className="flex flex-col items-center text-center">
-            <div
-              className="font-display text-5xl font-extrabold tracking-tightest md:text-6xl lg:text-7xl"
-              style={{
-                background: 'linear-gradient(110deg, #8b95ff 0%, #c8b4ff 50%, #46e0d0 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-              }}
-            >
+            <div className="nums font-display text-5xl font-semibold tracking-tight text-brand-300 md:text-6xl lg:text-7xl">
               {s.value}
             </div>
-            <div className="mt-3 text-[13px] text-white/35">{s.label}</div>
+            <div className="mt-3 font-mono text-[12px] uppercase tracking-[0.12em] text-bone/40">
+              {s.label}
+            </div>
           </Reveal>
         ))}
       </div>

@@ -1,56 +1,30 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
-import { useIsMobile } from '@/hooks/useMediaQuery';
+import { useEffect } from 'react';
+import { motion, useMotionValue, useSpring } from 'framer-motion';
 
-/**
- * A soft brand-colored glow that lerps toward the cursor — the ambient
- * "spatial light" that follows you around the page. Pointer-events: none so it
- * never blocks interaction. Skipped on touch devices.
- */
 export function CursorGlow() {
-  const ref = useRef<HTMLDivElement>(null);
-  const isMobile = useIsMobile();
+  const x = useMotionValue(-100);
+  const y = useMotionValue(-100);
+  const sx = useSpring(x, { stiffness: 120, damping: 20 });
+  const sy = useSpring(y, { stiffness: 120, damping: 20 });
 
   useEffect(() => {
-    if (isMobile) return;
-    const el = ref.current;
-    if (!el) return;
-
-    let raf = 0;
-    const target = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-    const pos = { ...target };
-
-    const onMove = (e: PointerEvent) => {
-      target.x = e.clientX;
-      target.y = e.clientY;
+    const move = (e: MouseEvent) => {
+      x.set(e.clientX - 200);
+      y.set(e.clientY - 200);
     };
-    window.addEventListener('pointermove', onMove);
-
-    const loop = () => {
-      pos.x += (target.x - pos.x) * 0.12;
-      pos.y += (target.y - pos.y) * 0.12;
-      el.style.transform = `translate3d(${pos.x - 250}px, ${pos.y - 250}px, 0)`;
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-
-    return () => {
-      window.removeEventListener('pointermove', onMove);
-      cancelAnimationFrame(raf);
-    };
-  }, [isMobile]);
-
-  if (isMobile) return null;
+    window.addEventListener('mousemove', move);
+    return () => window.removeEventListener('mousemove', move);
+  }, [x, y]);
 
   return (
-    <div
-      ref={ref}
-      aria-hidden
-      className="pointer-events-none fixed left-0 top-0 z-[55] h-[500px] w-[500px] rounded-full opacity-60 mix-blend-screen blur-[80px] will-change-transform"
+    <motion.div
+      className="pointer-events-none fixed z-[5] hidden h-[400px] w-[400px] rounded-full md:block"
       style={{
-        background:
-          'radial-gradient(circle, rgba(124,92,255,0.35) 0%, rgba(70,224,208,0.12) 40%, transparent 70%)',
+        x: sx,
+        y: sy,
+        background: 'radial-gradient(circle, rgba(47,107,255,0.06), transparent 60%)',
       }}
     />
   );

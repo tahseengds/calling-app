@@ -309,17 +309,26 @@ class SignalingService {
     s.on('message:ack', (data) {
       final map = _asMap(data);
       if (map == null) return;
-      // Defensive: backend occasionally emits acks missing fields during
-      // race conditions (e.g. ack for a message_id we already replaced).
-      // Previously the unconditional `as String` cast threw an unhandled
-      // Dart exception, polluting logs without crashing the app.
-      final messageId = map['message_id'] as String?;
       final status = map['status'] as String?;
-      if (messageId == null || status == null) return;
-      _messageAckCtrl.add(MessageAckEvent(
-        messageId: messageId,
-        status: status,
-      ));
+      if (status == null) return;
+      // The backend (message_service.mark_delivered / mark_read) publishes a
+      // delivered/read receipt as a LIST under `message_ids`. We previously
+      // read a singular `message_id`, which was always null here, so the guard
+      // dropped EVERY delivered/read ack — the sender's ticks never advanced
+      // until an app restart re-synced from the DB. Read the list (and accept a
+      // singular `message_id` for forward-compat) and emit one event per id.
+      final ids = <String>[];
+      final rawList = map['message_ids'];
+      if (rawList is List) {
+        for (final e in rawList) {
+          if (e is String && e.isNotEmpty) ids.add(e);
+        }
+      }
+      final single = map['message_id'];
+      if (single is String && single.isNotEmpty) ids.add(single);
+      for (final id in ids) {
+        _messageAckCtrl.add(MessageAckEvent(messageId: id, status: status));
+      }
     });
 
     s.on('message:deleted', (data) {

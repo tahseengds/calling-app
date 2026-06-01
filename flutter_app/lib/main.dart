@@ -1,8 +1,6 @@
 // Replace android/app/google-services.json with the file from Firebase Console
 // when enabling push notifications (FCM). A placeholder is committed for builds.
 
-import 'dart:ui';
-
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -32,6 +30,20 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // handler is therefore a no-op for prompt-15 types.
 }
 
+/// True for the benign "element is defunct" teardown race that Flutter +
+/// Riverpod already catch and recover from — most commonly a provider (e.g. the
+/// connectivity `StreamProvider` behind the per-screen OfflineBanner) delivering
+/// a value to a `Consumer` that was just unmounted during navigation or app
+/// backgrounding. The framework asserts `_lifecycleState != _ElementLifecycle.defunct`
+/// inside `markNeedsBuild`; Riverpod's `runBinaryGuarded` traps it so the app
+/// keeps running. It's never fatal — telling a disposed widget to rebuild is a
+/// no-op — so we record it non-fatally instead of letting it tank the
+/// crash-free rate. Anything else is reported as a real crash.
+bool _isBenignTeardownError(Object error) {
+  final s = error.toString();
+  return s.contains('_ElementLifecycle.defunct');
+}
+
 Future<void> main() async {
   final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   // Keep the native splash visible while we do async initialization.
@@ -57,10 +69,23 @@ Future<void> main() async {
       // Route every uncaught Flutter error and async (platform) error into
       // Crashlytics so any in-app issue is tracked automatically.
       FlutterError.onError = (details) {
+        // Benign teardown races (see [_isBenignTeardownError]) are caught and
+        // recovered from by the framework / Riverpod — telling a disposed
+        // widget to rebuild is a no-op. Don't dump them or report them to
+        // Crashlytics; just leave a terse breadcrumb so the console isn't
+        // spammed with a non-issue (and the crash-free rate isn't dented).
+        if (_isBenignTeardownError(details.exception)) {
+          debugPrint('[teardown] ignored defunct-element rebuild (benign)');
+          return;
+        }
         FlutterError.presentError(details);
         FirebaseCrashlytics.instance.recordFlutterFatalError(details);
       };
       PlatformDispatcher.instance.onError = (error, stack) {
+        if (_isBenignTeardownError(error)) {
+          debugPrint('[teardown] ignored defunct-element error (benign)');
+          return true;
+        }
         FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
         return true;
       };
@@ -231,6 +256,11 @@ Future<void> _consumeInitialNativeCallData(
         // already saw the call end (or will via its own hangup signal),
         // so nothing for us to send — just don't try to resurrect the
         // call session on app open.
+        break;
+      case NativeCallEventKind.cancelled:
+        // The caller cancelled before the app finished cold-starting. There's
+        // nothing to resurrect — leave the call session null so no stale
+        // incoming-call screen is shown on launch.
         break;
     }
   } catch (e) {

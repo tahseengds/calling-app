@@ -207,6 +207,7 @@ def build_call_notification(
     call_type: str,
     sdp_offer: str,
     signal_token: str,
+    initiated_at: str = "",
 ) -> dict:
     """
     Incoming call — data-only, HIGH priority, 30s TTL.
@@ -228,6 +229,9 @@ def build_call_notification(
             "call_type": call_type,
             "sdp_offer": sdp_offer,
             "signal_token": signal_token,
+            # Epoch-ms the call was placed; lets the native callee ring only for
+            # the remaining window (or drop an expired call) on late delivery.
+            "initiated_at": initiated_at,
         },
         "apns": {
             "headers": {
@@ -240,6 +244,92 @@ def build_call_notification(
                 "type": "incoming_call",
                 "call_id": call_id,
                 "signal_token": signal_token,
+            },
+        },
+    }
+
+
+def build_missed_call_notification(
+    call_id: str,
+    caller_id: str,
+    caller_name: str,
+    caller_avatar: str | None,
+    call_type: str,
+) -> dict:
+    """
+    Missed call — a quiet, user-visible notification, NOT a ring.
+
+    Critically the data ``type`` is ``missed_call`` (not ``incoming_call``): the
+    native FcmService dispatches on it and posts a missed-call notification.
+    Sending ``incoming_call`` here — as the shared call builder did — makes a
+    backgrounded/killed callee start CallService and RING for a call that already
+    timed out. Data-only + high priority so a killed app still wakes to post the
+    notification; no sdp_offer/signal_token since there is nothing to answer.
+    """
+    return {
+        "android": {
+            "priority": "HIGH",
+            # Missed-call info stays useful even if delivered late (Doze/OEM
+            # battery managers), so a much longer TTL than the live-ring push.
+            "ttl": "3600s",
+        },
+        "data": {
+            "type": "missed_call",
+            "call_id": call_id,
+            "caller_id": caller_id,
+            "caller_name": caller_name,
+            "caller_avatar": caller_avatar or "",
+            "call_type": call_type,
+        },
+        "apns": {
+            "headers": {
+                "apns-push-type": "alert",
+                "apns-priority": "5",
+            },
+            "payload": {
+                "aps": {
+                    "alert": {
+                        "title": "Missed call",
+                        "body": f"From {caller_name}",
+                    },
+                    "sound": "default",
+                },
+                "type": "missed_call",
+                "call_id": call_id,
+            },
+        },
+    }
+
+
+def build_call_cancelled_notification(call_id: str) -> dict:
+    """
+    Caller cancelled / ended a still-ringing call.
+
+    Data-only, HIGH priority, short TTL. The native FcmService handles this by
+    stopping CallService for `call_id` (silences the ringer + dismisses the
+    full-screen incoming-call notification) so a backgrounded / killed callee
+    isn't left ringing after the caller hangs up. No alert/sound — it's a
+    silent control message, never a user-visible notification.
+    """
+    return {
+        "android": {
+            "priority": "HIGH",
+            "ttl": "30s",
+        },
+        "data": {
+            "type": "call_cancelled",
+            "call_id": call_id,
+        },
+        "apns": {
+            "headers": {
+                "apns-push-type": "background",
+                "apns-priority": "5",
+                "apns-expiration": "30",
+            },
+            "payload": {
+                "aps": {"content-available": 1},
+                "type": "call_cancelled",
+                "call_id": call_id,
             },
         },
     }

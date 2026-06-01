@@ -3,7 +3,6 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/services/native_call_bridge.dart';
@@ -30,21 +29,16 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
   /// the chrome down to just the remote video then.
   bool _inPip = false;
   late final NativeCallBridge _bridge;
-  // Cached so dispose() doesn't read a provider through `ref` after unmount.
-  late final StateController<bool> _callScreenVisible;
 
   @override
   void initState() {
     super.initState();
     _bridge = ref.read(nativeCallBridgeProvider);
-    _callScreenVisible = ref.read(callScreenVisibleProvider.notifier);
     // Allow auto-PiP when the user backgrounds the app mid-call.
     _bridge.setPipActive(true);
     _bridge.isInPip.addListener(_onPipChanged);
-    // Hide the global "return to call" overlay while the full call screen is up.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _callScreenVisible.state = true;
-    });
+    // The "return to call" overlay's visibility is derived from the current
+    // route in LuminApp, so this screen no longer toggles it directly.
   }
 
   void _onPipChanged() {
@@ -56,29 +50,33 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
   void dispose() {
     _bridge.isInPip.removeListener(_onPipChanged);
     _bridge.setPipActive(false);
-    _callScreenVisible.state = false;
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final session = ref.watch(callSessionProvider);
-
-    // Pop when the call ends
-    ref.listen<CallSession?>(callSessionProvider, (_, next) {
-      if (!context.mounted) {
-        return;
-      }
-      if (next == null ||
-          next.phase == CallPhase.ended ||
-          next.phase == CallPhase.failed) {
-        if (context.canPop()) {
-          context.pop();
+    // Pop when the call ends. Use `listen` (not `watch`) so the pop logic never
+    // rebuilds this screen, and select `phase` so the callback only fires on
+    // phase transitions — not on every 500ms quality / 1s duration tick.
+    ref.listen<CallPhase?>(
+      callSessionProvider.select((s) => s?.phase),
+      (_, phase) {
+        if (!context.mounted) {
+          return;
         }
-      }
-    });
+        if (phase == null ||
+            phase == CallPhase.ended ||
+            phase == CallPhase.failed) {
+          if (context.canPop()) {
+            context.pop();
+          }
+        }
+      },
+    );
 
-    if (session == null) {
+    final hasSession =
+        ref.watch(callSessionProvider.select((s) => s != null));
+    if (!hasSession) {
       return const Scaffold(
           backgroundColor: Color(0xFF0B0F1A),
           body: SizedBox.shrink());
@@ -86,7 +84,46 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
 
     final notifier = ref.read(callSessionProvider.notifier);
     final webrtc = notifier.webrtcService;
-    final duration = formatDuration(session.durationSeconds);
+
+    // ── Picture-in-Picture ─────────────────────────────────────────────────
+    // In the small system PiP window (entered from the minimize button or by
+    // backgrounding the app mid-call) show ONLY the remote feed — the person
+    // being called — filling the window. No self-view, no controls, no chrome:
+    // the window is exactly "the other person", whether the app is in the
+    // background or returning to the foreground.
+    if (_inPip) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0B0F1A),
+        body: webrtc != null
+            ? RTCVideoView(
+                webrtc.remoteRenderer,
+                objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+              )
+            : const _VideoPlaceholder(),
+      );
+    }
+
+    // ── Structural fields only ──────────────────────────────────────────────
+    // The whole call screen previously did `ref.watch(callSessionProvider)`, so
+    // the 500ms quality/audio sample and the 1s duration tick rebuilt the ENTIRE
+    // tree — both RTCVideoView surfaces included — a few times a second (the
+    // "screen keeps re-rendering" bug). These fields only change on user actions
+    // and phase transitions, so watching them via `select` keeps the heavy video
+    // subtrees stable. The live duration, quality dot and speaking-glow each
+    // watch their own field inside a small leaf widget, so a tick rebuilds only
+    // that leaf.
+    final isCameraOff =
+        ref.watch(callSessionProvider.select((s) => s?.isCameraOff ?? false));
+    final isMuted =
+        ref.watch(callSessionProvider.select((s) => s?.isMuted ?? false));
+    final isSpeakerOn =
+        ref.watch(callSessionProvider.select((s) => s?.isSpeakerOn ?? false));
+    final peerName =
+        ref.watch(callSessionProvider.select((s) => s?.peerUser.name ?? ''));
+    final isReconnecting = ref.watch(callSessionProvider
+        .select((s) => s?.phase == CallPhase.reconnecting));
+    final showSwitchPrompt = ref.watch(callSessionProvider
+        .select((s) => s?.showSwitchToAudioPrompt ?? false));
 
     return Scaffold(
       backgroundColor: const Color(0xFF0B0F1A),
@@ -107,11 +144,10 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
           ),
 
           // ── Draggable local PiP ─────────────────────────────────────
-          if (webrtc != null && !session.isCameraOff && !_inPip)
+          if (webrtc != null && !isCameraOff && !_inPip)
             _DraggablePip(
               offset: _pipOffset,
               onOffsetChanged: (o) => setState(() => _pipOffset = o),
-              speakingLevel: session.localAudioLevel,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(18),
                 child: SizedBox(
@@ -129,7 +165,7 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
 
           // ── "Camera off" chip — shown where the self-view would be, so the
           // user knows their own camera is disabled (not just frozen). ────────
-          if (session.isCameraOff && !_inPip)
+          if (isCameraOff && !_inPip)
             Positioned(
               top: MediaQuery.of(context).padding.top + 60,
               right: 16,
@@ -184,8 +220,15 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
                         // Enter system Picture-in-Picture; if the device can't,
                         // fall back to the in-app return-to-call overlay.
                         onTap: () async {
+                          // Strip the chrome BEFORE the system snapshots the
+                          // window so the PiP shows only the remote video from
+                          // the very first frame (no controls/self-view flash).
+                          setState(() => _inPip = true);
                           final entered = await _bridge.enterPip();
-                          if (!entered && context.mounted) context.pop();
+                          if (!entered && context.mounted) {
+                            setState(() => _inPip = false);
+                            context.pop();
+                          }
                         },
                         child: Semantics(
                           button: true,
@@ -205,7 +248,7 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            session.peerUser.name,
+                            peerName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -215,16 +258,11 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
                             ),
                           ),
                           const SizedBox(height: 2),
-                          Row(
+                          const Row(
                             children: [
-                              Text(
-                                duration,
-                                style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.white70),
-                              ),
-                              const SizedBox(width: 8),
-                              CallQualityDot(quality: session.quality),
+                              _CallDurationText(),
+                              SizedBox(width: 8),
+                              _CallQualityDot(),
                             ],
                           ),
                         ],
@@ -246,9 +284,9 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
               opacity: (_showControls && !_inPip) ? 1.0 : 0.0,
               duration: const Duration(milliseconds: 200),
               child: VideoCallControls(
-                isMuted: session.isMuted,
-                isCameraOff: session.isCameraOff,
-                isSpeakerOn: session.isSpeakerOn,
+                isMuted: isMuted,
+                isCameraOff: isCameraOff,
+                isSpeakerOn: isSpeakerOn,
                 onToggleMic: notifier.toggleMic,
                 onToggleCamera: notifier.toggleCamera,
                 onFlipCamera: notifier.switchCamera,
@@ -277,11 +315,11 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
             ),
 
           // ── Reconnecting overlay ──────────────────────────────────────
-          if (session.phase == CallPhase.reconnecting)
+          if (isReconnecting)
             const ReconnectingOverlay(),
 
           // ── Weak connection prompt ───────────────────────────────────
-          if (session.showSwitchToAudioPrompt)
+          if (showSwitchPrompt)
             WeakConnectionBanner(
               onSwitch: notifier.switchToAudioOnly,
               onKeep: notifier.dismissSwitchToAudioPrompt,
@@ -294,26 +332,22 @@ class _VideoCallScreenState extends ConsumerState<VideoCallScreen> {
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
-class _DraggablePip extends StatefulWidget {
+class _DraggablePip extends ConsumerStatefulWidget {
   final Widget child;
   final Offset offset;
   final void Function(Offset) onOffsetChanged;
-
-  /// Local mic level (0.0–1.0) — drives a green "you're speaking" glow.
-  final double speakingLevel;
 
   const _DraggablePip({
     required this.child,
     required this.offset,
     required this.onOffsetChanged,
-    this.speakingLevel = 0.0,
   });
 
   @override
-  State<_DraggablePip> createState() => _DraggablePipState();
+  ConsumerState<_DraggablePip> createState() => _DraggablePipState();
 }
 
-class _DraggablePipState extends State<_DraggablePip> {
+class _DraggablePipState extends ConsumerState<_DraggablePip> {
   late Offset _pos;
   static const double _w = 100;
   static const double _h = 140;
@@ -326,6 +360,17 @@ class _DraggablePipState extends State<_DraggablePip> {
     if (widget.offset.dx == double.infinity) {
       _pos = Offset(size.width - _w - 16, 80);
     } else {
+      _pos = widget.offset;
+    }
+  }
+
+  @override
+  void didUpdateWidget(_DraggablePip old) {
+    super.didUpdateWidget(old);
+    // Adopt an externally-changed offset. (The sentinel infinity means "use the
+    // default top-right", which didChangeDependencies handles — don't apply it
+    // here or the PiP would jump off-screen.)
+    if (widget.offset != old.offset && widget.offset.dx != double.infinity) {
       _pos = widget.offset;
     }
   }
@@ -343,8 +388,14 @@ class _DraggablePipState extends State<_DraggablePip> {
 
   @override
   Widget build(BuildContext context) {
+    // Watch ONLY the local mic level here. The 500ms audio-level samples then
+    // rebuild just this glow border — the local video, handed to
+    // TweenAnimationBuilder's `child`, is built once and reused — instead of
+    // rebuilding the whole call screen (and its RTCVideoView surfaces).
+    final level = ref
+        .watch(callSessionProvider.select((s) => s?.localAudioLevel ?? 0.0));
     // Amplify the (typically small) mic level so ordinary speech glows clearly.
-    final norm = (widget.speakingLevel * 3.0).clamp(0.0, 1.0);
+    final norm = (level * 3.0).clamp(0.0, 1.0);
     const glow = Color(0xFF34C77B);
 
     return Positioned(
@@ -389,6 +440,36 @@ class _DraggablePipState extends State<_DraggablePip> {
         ),
       ),
     );
+  }
+}
+
+/// Live call-duration label. Watches only `durationSeconds`, so the 1-second
+/// duration tick rebuilds just this text — not the whole call screen (which
+/// would needlessly rebuild the video surfaces every second).
+class _CallDurationText extends ConsumerWidget {
+  const _CallDurationText();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final seconds = ref
+        .watch(callSessionProvider.select((s) => s?.durationSeconds ?? 0));
+    return Text(
+      formatDuration(seconds),
+      style: const TextStyle(fontSize: 12, color: Colors.white70),
+    );
+  }
+}
+
+/// Connection-quality dot for the header. Watches only `quality`, so the 500ms
+/// quality sample rebuilds just this dot rather than the whole call screen.
+class _CallQualityDot extends ConsumerWidget {
+  const _CallQualityDot();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final quality =
+        ref.watch(callSessionProvider.select((s) => s?.quality ?? 'good'));
+    return CallQualityDot(quality: quality);
   }
 }
 

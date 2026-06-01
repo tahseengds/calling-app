@@ -4,13 +4,13 @@ const links = [
   { label: 'Features', href: '#features' },
   { label: 'Experience', href: '#experience' },
   { label: 'Download', href: '#download' },
-  { label: 'Privacy', href: '#' },
-  { label: 'Terms', href: '#' },
+  { label: 'Privacy', href: '/privacy' },
+  { label: 'Terms', href: '/terms' },
 ];
 
 export function Footer() {
   return (
-    <footer className="relative border-t border-white/[0.06] px-6 py-12">
+    <footer className="relative border-t border-bone/[0.07] px-6 py-12">
       <div className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-8 md:flex-row md:items-center">
         {/* Brand */}
         <div>
@@ -23,11 +23,11 @@ export function Footer() {
               height={28}
               className="h-7 w-7 rounded-lg shadow-glow-sm"
             />
-            <span className="font-display text-base font-bold tracking-tight text-white/90">
+            <span className="font-display text-base font-semibold tracking-tight text-bone">
               {site.name}
             </span>
           </div>
-          <p className="mt-2 text-sm text-white/35">{site.tagline}</p>
+          <p className="mt-2 text-sm text-bone/40">{site.tagline}</p>
         </div>
 
         {/* Nav */}
@@ -36,7 +36,7 @@ export function Footer() {
             <a
               key={l.label}
               href={l.href}
-              className="text-sm text-white/40 transition-colors hover:text-white/80"
+              className="text-sm text-bone/45 transition-colors hover:text-bone"
             >
               {l.label}
             </a>
@@ -44,9 +44,9 @@ export function Footer() {
         </nav>
       </div>
 
-      <div className="mx-auto mt-10 flex max-w-6xl items-center justify-between border-t border-white/[0.04] pt-6 text-xs text-white/25">
+      <div className="mx-auto mt-10 flex max-w-6xl flex-col gap-2 border-t border-bone/[0.05] pt-6 text-xs text-bone/25 sm:flex-row sm:items-center sm:justify-between">
         <p>© {new Date().getFullYear()} {site.name}. All rights reserved.</p>
-        <p>Built with precision.</p>
+        <p className="font-mono uppercase tracking-[0.14em]">End-to-end encrypted</p>
       </div>
     </footer>
   );

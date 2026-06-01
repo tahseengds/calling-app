@@ -1,70 +1,59 @@
 'use client';
 
-import { useRef, type ReactNode } from 'react';
+import { useRef } from 'react';
 import { motion, useMotionValue, useSpring } from 'framer-motion';
-import clsx from 'clsx';
-import { useIsMobile } from '@/hooks/useMediaQuery';
 
-type Props = {
-  children: ReactNode;
-  href?: string;
-  onClick?: () => void;
-  variant?: 'primary' | 'ghost';
-  className?: string;
-};
-
-/** A button that magnetically leans toward the cursor with a glow on hover. */
 export function MagneticButton({
   children,
   href,
-  onClick,
-  variant = 'primary',
-  className,
-}: Props) {
+  variant = 'solid',
+  size = 'md',
+}: {
+  children: React.ReactNode;
+  href: string;
+  variant?: 'solid' | 'ghost';
+  size?: 'sm' | 'md';
+}) {
   const ref = useRef<HTMLAnchorElement>(null);
-  const isMobile = useIsMobile();
   const x = useMotionValue(0);
   const y = useMotionValue(0);
   const sx = useSpring(x, { stiffness: 200, damping: 15 });
   const sy = useSpring(y, { stiffness: 200, damping: 15 });
 
-  const handleMove = (e: React.PointerEvent) => {
-    if (isMobile || !ref.current) return;
-    const r = ref.current.getBoundingClientRect();
-    x.set(((e.clientX - r.left) / r.width - 0.5) * 22);
-    y.set(((e.clientY - r.top) / r.height - 0.5) * 22);
+  // Continuous pointer value tracked outside the React render cycle.
+  const onMove = (e: React.PointerEvent) => {
+    const r = ref.current?.getBoundingClientRect();
+    if (!r) return;
+    x.set((e.clientX - r.left - r.width / 2) * 0.25);
+    y.set((e.clientY - r.top - r.height / 2) * 0.25);
   };
   const reset = () => {
     x.set(0);
     y.set(0);
   };
 
+  // Editorial: squared, sharp. The single accent fills the primary CTA.
   const base =
-    'group relative inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-medium tracking-tight transition-colors duration-300 will-change-transform';
-  const styles =
-    variant === 'primary'
-      ? 'text-white ring-glow bg-gradient-to-b from-brand-500 to-brand-600 hover:from-brand-400 hover:to-brand-500'
-      : 'text-white/90 glass hover:bg-white/[0.08]';
+    'group relative inline-flex items-center justify-center gap-2 rounded-sm font-sans font-medium ' +
+    'transition-[background-color,border-color,color,transform] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ' +
+    'active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400/70 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-950';
+  const sizes = { sm: 'px-5 py-2 text-sm', md: 'px-7 py-3.5 text-[15px]' };
+  const variants = {
+    // Brand blue with white label: high contrast, AA-safe on the accent.
+    solid: 'bg-brand-500 text-white hover:bg-brand-400',
+    ghost: 'border border-bone/20 text-bone hover:border-brand-400 hover:text-brand-300',
+  };
 
   return (
     <motion.a
       ref={ref}
       href={href}
-      onClick={onClick}
-      onPointerMove={handleMove}
-      onPointerLeave={reset}
       style={{ x: sx, y: sy }}
-      whileTap={{ scale: 0.96 }}
-      className={clsx(base, styles, className)}
+      onPointerMove={onMove}
+      onPointerLeave={reset}
+      className={`${base} ${sizes[size]} ${variants[variant]}`}
     >
-      <span className="relative z-10 flex items-center gap-2">{children}</span>
-      {variant === 'primary' && (
-        <span
-          aria-hidden
-          className="absolute inset-0 rounded-full opacity-0 blur-md transition-opacity duration-300 group-hover:opacity-70"
-          style={{ background: 'linear-gradient(180deg,#8b95ff,#7c5cff)' }}
-        />
-      )}
+      {children}
     </motion.a>
   );
 }

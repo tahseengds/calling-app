@@ -24,7 +24,7 @@ function FloatingCard({
   return (
     <motion.div
       style={{ x, y }}
-      className={`absolute hidden rounded-2xl glass-strong p-4 shadow-card md:block ${className ?? ''}`}
+      className={`surface-strong absolute hidden rounded-lg p-4 shadow-card md:block ${className ?? ''}`}
     >
       {children}
     </motion.div>
@@ -50,13 +50,12 @@ export function Showcase() {
   return (
     <section id="showcase" className="relative mx-auto max-w-6xl px-6 py-28 md:py-36">
       <SectionHeading
-        kicker="Showcase"
         title={
           <>
-            Designed like a <span className="gradient-text-accent">flagship</span>
+            Designed like a <span className="italic text-brand-300">flagship</span>
           </>
         }
-        subtitle="Spatial, layered, and tactile — every surface reacts to you."
+        subtitle="Spatial, layered and tactile. Every surface answers to you."
       />
 
       <div
@@ -70,7 +69,7 @@ export function Showcase() {
         style={{ perspective: 1200 }}
       >
         {/* glow */}
-        <div className="pointer-events-none absolute h-[420px] w-[420px] rounded-full bg-brand-glow/30 blur-[120px]" />
+        <div className="pointer-events-none absolute h-[420px] w-[420px] rounded-full bg-brand-400/15 blur-[120px]" />
 
         <motion.div style={{ rotateY: phoneRotateY }}>
           <PhoneFrame>
@@ -79,26 +78,26 @@ export function Showcase() {
         </motion.div>
 
         <FloatingCard mx={mx} my={my} depth={50} className="left-2 top-12 w-52">
-          <p className="text-xs text-white/50">Incoming call</p>
-          <p className="mt-1 text-sm font-medium">Dad · Video</p>
+          <p className="text-xs text-bone/50">Incoming call</p>
+          <p className="mt-1 text-sm font-medium text-bone">Dad · Video</p>
           <div className="mt-3 flex gap-2">
-            <span className="h-8 flex-1 rounded-lg bg-aqua/70" />
-            <span className="h-8 flex-1 rounded-lg bg-red-500/80" />
+            <span className="h-8 flex-1 rounded-md bg-brand-400/70" />
+            <span className="h-8 flex-1 rounded-md bg-red-500/80" />
           </div>
         </FloatingCard>
 
         <FloatingCard mx={mx} my={my} depth={70} className="right-0 top-28 w-44">
-          <p className="text-xs text-white/50">Reactions</p>
+          <p className="text-xs text-bone/50">Reactions</p>
           <div className="mt-2 flex gap-1.5 text-xl">❤️ 😂 🔥 🎉</div>
         </FloatingCard>
 
         <FloatingCard mx={mx} my={my} depth={40} className="bottom-10 left-10 w-48">
-          <p className="text-xs text-white/50">Picture-in-picture</p>
-          <div className="mt-2 h-16 w-24 rounded-lg bg-gradient-to-br from-brand-400 to-aqua" />
+          <p className="text-xs text-bone/50">Picture-in-picture</p>
+          <div className="mt-2 h-16 w-24 rounded-md bg-gradient-to-br from-brand-300 to-brand-600" />
         </FloatingCard>
 
         <FloatingCard mx={mx} my={my} depth={60} className="bottom-16 right-6 w-40">
-          <p className="text-xs text-white/50">Call quality</p>
+          <p className="text-xs text-bone/50">Call quality</p>
           <div className="mt-2 flex items-end gap-1">
             {[5, 9, 6, 11, 8, 12].map((h, i) => (
               <span key={i} className="w-2 rounded-sm bg-brand-400" style={{ height: h * 2 }} />

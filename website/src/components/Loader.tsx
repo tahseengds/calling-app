@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 /**
- * Cinematic intro overlay. Holds the brand reveal for a beat, runs a progress
- * sweep, then lifts away with a soft wipe. Locks scroll while visible.
+ * Intro overlay. Holds the brand reveal for a beat, runs a progress sweep,
+ * then lifts away with a soft wipe. Locks scroll while visible.
  */
 export function Loader() {
   const [done, setDone] = useState(false);
@@ -16,7 +16,7 @@ export function Loader() {
     const t = setTimeout(() => {
       setDone(true);
       root.style.overflow = '';
-    }, 1900);
+    }, 1700);
     return () => {
       clearTimeout(t);
       root.style.overflow = '';
@@ -40,7 +40,7 @@ export function Loader() {
             transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
           >
             <span className="relative flex h-11 w-11 items-center justify-center">
-              <span className="absolute inset-0 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-glow blur-md opacity-70 animate-pulse-glow" />
+              <span className="absolute inset-0 rounded-2xl bg-gradient-to-br from-brand-300 to-brand-600 opacity-60 blur-md animate-pulse-glow" />
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src="/logo.png"
@@ -50,17 +50,17 @@ export function Loader() {
                 className="relative h-11 w-11 rounded-2xl"
               />
             </span>
-            <span className="font-display text-3xl font-semibold tracking-tightest text-white">
+            <span className="font-display text-3xl font-semibold tracking-tight text-bone">
               Lumio
             </span>
           </motion.div>
 
-          <div className="mt-8 h-px w-56 overflow-hidden bg-white/10">
+          <div className="mt-8 h-px w-56 overflow-hidden bg-bone/10">
             <motion.div
-              className="h-full bg-gradient-to-r from-brand-400 to-aqua"
+              className="h-full bg-brand-400"
               initial={{ x: '-100%' }}
               animate={{ x: '0%' }}
-              transition={{ duration: 1.6, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 1.4, ease: [0.16, 1, 0.3, 1] }}
             />
           </div>
         </motion.div>

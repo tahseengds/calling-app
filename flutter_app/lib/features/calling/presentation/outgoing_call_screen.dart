@@ -71,8 +71,11 @@ class _OutgoingCallScreenState extends ConsumerState<OutgoingCallScreen>
         EndReason.blocked => "Call ended — contact is blocked.",
         // forceKilled only appears after reconciliation on next launch, so
         // the user is never looking at this screen for it. Stays silent.
+        // `cancelled` is a callee-side reason (the caller cancelled) — it never
+        // applies to this, the caller's own outgoing screen.
         EndReason.hungUp ||
         EndReason.rejected ||
+        EndReason.cancelled ||
         EndReason.forceKilled ||
         null =>
           null,
@@ -80,12 +83,11 @@ class _OutgoingCallScreenState extends ConsumerState<OutgoingCallScreen>
 
   @override
   Widget build(BuildContext context) {
-    final session = ref.watch(callSessionProvider);
     final lumioColors = context.lumioColors;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final subColor = isDark ? Colors.white70 : Colors.black54;
 
-    // Navigate when call is answered or ended
+    // Navigate when call is answered or ended. (listen — never rebuilds here.)
     ref.listen<CallSession?>(callSessionProvider, (prev, next) {
       if (!context.mounted) {
         return;
@@ -106,26 +108,35 @@ class _OutgoingCallScreenState extends ConsumerState<OutgoingCallScreen>
         }
         return;
       }
-      if (next.phase == CallPhase.connected) {
-        final route = next.callType == CallType.video
-            ? '/call/video'
-            : '/call/active';
-        context.pushReplacement(route);
-      }
+      // Navigating to the active/video screen once the call connects is owned
+      // by the single call-navigation authority in LuminApp (app.dart); this
+      // screen no longer pushReplacement's itself (doing both could stack two
+      // call screens — a duplicate self-view PiP).
     });
 
-    if (session == null) {
+    final hasSession =
+        ref.watch(callSessionProvider.select((s) => s != null));
+    if (!hasSession) {
       return const Scaffold(body: SizedBox.shrink());
     }
 
-    final isVideo = session.callType == CallType.video;
+    // Structural fields only — the ringing-phase mutations (peerRinging,
+    // self-view readiness) update just the small widgets that read them rather
+    // than rebuilding the whole screen (which includes the self-view
+    // RTCVideoView).
+    final isVideo = ref.watch(
+        callSessionProvider.select((s) => s?.callType == CallType.video));
+    final peerName =
+        ref.watch(callSessionProvider.select((s) => s?.peerUser.name ?? ''));
+    final peerAvatar = ref
+        .watch(callSessionProvider.select((s) => s?.peerUser.avatarUrl));
+    final selfViewReady = ref.watch(
+        callSessionProvider.select((s) => s?.isLocalVideoReady ?? false));
 
-    // Self-view: the caller's camera is already live (acquired when the offer
-    // was created), so show it full-bleed behind a scrim during a video call
-    // — lets the caller check their framing while it rings.
+    // Self-view: the caller's camera is live (acquired when the offer was
+    // created), so show it full-bleed behind a scrim during a video call.
     final webrtc = ref.read(callSessionProvider.notifier).webrtcService;
-    final showSelfView =
-        isVideo && webrtc != null && webrtc.localRenderer.srcObject != null;
+    final showSelfView = isVideo && webrtc != null && selfViewReady;
 
     return Scaffold(
       body: Stack(
@@ -261,8 +272,8 @@ class _OutgoingCallScreenState extends ConsumerState<OutgoingCallScreen>
                         ),
                       ),
                       UserAvatar(
-                        displayName: session.peerUser.name,
-                        imageUrl: session.peerUser.avatarUrl,
+                        displayName: peerName,
+                        imageUrl: peerAvatar,
                         radius: 80,
                       ),
                     ],
@@ -272,7 +283,7 @@ class _OutgoingCallScreenState extends ConsumerState<OutgoingCallScreen>
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Text(
-                    session.peerUser.name,
+                    peerName,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.display(color: lumioColors.fg1)
@@ -284,23 +295,30 @@ class _OutgoingCallScreenState extends ConsumerState<OutgoingCallScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
+                    Consumer(
                       // Status label tracks what's actually happening:
                       //   "Calling…"    — local emit done, no backend ack yet
                       //   "Ringing…"    — backend confirmed the offer reached
                       //                   the callee (their phone is ringing)
                       //   "Connecting…" — callee answered, ICE handshake in
                       //                   progress (about to push to active)
-                      switch (session.phase) {
-                        // Only say "Ringing" once the callee's device has
-                        // acknowledged; until then it's still "Calling".
-                        CallPhase.outgoingRinging =>
-                          session.peerRinging ? 'Ringing' : 'Calling',
-                        CallPhase.connecting => 'Connecting',
-                        _ => 'Calling',
+                      // Only this label watches phase/peerRinging, so the
+                      // "Calling → Ringing" flip doesn't rebuild the self-view.
+                      builder: (context, ref, _) {
+                        final (phase, peerRinging) = ref.watch(
+                            callSessionProvider.select(
+                                (s) => (s?.phase, s?.peerRinging ?? false)));
+                        final label = switch (phase) {
+                          CallPhase.outgoingRinging =>
+                            peerRinging ? 'Ringing' : 'Calling',
+                          CallPhase.connecting => 'Connecting',
+                          _ => 'Calling',
+                        };
+                        return Text(
+                          label,
+                          style: TextStyle(fontSize: 15, color: subColor),
+                        );
                       },
-                      style:
-                          TextStyle(fontSize: 15, color: subColor),
                     ),
                     const SizedBox(width: 4),
                     _LoadingDots(controller: _dot, color: subColor),

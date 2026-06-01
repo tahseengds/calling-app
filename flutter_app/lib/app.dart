@@ -202,6 +202,10 @@ class _LuminAppState extends ConsumerState<LuminApp>
     with WidgetsBindingObserver {
   StreamSubscription<Uri>? _appLinksSub;
 
+  /// Router whose delegate we listen to so [callScreenVisibleProvider] tracks
+  /// the current route. Held so the listener can be removed on dispose.
+  GoRouter? _callRouteRouter;
+
   @override
   void initState() {
     super.initState();
@@ -209,6 +213,20 @@ class _LuminAppState extends ConsumerState<LuminApp>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _maybeConsumeDeepLink();
       _bootstrapDeepLinks();
+      // Drive the global "return to call" overlay from the actual navigation
+      // stack — the single source of truth for which screen is on top. The
+      // call screens used to toggle callScreenVisibleProvider in their own
+      // initState/dispose, but when a call connects the ringing screen can
+      // navigate to /call/active twice (on `connecting` then `connected`), and
+      // the stale screen's dispose then flipped the flag back to false AFTER
+      // the live screen set it true — leaving the overlay showing while the
+      // user was already ON the call screen. Deriving it from the route is
+      // immune to that lifecycle ordering.
+      _callRouteRouter = ref.read(_routerProvider);
+      _callRouteRouter!.routerDelegate.addListener(_syncCallScreenVisible);
+      _syncCallScreenVisible();
+      // Catch a call that was already accepted/connected during cold start.
+      _routeForCallSession(ref.read(callSessionProvider));
     });
     // Restore the full-screen call UI when the user taps the PiP window to
     // expand it (PiP exit) while a call is still active.
@@ -296,8 +314,66 @@ class _LuminAppState extends ConsumerState<LuminApp>
   void dispose() {
     _appLinksSub?.cancel();
     _pipBridge?.isInPip.removeListener(_onPipChanged);
+    _callRouteRouter?.routerDelegate.removeListener(_syncCallScreenVisible);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  /// Keep [callScreenVisibleProvider] in sync with the current route so the
+  /// call-return overlay hides while a full call screen (`/call/active` or
+  /// `/call/video`) is on top and reappears once the user navigates elsewhere
+  /// during a live call. Fired by the router delegate on every navigation.
+  void _syncCallScreenVisible() {
+    if (!mounted) return;
+    final router = _callRouteRouter;
+    if (router == null) return;
+    final path = router.routerDelegate.currentConfiguration.uri.path;
+    final onCallScreen = path == '/call/active' || path == '/call/video';
+    final notifier = ref.read(callScreenVisibleProvider.notifier);
+    if (notifier.state != onCallScreen) {
+      notifier.state = onCallScreen;
+    }
+  }
+
+  /// Single, idempotent authority for navigating to the call screen that
+  /// matches the current call phase. Centralising this (rather than also having
+  /// each ringing screen pushReplacement itself onto the active/video screen)
+  /// guarantees at most ONE `/call/*` route on the stack — the previous split
+  /// could stack a second call screen, which surfaced as a duplicate self-view
+  /// PiP. Also covers the "call already live before the UI mounted" case (e.g.
+  /// accepted from the native notification during cold start): called from the
+  /// post-frame and auth-resolved hooks so the screen still appears.
+  ///
+  /// Relies on go_router updating `currentConfiguration` synchronously after a
+  /// push/pushReplacement, so back-to-back invocations for the same phase see
+  /// `current == target` and no-op instead of stacking.
+  void _routeForCallSession(CallSession? next) {
+    if (!mounted || next == null) return;
+    final String target;
+    switch (next.phase) {
+      case CallPhase.incomingRinging:
+        target = '/call/incoming';
+      case CallPhase.outgoingRinging:
+        target = '/call/outgoing';
+      case CallPhase.connecting:
+      case CallPhase.connected:
+      case CallPhase.reconnecting:
+        target =
+            next.callType == CallType.video ? '/call/video' : '/call/active';
+      case CallPhase.idle:
+      case CallPhase.ended:
+      case CallPhase.failed:
+        // The call screens pop themselves when the call ends.
+        return;
+    }
+    final router = ref.read(_routerProvider);
+    final current = router.routerDelegate.currentConfiguration.uri.path;
+    if (current == target) return; // already showing the right screen
+    if (current.startsWith('/call/')) {
+      router.pushReplacement(target); // swap one call screen for another
+    } else {
+      router.push(target); // enter the call UI from a non-call screen
+    }
   }
 
   /// Bridge whose isInPip notifier we watch to restore the call screen when the
@@ -350,33 +426,42 @@ class _LuminAppState extends ConsumerState<LuminApp>
         if (path != null) {
           router.push(path);
         }
+        // A call accepted during cold start may have connected before auth
+        // resolved — any earlier /call/* push would have been bounced to
+        // /splash by the redirect. Now that we're authenticated, show it.
+        _routeForCallSession(ref.read(callSessionProvider));
+      }
+    });
+
+    // ── Pending deep-link, already-authenticated ─────────────────────────────
+    // A notification tapped while the app is backgrounded (process + engine
+    // still alive) reaches Dart through the native bridge's openConversation /
+    // openRoute callbacks, which only *stash* the target in
+    // pendingDeepLinkProvider — they don't navigate. In that warm path the auth
+    // state doesn't change, so the listener above never fires, and initState's
+    // one-shot _maybeConsumeDeepLink already ran. The link would then sit
+    // unconsumed and the user stays on whatever screen was showing (the chat
+    // list) instead of the target chat. Watch the provider directly and route
+    // as soon as a link is stashed while already authenticated. When it's
+    // stashed *before* auth resolves (cold start) we no-op here and let the
+    // auth listener above pick it up on the transition.
+    ref.listen<String?>(pendingDeepLinkProvider, (prev, next) {
+      if (next == null) return;
+      if (ref.read(authNotifierProvider) is! AuthAuthenticated) return;
+      final path = ref.read(pendingDeepLinkProvider.notifier).consume();
+      if (path != null) {
+        router.push(path);
       }
     });
 
     // ── Call navigation observer ─────────────────────────────────────────────
-    // When a call arrives or phase changes, navigate to the right screen.
+    // The SINGLE authority for which call screen is shown. The ringing screens
+    // used to pushReplacement themselves onto the active/video screen too, but
+    // that split with this observer could stack two call routes (e.g. two
+    // VideoCallScreens, which showed up as a duplicate self-view thumbnail).
+    // Routing only here, idempotently, guarantees at most one call route.
     ref.listen<CallSession?>(callSessionProvider, (prev, next) {
-      if (!context.mounted) {
-        return;
-      }
-      if (next == null) {
-        return;
-      }
-
-      // New incoming call
-      if (next.phase == CallPhase.incomingRinging &&
-          (prev == null ||
-              prev.callId != next.callId ||
-              prev.phase != CallPhase.incomingRinging)) {
-        router.push('/call/incoming');
-        return;
-      }
-
-      // New outgoing call started (e.g. from call history)
-      if (next.phase == CallPhase.outgoingRinging &&
-          (prev == null || prev.callId != next.callId)) {
-        router.push('/call/outgoing');
-      }
+      _routeForCallSession(next);
     });
 
     return MaterialApp.router(

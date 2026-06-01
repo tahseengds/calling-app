@@ -1,0 +1,18 @@
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+
+scrape_configs:
+  # The Lumin API. Scraped directly over app_network (NOT via nginx), so the
+  # request carries no X-Forwarded-For / X-Real-IP and the API's client_ip()
+  # falls back to this container's Docker IP (172.x on app_network), which the
+  # /metrics internal-IP gate accepts. No public exposure, no nginx route.
+  - job_name: lumin-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['fastapi:8000']   # Docker DNS name of the API service
+
+  # Prometheus self-monitoring.
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']

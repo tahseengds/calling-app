@@ -1,0 +1,13 @@
+apiVersion: 1
+
+# Auto-provisioned Prometheus datasource. Reachable over app_network by its
+# compose service name. The fixed uid lets the bundled dashboard reference it
+# deterministically.
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

@@ -253,6 +253,39 @@ class $MessagesTableTable extends MessagesTable
     requiredDuringInsert: false,
     defaultValue: const Constant(''),
   );
+  static const VerificationMeta _editedAtMeta = const VerificationMeta(
+    'editedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> editedAt = GeneratedColumn<DateTime>(
+    'edited_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _pinnedAtMeta = const VerificationMeta(
+    'pinnedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> pinnedAt = GeneratedColumn<DateTime>(
+    'pinned_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _expiresAtMeta = const VerificationMeta(
+    'expiresAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> expiresAt = GeneratedColumn<DateTime>(
+    'expires_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -270,6 +303,9 @@ class $MessagesTableTable extends MessagesTable
     isSynced,
     isDeleted,
     reactionsJson,
+    editedAt,
+    pinnedAt,
+    expiresAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -401,6 +437,24 @@ class $MessagesTableTable extends MessagesTable
         ),
       );
     }
+    if (data.containsKey('edited_at')) {
+      context.handle(
+        _editedAtMeta,
+        editedAt.isAcceptableOrUnknown(data['edited_at']!, _editedAtMeta),
+      );
+    }
+    if (data.containsKey('pinned_at')) {
+      context.handle(
+        _pinnedAtMeta,
+        pinnedAt.isAcceptableOrUnknown(data['pinned_at']!, _pinnedAtMeta),
+      );
+    }
+    if (data.containsKey('expires_at')) {
+      context.handle(
+        _expiresAtMeta,
+        expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta),
+      );
+    }
     return context;
   }
 
@@ -470,6 +524,18 @@ class $MessagesTableTable extends MessagesTable
         DriftSqlType.string,
         data['${effectivePrefix}reactions_json'],
       )!,
+      editedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}edited_at'],
+      ),
+      pinnedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}pinned_at'],
+      ),
+      expiresAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}expires_at'],
+      ),
     );
   }
 
@@ -501,6 +567,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
   /// Empty string means "no reactions" (we avoid NULL so callers can decode
   /// without a null check on the hot read path).
   final String reactionsJson;
+  final DateTime? editedAt;
+  final DateTime? pinnedAt;
+  final DateTime? expiresAt;
   const MessageRow({
     required this.id,
     required this.conversationId,
@@ -517,6 +586,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     required this.isSynced,
     required this.isDeleted,
     required this.reactionsJson,
+    this.editedAt,
+    this.pinnedAt,
+    this.expiresAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -548,6 +620,15 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     map['is_synced'] = Variable<bool>(isSynced);
     map['is_deleted'] = Variable<bool>(isDeleted);
     map['reactions_json'] = Variable<String>(reactionsJson);
+    if (!nullToAbsent || editedAt != null) {
+      map['edited_at'] = Variable<DateTime>(editedAt);
+    }
+    if (!nullToAbsent || pinnedAt != null) {
+      map['pinned_at'] = Variable<DateTime>(pinnedAt);
+    }
+    if (!nullToAbsent || expiresAt != null) {
+      map['expires_at'] = Variable<DateTime>(expiresAt);
+    }
     return map;
   }
 
@@ -580,6 +661,15 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       isSynced: Value(isSynced),
       isDeleted: Value(isDeleted),
       reactionsJson: Value(reactionsJson),
+      editedAt: editedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(editedAt),
+      pinnedAt: pinnedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(pinnedAt),
+      expiresAt: expiresAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(expiresAt),
     );
   }
 
@@ -604,6 +694,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       isSynced: serializer.fromJson<bool>(json['isSynced']),
       isDeleted: serializer.fromJson<bool>(json['isDeleted']),
       reactionsJson: serializer.fromJson<String>(json['reactionsJson']),
+      editedAt: serializer.fromJson<DateTime?>(json['editedAt']),
+      pinnedAt: serializer.fromJson<DateTime?>(json['pinnedAt']),
+      expiresAt: serializer.fromJson<DateTime?>(json['expiresAt']),
     );
   }
   @override
@@ -625,6 +718,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       'isSynced': serializer.toJson<bool>(isSynced),
       'isDeleted': serializer.toJson<bool>(isDeleted),
       'reactionsJson': serializer.toJson<String>(reactionsJson),
+      'editedAt': serializer.toJson<DateTime?>(editedAt),
+      'pinnedAt': serializer.toJson<DateTime?>(pinnedAt),
+      'expiresAt': serializer.toJson<DateTime?>(expiresAt),
     };
   }
 
@@ -644,6 +740,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     bool? isSynced,
     bool? isDeleted,
     String? reactionsJson,
+    Value<DateTime?> editedAt = const Value.absent(),
+    Value<DateTime?> pinnedAt = const Value.absent(),
+    Value<DateTime?> expiresAt = const Value.absent(),
   }) => MessageRow(
     id: id ?? this.id,
     conversationId: conversationId ?? this.conversationId,
@@ -666,6 +765,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     isSynced: isSynced ?? this.isSynced,
     isDeleted: isDeleted ?? this.isDeleted,
     reactionsJson: reactionsJson ?? this.reactionsJson,
+    editedAt: editedAt.present ? editedAt.value : this.editedAt,
+    pinnedAt: pinnedAt.present ? pinnedAt.value : this.pinnedAt,
+    expiresAt: expiresAt.present ? expiresAt.value : this.expiresAt,
   );
   MessageRow copyWithCompanion(MessagesTableCompanion data) {
     return MessageRow(
@@ -698,6 +800,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
       reactionsJson: data.reactionsJson.present
           ? data.reactionsJson.value
           : this.reactionsJson,
+      editedAt: data.editedAt.present ? data.editedAt.value : this.editedAt,
+      pinnedAt: data.pinnedAt.present ? data.pinnedAt.value : this.pinnedAt,
+      expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
     );
   }
 
@@ -718,7 +823,10 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
           ..write('createdAt: $createdAt, ')
           ..write('isSynced: $isSynced, ')
           ..write('isDeleted: $isDeleted, ')
-          ..write('reactionsJson: $reactionsJson')
+          ..write('reactionsJson: $reactionsJson, ')
+          ..write('editedAt: $editedAt, ')
+          ..write('pinnedAt: $pinnedAt, ')
+          ..write('expiresAt: $expiresAt')
           ..write(')'))
         .toString();
   }
@@ -740,6 +848,9 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
     isSynced,
     isDeleted,
     reactionsJson,
+    editedAt,
+    pinnedAt,
+    expiresAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -759,7 +870,10 @@ class MessageRow extends DataClass implements Insertable<MessageRow> {
           other.createdAt == this.createdAt &&
           other.isSynced == this.isSynced &&
           other.isDeleted == this.isDeleted &&
-          other.reactionsJson == this.reactionsJson);
+          other.reactionsJson == this.reactionsJson &&
+          other.editedAt == this.editedAt &&
+          other.pinnedAt == this.pinnedAt &&
+          other.expiresAt == this.expiresAt);
 }
 
 class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
@@ -778,6 +892,9 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
   final Value<bool> isSynced;
   final Value<bool> isDeleted;
   final Value<String> reactionsJson;
+  final Value<DateTime?> editedAt;
+  final Value<DateTime?> pinnedAt;
+  final Value<DateTime?> expiresAt;
   final Value<int> rowid;
   const MessagesTableCompanion({
     this.id = const Value.absent(),
@@ -795,6 +912,9 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
     this.isSynced = const Value.absent(),
     this.isDeleted = const Value.absent(),
     this.reactionsJson = const Value.absent(),
+    this.editedAt = const Value.absent(),
+    this.pinnedAt = const Value.absent(),
+    this.expiresAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   MessagesTableCompanion.insert({
@@ -813,6 +933,9 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
     this.isSynced = const Value.absent(),
     this.isDeleted = const Value.absent(),
     this.reactionsJson = const Value.absent(),
+    this.editedAt = const Value.absent(),
+    this.pinnedAt = const Value.absent(),
+    this.expiresAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        conversationId = Value(conversationId),
@@ -835,6 +958,9 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
     Expression<bool>? isSynced,
     Expression<bool>? isDeleted,
     Expression<String>? reactionsJson,
+    Expression<DateTime>? editedAt,
+    Expression<DateTime>? pinnedAt,
+    Expression<DateTime>? expiresAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -853,6 +979,9 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
       if (isSynced != null) 'is_synced': isSynced,
       if (isDeleted != null) 'is_deleted': isDeleted,
       if (reactionsJson != null) 'reactions_json': reactionsJson,
+      if (editedAt != null) 'edited_at': editedAt,
+      if (pinnedAt != null) 'pinned_at': pinnedAt,
+      if (expiresAt != null) 'expires_at': expiresAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -873,6 +1002,9 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
     Value<bool>? isSynced,
     Value<bool>? isDeleted,
     Value<String>? reactionsJson,
+    Value<DateTime?>? editedAt,
+    Value<DateTime?>? pinnedAt,
+    Value<DateTime?>? expiresAt,
     Value<int>? rowid,
   }) {
     return MessagesTableCompanion(
@@ -891,6 +1023,9 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
       isSynced: isSynced ?? this.isSynced,
       isDeleted: isDeleted ?? this.isDeleted,
       reactionsJson: reactionsJson ?? this.reactionsJson,
+      editedAt: editedAt ?? this.editedAt,
+      pinnedAt: pinnedAt ?? this.pinnedAt,
+      expiresAt: expiresAt ?? this.expiresAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -943,6 +1078,15 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
     if (reactionsJson.present) {
       map['reactions_json'] = Variable<String>(reactionsJson.value);
     }
+    if (editedAt.present) {
+      map['edited_at'] = Variable<DateTime>(editedAt.value);
+    }
+    if (pinnedAt.present) {
+      map['pinned_at'] = Variable<DateTime>(pinnedAt.value);
+    }
+    if (expiresAt.present) {
+      map['expires_at'] = Variable<DateTime>(expiresAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -967,6 +1111,9 @@ class MessagesTableCompanion extends UpdateCompanion<MessageRow> {
           ..write('isSynced: $isSynced, ')
           ..write('isDeleted: $isDeleted, ')
           ..write('reactionsJson: $reactionsJson, ')
+          ..write('editedAt: $editedAt, ')
+          ..write('pinnedAt: $pinnedAt, ')
+          ..write('expiresAt: $expiresAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1033,6 +1180,16 @@ class $ConversationsTableTable extends ConversationsTable
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _disappearingSecondsMeta =
+      const VerificationMeta('disappearingSeconds');
+  @override
+  late final GeneratedColumn<int> disappearingSeconds = GeneratedColumn<int>(
+    'disappearing_seconds',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1040,6 +1197,7 @@ class $ConversationsTableTable extends ConversationsTable
     lastMessageId,
     lastActivity,
     unreadCount,
+    disappearingSeconds,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1098,6 +1256,15 @@ class $ConversationsTableTable extends ConversationsTable
         ),
       );
     }
+    if (data.containsKey('disappearing_seconds')) {
+      context.handle(
+        _disappearingSecondsMeta,
+        disappearingSeconds.isAcceptableOrUnknown(
+          data['disappearing_seconds']!,
+          _disappearingSecondsMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1127,6 +1294,10 @@ class $ConversationsTableTable extends ConversationsTable
         DriftSqlType.int,
         data['${effectivePrefix}unread_count'],
       )!,
+      disappearingSeconds: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}disappearing_seconds'],
+      ),
     );
   }
 
@@ -1142,12 +1313,14 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
   final String? lastMessageId;
   final DateTime lastActivity;
   final int unreadCount;
+  final int? disappearingSeconds;
   const ConversationRow({
     required this.id,
     required this.otherUserId,
     this.lastMessageId,
     required this.lastActivity,
     required this.unreadCount,
+    this.disappearingSeconds,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1159,6 +1332,9 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
     }
     map['last_activity'] = Variable<DateTime>(lastActivity);
     map['unread_count'] = Variable<int>(unreadCount);
+    if (!nullToAbsent || disappearingSeconds != null) {
+      map['disappearing_seconds'] = Variable<int>(disappearingSeconds);
+    }
     return map;
   }
 
@@ -1171,6 +1347,9 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
           : Value(lastMessageId),
       lastActivity: Value(lastActivity),
       unreadCount: Value(unreadCount),
+      disappearingSeconds: disappearingSeconds == null && nullToAbsent
+          ? const Value.absent()
+          : Value(disappearingSeconds),
     );
   }
 
@@ -1185,6 +1364,9 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
       lastMessageId: serializer.fromJson<String?>(json['lastMessageId']),
       lastActivity: serializer.fromJson<DateTime>(json['lastActivity']),
       unreadCount: serializer.fromJson<int>(json['unreadCount']),
+      disappearingSeconds: serializer.fromJson<int?>(
+        json['disappearingSeconds'],
+      ),
     );
   }
   @override
@@ -1196,6 +1378,7 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
       'lastMessageId': serializer.toJson<String?>(lastMessageId),
       'lastActivity': serializer.toJson<DateTime>(lastActivity),
       'unreadCount': serializer.toJson<int>(unreadCount),
+      'disappearingSeconds': serializer.toJson<int?>(disappearingSeconds),
     };
   }
 
@@ -1205,6 +1388,7 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
     Value<String?> lastMessageId = const Value.absent(),
     DateTime? lastActivity,
     int? unreadCount,
+    Value<int?> disappearingSeconds = const Value.absent(),
   }) => ConversationRow(
     id: id ?? this.id,
     otherUserId: otherUserId ?? this.otherUserId,
@@ -1213,6 +1397,9 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
         : this.lastMessageId,
     lastActivity: lastActivity ?? this.lastActivity,
     unreadCount: unreadCount ?? this.unreadCount,
+    disappearingSeconds: disappearingSeconds.present
+        ? disappearingSeconds.value
+        : this.disappearingSeconds,
   );
   ConversationRow copyWithCompanion(ConversationsTableCompanion data) {
     return ConversationRow(
@@ -1229,6 +1416,9 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
       unreadCount: data.unreadCount.present
           ? data.unreadCount.value
           : this.unreadCount,
+      disappearingSeconds: data.disappearingSeconds.present
+          ? data.disappearingSeconds.value
+          : this.disappearingSeconds,
     );
   }
 
@@ -1239,14 +1429,21 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
           ..write('otherUserId: $otherUserId, ')
           ..write('lastMessageId: $lastMessageId, ')
           ..write('lastActivity: $lastActivity, ')
-          ..write('unreadCount: $unreadCount')
+          ..write('unreadCount: $unreadCount, ')
+          ..write('disappearingSeconds: $disappearingSeconds')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode =>
-      Object.hash(id, otherUserId, lastMessageId, lastActivity, unreadCount);
+  int get hashCode => Object.hash(
+    id,
+    otherUserId,
+    lastMessageId,
+    lastActivity,
+    unreadCount,
+    disappearingSeconds,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1255,7 +1452,8 @@ class ConversationRow extends DataClass implements Insertable<ConversationRow> {
           other.otherUserId == this.otherUserId &&
           other.lastMessageId == this.lastMessageId &&
           other.lastActivity == this.lastActivity &&
-          other.unreadCount == this.unreadCount);
+          other.unreadCount == this.unreadCount &&
+          other.disappearingSeconds == this.disappearingSeconds);
 }
 
 class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
@@ -1264,6 +1462,7 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
   final Value<String?> lastMessageId;
   final Value<DateTime> lastActivity;
   final Value<int> unreadCount;
+  final Value<int?> disappearingSeconds;
   final Value<int> rowid;
   const ConversationsTableCompanion({
     this.id = const Value.absent(),
@@ -1271,6 +1470,7 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
     this.lastMessageId = const Value.absent(),
     this.lastActivity = const Value.absent(),
     this.unreadCount = const Value.absent(),
+    this.disappearingSeconds = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   ConversationsTableCompanion.insert({
@@ -1279,6 +1479,7 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
     this.lastMessageId = const Value.absent(),
     required DateTime lastActivity,
     this.unreadCount = const Value.absent(),
+    this.disappearingSeconds = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        otherUserId = Value(otherUserId),
@@ -1289,6 +1490,7 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
     Expression<String>? lastMessageId,
     Expression<DateTime>? lastActivity,
     Expression<int>? unreadCount,
+    Expression<int>? disappearingSeconds,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1297,6 +1499,8 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
       if (lastMessageId != null) 'last_message_id': lastMessageId,
       if (lastActivity != null) 'last_activity': lastActivity,
       if (unreadCount != null) 'unread_count': unreadCount,
+      if (disappearingSeconds != null)
+        'disappearing_seconds': disappearingSeconds,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1307,6 +1511,7 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
     Value<String?>? lastMessageId,
     Value<DateTime>? lastActivity,
     Value<int>? unreadCount,
+    Value<int?>? disappearingSeconds,
     Value<int>? rowid,
   }) {
     return ConversationsTableCompanion(
@@ -1315,6 +1520,7 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
       lastMessageId: lastMessageId ?? this.lastMessageId,
       lastActivity: lastActivity ?? this.lastActivity,
       unreadCount: unreadCount ?? this.unreadCount,
+      disappearingSeconds: disappearingSeconds ?? this.disappearingSeconds,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1337,6 +1543,9 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
     if (unreadCount.present) {
       map['unread_count'] = Variable<int>(unreadCount.value);
     }
+    if (disappearingSeconds.present) {
+      map['disappearing_seconds'] = Variable<int>(disappearingSeconds.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1351,6 +1560,7 @@ class ConversationsTableCompanion extends UpdateCompanion<ConversationRow> {
           ..write('lastMessageId: $lastMessageId, ')
           ..write('lastActivity: $lastActivity, ')
           ..write('unreadCount: $unreadCount, ')
+          ..write('disappearingSeconds: $disappearingSeconds, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2718,6 +2928,9 @@ typedef $$MessagesTableTableCreateCompanionBuilder =
       Value<bool> isSynced,
       Value<bool> isDeleted,
       Value<String> reactionsJson,
+      Value<DateTime?> editedAt,
+      Value<DateTime?> pinnedAt,
+      Value<DateTime?> expiresAt,
       Value<int> rowid,
     });
 typedef $$MessagesTableTableUpdateCompanionBuilder =
@@ -2737,6 +2950,9 @@ typedef $$MessagesTableTableUpdateCompanionBuilder =
       Value<bool> isSynced,
       Value<bool> isDeleted,
       Value<String> reactionsJson,
+      Value<DateTime?> editedAt,
+      Value<DateTime?> pinnedAt,
+      Value<DateTime?> expiresAt,
       Value<int> rowid,
     });
 
@@ -2821,6 +3037,21 @@ class $$MessagesTableTableFilterComposer
 
   ColumnFilters<String> get reactionsJson => $composableBuilder(
     column: $table.reactionsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get editedAt => $composableBuilder(
+    column: $table.editedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get pinnedAt => $composableBuilder(
+    column: $table.pinnedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -2908,6 +3139,21 @@ class $$MessagesTableTableOrderingComposer
     column: $table.reactionsJson,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<DateTime> get editedAt => $composableBuilder(
+    column: $table.editedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get pinnedAt => $composableBuilder(
+    column: $table.pinnedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get expiresAt => $composableBuilder(
+    column: $table.expiresAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$MessagesTableTableAnnotationComposer
@@ -2977,6 +3223,15 @@ class $$MessagesTableTableAnnotationComposer
     column: $table.reactionsJson,
     builder: (column) => column,
   );
+
+  GeneratedColumn<DateTime> get editedAt =>
+      $composableBuilder(column: $table.editedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get pinnedAt =>
+      $composableBuilder(column: $table.pinnedAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get expiresAt =>
+      $composableBuilder(column: $table.expiresAt, builder: (column) => column);
 }
 
 class $$MessagesTableTableTableManager
@@ -3025,6 +3280,9 @@ class $$MessagesTableTableTableManager
                 Value<bool> isSynced = const Value.absent(),
                 Value<bool> isDeleted = const Value.absent(),
                 Value<String> reactionsJson = const Value.absent(),
+                Value<DateTime?> editedAt = const Value.absent(),
+                Value<DateTime?> pinnedAt = const Value.absent(),
+                Value<DateTime?> expiresAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MessagesTableCompanion(
                 id: id,
@@ -3042,6 +3300,9 @@ class $$MessagesTableTableTableManager
                 isSynced: isSynced,
                 isDeleted: isDeleted,
                 reactionsJson: reactionsJson,
+                editedAt: editedAt,
+                pinnedAt: pinnedAt,
+                expiresAt: expiresAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3061,6 +3322,9 @@ class $$MessagesTableTableTableManager
                 Value<bool> isSynced = const Value.absent(),
                 Value<bool> isDeleted = const Value.absent(),
                 Value<String> reactionsJson = const Value.absent(),
+                Value<DateTime?> editedAt = const Value.absent(),
+                Value<DateTime?> pinnedAt = const Value.absent(),
+                Value<DateTime?> expiresAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => MessagesTableCompanion.insert(
                 id: id,
@@ -3078,6 +3342,9 @@ class $$MessagesTableTableTableManager
                 isSynced: isSynced,
                 isDeleted: isDeleted,
                 reactionsJson: reactionsJson,
+                editedAt: editedAt,
+                pinnedAt: pinnedAt,
+                expiresAt: expiresAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -3112,6 +3379,7 @@ typedef $$ConversationsTableTableCreateCompanionBuilder =
       Value<String?> lastMessageId,
       required DateTime lastActivity,
       Value<int> unreadCount,
+      Value<int?> disappearingSeconds,
       Value<int> rowid,
     });
 typedef $$ConversationsTableTableUpdateCompanionBuilder =
@@ -3121,6 +3389,7 @@ typedef $$ConversationsTableTableUpdateCompanionBuilder =
       Value<String?> lastMessageId,
       Value<DateTime> lastActivity,
       Value<int> unreadCount,
+      Value<int?> disappearingSeconds,
       Value<int> rowid,
     });
 
@@ -3155,6 +3424,11 @@ class $$ConversationsTableTableFilterComposer
 
   ColumnFilters<int> get unreadCount => $composableBuilder(
     column: $table.unreadCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get disappearingSeconds => $composableBuilder(
+    column: $table.disappearingSeconds,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3192,6 +3466,11 @@ class $$ConversationsTableTableOrderingComposer
     column: $table.unreadCount,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get disappearingSeconds => $composableBuilder(
+    column: $table.disappearingSeconds,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ConversationsTableTableAnnotationComposer
@@ -3223,6 +3502,11 @@ class $$ConversationsTableTableAnnotationComposer
 
   GeneratedColumn<int> get unreadCount => $composableBuilder(
     column: $table.unreadCount,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get disappearingSeconds => $composableBuilder(
+    column: $table.disappearingSeconds,
     builder: (column) => column,
   );
 }
@@ -3272,6 +3556,7 @@ class $$ConversationsTableTableTableManager
                 Value<String?> lastMessageId = const Value.absent(),
                 Value<DateTime> lastActivity = const Value.absent(),
                 Value<int> unreadCount = const Value.absent(),
+                Value<int?> disappearingSeconds = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ConversationsTableCompanion(
                 id: id,
@@ -3279,6 +3564,7 @@ class $$ConversationsTableTableTableManager
                 lastMessageId: lastMessageId,
                 lastActivity: lastActivity,
                 unreadCount: unreadCount,
+                disappearingSeconds: disappearingSeconds,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3288,6 +3574,7 @@ class $$ConversationsTableTableTableManager
                 Value<String?> lastMessageId = const Value.absent(),
                 required DateTime lastActivity,
                 Value<int> unreadCount = const Value.absent(),
+                Value<int?> disappearingSeconds = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => ConversationsTableCompanion.insert(
                 id: id,
@@ -3295,6 +3582,7 @@ class $$ConversationsTableTableTableManager
                 lastMessageId: lastMessageId,
                 lastActivity: lastActivity,
                 unreadCount: unreadCount,
+                disappearingSeconds: disappearingSeconds,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
