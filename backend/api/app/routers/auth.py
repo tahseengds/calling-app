@@ -21,6 +21,9 @@ async def refresh(
     req: RefreshRequest,
     db: AsyncSession = Depends(get_db),
     redis: aioredis.Redis = Depends(get_redis),
+    # Unauthenticated endpoint — throttle refresh-token submission to blunt
+    # brute-force/churn against the token store.
+    _rl: None = Depends(rate_limit("refresh", 30, 60)),
 ) -> TokenResponse:
     return await auth_service.refresh(db, redis, req)
 

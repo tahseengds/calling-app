@@ -42,6 +42,14 @@ function registerTypingHandlers(io, socket) {
     if (isLimited(userId, 'typing:stop')) return;
     const { to, conversation_id: conversationId } = payload || {};
     if (typeof to !== 'string' || !UUID_RE.test(to)) return;
+    // Same contact/block gate as typing:start, for symmetry — a stranger
+    // shouldn't be able to push any typing signal to an arbitrary user.
+    try {
+      if (!(await canInteract(userId, to))) return;
+    } catch (err) {
+      logger.error({ event: 'typing_authz_error', userId, to, error: err.message });
+      return;
+    }
     try {
       const pair = [userId, to].sort().join(':');
       await redisClient.del(`typing:${pair}:${userId}`);

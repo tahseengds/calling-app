@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.dependencies import get_admin_user, get_current_user, get_db
+from app.dependencies import get_admin_user, get_current_user, get_db, rate_limit
 from app.models.user import User
 from app.schemas.support import (
     SupportFeedbackRequest,
@@ -82,6 +82,8 @@ async def submit_feedback(
     req: SupportFeedbackRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    # Bound how fast a single user can create support rows (unbounded DB growth).
+    _rl: None = Depends(rate_limit("submit_feedback", 10, 60)),
 ) -> SupportFeedbackResponse:
     return await support_service.submit_feedback(db, current_user, req)
 

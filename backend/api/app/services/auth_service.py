@@ -203,8 +203,23 @@ async def refresh(
     if record.expires_at < datetime.now(timezone.utc):
         raise UnauthorizedError("Refresh token expired")
 
-    # Rotate: mark old token revoked, issue new pair
-    record.revoked_at = datetime.now(timezone.utc)
+    # Rotate: atomically flip revoked_at only if it's still NULL. Two concurrent
+    # requests carrying the same token would otherwise both read revoked_at IS
+    # NULL and both mint a new chain, forking the session and defeating reuse
+    # detection. The conditional UPDATE lets exactly one winner rotate; the
+    # loser sees 0 rows affected and is treated as a replay.
+    now = datetime.now(timezone.utc)
+    rotate = await db.execute(
+        update(RefreshToken)
+        .where(
+            RefreshToken.id == record.id,
+            RefreshToken.revoked_at.is_(None),
+        )
+        .values(revoked_at=now)
+    )
+    if rotate.rowcount != 1:
+        await db.commit()
+        raise UnauthorizedError("Refresh token already used")
     await db.commit()
 
     result = await db.execute(select(User).where(User.id == record.user_id))

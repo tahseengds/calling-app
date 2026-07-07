@@ -4,7 +4,7 @@ import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_db, get_redis
+from app.dependencies import get_current_user, get_db, get_redis, rate_limit
 from app.models.user import User
 from app.schemas.contact import AddContactRequest, BlockRequest, ContactResponse
 from app.services import contact_service
@@ -30,6 +30,8 @@ async def add_contact(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     redis: aioredis.Redis = Depends(get_redis),
+    # Throttle to blunt email-enumeration (a 404 vs 201 reveals registration).
+    _rl: None = Depends(rate_limit("add_contact", 20, 60)),
 ) -> ContactResponse:
     contact = await contact_service.add_contact(db, current_user, req)
     await stamp_presence(redis, [contact.contact_user])

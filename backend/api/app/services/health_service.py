@@ -263,7 +263,7 @@ async def _check_domain_tls() -> HealthCheck:
         )
     url = f"https://{domain}/health?format=json"
     try:
-        async with httpx.AsyncClient(timeout=5.0, verify=False) as client:
+        async with httpx.AsyncClient(timeout=5.0, verify=True) as client:
             resp = await client.get(url)
         if resp.status_code == 200:
             return HealthCheck(

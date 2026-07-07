@@ -1,3 +1,4 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -61,6 +62,18 @@ class Settings(BaseSettings):
             for e in self.ADMIN_EMAILS.split(",")
             if e.strip()
         }
+
+    @model_validator(mode="after")
+    def _validate_secrets(self) -> "Settings":
+        # Fail closed on a weak JWT signing key in production. A short/guessable
+        # secret silently weakens every access token. Skipped in DEBUG so local
+        # dev can use throwaway values. Recommended: `openssl rand -hex 64`.
+        if not self.DEBUG and len(self.JWT_SECRET) < 32:
+            raise ValueError(
+                "JWT_SECRET must be at least 32 characters in production "
+                "(generate with `openssl rand -hex 64`)"
+            )
+        return self
 
 
 settings = Settings()

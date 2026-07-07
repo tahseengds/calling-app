@@ -5,7 +5,7 @@ import redis.asyncio as aioredis
 from fastapi import APIRouter, Depends, File, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_current_user, get_db, get_redis
+from app.dependencies import get_current_user, get_db, get_redis, rate_limit
 from app.models.user import User
 from app.schemas.user import FcmTokenRequest, UpdateProfileRequest, UserMe, UserPublic
 from app.services import user_service
@@ -63,6 +63,8 @@ async def upload_avatar(
     file: Annotated[UploadFile, File(description="Avatar image (JPEG / PNG / WebP)")],
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
+    # Avatar upload decodes/resizes an image (CPU + threadpool); throttle it.
+    _rl: None = Depends(rate_limit("upload_avatar", 10, 60)),
 ) -> UserMe:
     me = await user_service.upload_avatar(db, current_user, file)
     me.presence = "online"

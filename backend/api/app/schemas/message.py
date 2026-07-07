@@ -11,10 +11,17 @@ from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.media import MediaResponse
 from app.schemas.user import UserPublic
+
+# Max characters for a message body. Matches EditMessageRequest so send/edit are
+# consistent, and bounds DB/Redis fan-out from an oversized text message.
+MAX_MESSAGE_CONTENT = 4000
+# Max ids a single read/delivered receipt call may reference — bounds the
+# per-id server work an unthrottled client can trigger.
+MAX_RECEIPT_IDS = 500
 
 MessageType = Literal["text", "image", "video", "audio", "document"]
 
@@ -29,7 +36,7 @@ class SendMessageRequest(BaseModel):
     client_id: UUID
     recipient_id: UUID
     message_type: MessageType
-    content: str | None = None
+    content: str | None = Field(default=None, max_length=MAX_MESSAGE_CONTENT)
     media_id: UUID | None = None
     reply_to_id: UUID | None = None
 
@@ -52,6 +59,8 @@ class ReceiptRequest(BaseModel):
     def validate_not_empty(cls, v: list[UUID]) -> list[UUID]:
         if not v:
             raise ValueError("message_ids must not be empty")
+        if len(v) > MAX_RECEIPT_IDS:
+            raise ValueError(f"message_ids must not exceed {MAX_RECEIPT_IDS} ids")
         return v
 
 

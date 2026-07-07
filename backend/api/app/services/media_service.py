@@ -49,6 +49,43 @@ from app.utils.storage import (
 
 logger = logging.getLogger(__name__)
 
+# Cap the pixel count Pillow will decode. Pillow's default only errors above
+# ~178M px; a hostile but valid, highly-compressible image well under the byte
+# size limit can otherwise decode to hundreds of MB of raw bitmap and OOM the
+# process. 40M px (e.g. ~7300×5500) covers any legitimate phone photo.
+Image.MAX_IMAGE_PIXELS = 40_000_000
+
+# Hard wall-clock ceiling for any ffmpeg/ffprobe invocation. These run inline in
+# the upload request with only a couple of workers, so a pathological/looping
+# input must not be allowed to run unbounded and stall the API.
+_FFMPEG_TIMEOUT_S = 60
+
+
+async def _run_media_subprocess(*args: str, capture_stdout: bool = False):
+    """Run ffmpeg/ffprobe with a hard timeout. Returns (returncode, stdout, stderr).
+
+    On timeout the process is killed and returncode is -1. Never raises for the
+    timeout case — callers already handle a non-zero return code.
+    """
+    proc = await asyncio.create_subprocess_exec(
+        *args,
+        stdout=asyncio.subprocess.PIPE if capture_stdout else asyncio.subprocess.DEVNULL,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    try:
+        stdout, stderr = await asyncio.wait_for(
+            proc.communicate(), timeout=_FFMPEG_TIMEOUT_S
+        )
+        return proc.returncode, stdout, stderr
+    except asyncio.TimeoutError:
+        logger.warning("media subprocess timed out after %ss: %s", _FFMPEG_TIMEOUT_S, args[0])
+        try:
+            proc.kill()
+            await proc.wait()
+        except ProcessLookupError:
+            pass
+        return -1, b"", b"timed out"
+
 # ── MIME allowlists ────────────────────────────────────────────────────────────
 
 _ALLOWED: dict[str, set[str]] = {
@@ -157,6 +194,12 @@ async def validate_upload(
 
 def _open_image(data: bytes) -> Image.Image:
     img = Image.open(io.BytesIO(data))
+    # Reject decompression bombs up front, before any decode/convert allocates
+    # the full raster. Image.MAX_IMAGE_PIXELS (set at module load) is the backstop;
+    # this gives a clean 415 instead of a DecompressionBombError 500.
+    w, h = img.size
+    if w * h > Image.MAX_IMAGE_PIXELS:
+        raise UnsupportedMediaTypeError("Image resolution is too large")
     img = ImageOps.exif_transpose(img)   # auto-orient
     # Strip EXIF by converting to a clean mode
     if img.mode in ("RGBA", "P", "LA"):
@@ -257,30 +300,25 @@ async def process_video(
 
     # Extract thumbnail at ~1 second
     try:
-        proc = await asyncio.create_subprocess_exec(
-            "ffmpeg", "-y", "-ss", "1", "-i", str(input_path),
+        rc, _, err = await _run_media_subprocess(
+            "ffmpeg", "-nostdin", "-y", "-ss", "1", "-i", str(input_path),
             "-vframes", "1", "-f", "webp", str(thumb_path),
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.PIPE,
         )
-        _, err = await proc.communicate()
-        if proc.returncode == 0 and thumb_path.exists():
+        if rc == 0 and thumb_path.exists():
             actual_thumb = thumb_stored_name
         else:
-            logger.warning("FFmpeg thumbnail failed for %s: %s", media_id, err.decode())
+            logger.warning("FFmpeg thumbnail failed for %s: %s", media_id, err.decode(errors="replace"))
     except Exception as exc:
         logger.warning("FFmpeg error for %s: %s", media_id, exc)
 
     # Extract metadata with ffprobe
     try:
-        probe = await asyncio.create_subprocess_exec(
+        rc, stdout, _ = await _run_media_subprocess(
             "ffprobe", "-v", "quiet", "-print_format", "json",
             "-show_streams", str(input_path),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
+            capture_stdout=True,
         )
-        stdout, _ = await probe.communicate()
-        if probe.returncode == 0:
+        if rc == 0:
             info = json.loads(stdout)
             for stream in info.get("streams", []):
                 if stream.get("codec_type") == "video":
@@ -317,16 +355,13 @@ async def process_audio(
 
     duration: int | None = None
     try:
-        proc = await asyncio.create_subprocess_exec(
-            "ffmpeg", "-y", "-i", tmp_path,
+        rc, _, err = await _run_media_subprocess(
+            "ffmpeg", "-nostdin", "-y", "-i", tmp_path,
             "-acodec", "aac", "-b:a", "32k", "-ac", "1",
             str(output_path),
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.PIPE,
         )
-        _, err = await proc.communicate()
-        if proc.returncode != 0:
-            logger.warning("FFmpeg audio transcode failed: %s", err.decode())
+        if rc != 0:
+            logger.warning("FFmpeg audio transcode failed: %s", err.decode(errors="replace"))
             # Fallback: store original bytes
             await write_bytes(output_path, data)
     finally:
@@ -334,14 +369,12 @@ async def process_audio(
 
     # Read duration via ffprobe
     try:
-        probe = await asyncio.create_subprocess_exec(
+        rc, stdout, _ = await _run_media_subprocess(
             "ffprobe", "-v", "quiet", "-print_format", "json",
             "-show_format", str(output_path),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
+            capture_stdout=True,
         )
-        stdout, _ = await probe.communicate()
-        if probe.returncode == 0:
+        if rc == 0:
             info = json.loads(stdout)
             dur = info.get("format", {}).get("duration")
             if dur:

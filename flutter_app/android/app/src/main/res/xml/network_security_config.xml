@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Enforce HTTPS-only in production. Cleartext (http/ws) is denied by default so
+  a downgrade/MITM can't push the app onto plaintext against the real backend.
+  The dev/emulator loopback (10.0.2.2) and localhost are exempted so debug
+  builds that talk to a local backend over http keep working; production never
+  connects to those hosts.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

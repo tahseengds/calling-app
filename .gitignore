@@ -2,6 +2,13 @@
 .env
 firebase-service-account.json
 google-services.json
+# Keys / certs / keystores — never commit
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
 
 # Raw Claude Code session transcripts.
 # These contain every tool result verbatim, including config files, JWTs,
