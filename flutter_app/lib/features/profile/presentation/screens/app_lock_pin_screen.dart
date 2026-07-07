@@ -24,7 +24,9 @@ class AppLockPinScreen extends ConsumerStatefulWidget {
 }
 
 class _AppLockPinScreenState extends ConsumerState<AppLockPinScreen> {
-  static const _len = 6;
+  // Matches the "4–8 digit PIN" copy below; was 6, which silently truncated
+  // longer PINs during setup.
+  static const _len = 8;
   final TextEditingController _first = TextEditingController();
   final TextEditingController _second = TextEditingController();
   bool _confirming = false;

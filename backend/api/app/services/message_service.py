@@ -45,7 +45,12 @@ from app.services.realtime import (
     publish,
     receipt_channel,
 )
-from app.utils.exceptions import ForbiddenError, NotFoundError, ValidationFailedError
+from app.utils.exceptions import (
+    ConflictError,
+    ForbiddenError,
+    NotFoundError,
+    ValidationFailedError,
+)
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
@@ -99,8 +104,17 @@ async def _load_reply_preview(db: AsyncSession, msg: Message):
     """Fetch the quoted-message preview for a single message, or None."""
     if not msg.reply_to_id:
         return None
+    # Only quote a message that lives in the SAME conversation. Without this
+    # scope a sender could set reply_to_id to any message UUID and leak that
+    # message's content (returned as reply_to.text and published to the
+    # recipient's delivery channel).
     rt = (
-        await db.execute(select(Message).where(Message.id == msg.reply_to_id))
+        await db.execute(
+            select(Message).where(
+                Message.id == msg.reply_to_id,
+                Message.conversation_id == msg.conversation_id,
+            )
+        )
     ).scalar_one_or_none()
     if rt is None:
         return None
@@ -137,6 +151,18 @@ async def send_message(
 
     conv = await get_or_create_conversation(db, sender.id, req.recipient_id)
 
+    # A reply may only quote a message in the same conversation. Reject a
+    # cross-conversation reply_to_id up front so the client gets a clear error
+    # (and can't smuggle another conversation's content into the preview).
+    if req.reply_to_id is not None:
+        rt_conv = (
+            await db.execute(
+                select(Message.conversation_id).where(Message.id == req.reply_to_id)
+            )
+        ).scalar_one_or_none()
+        if rt_conv is not None and rt_conv != conv.id:
+            raise ValidationFailedError("Cannot reply to a message from another conversation")
+
     # ── Idempotent INSERT ────────────────────────────────────────────────────
     insert_stmt = (
         pg_insert(Message)
@@ -162,6 +188,13 @@ async def send_message(
     msg = msg_r.scalar_one()
 
     if not is_new:
+        # The insert conflicted on client_id. Idempotent resend is only valid
+        # when the existing row is THIS sender's message in THIS conversation.
+        # Otherwise the client_id collided with someone else's message UUID —
+        # returning it would leak that message's content/media. Fail closed.
+        if msg.sender_id != sender.id or msg.conversation_id != conv.id:
+            raise ConflictError("client_id already in use")
+
         # Idempotent resend — return existing message without side effects
         media_resp = None
         if msg.media_id:

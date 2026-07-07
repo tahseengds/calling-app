@@ -29,7 +29,9 @@ class CallRecord {
         status: CallStatus.values.firstWhere(
           (e) => e.name == (json['status'] as String),
         ),
-        startedAt: DateTime.parse(json['started_at'] as String),
+        // Backend timestamps are UTC; convert to local so history dates and
+        // grouping match the device clock.
+        startedAt: DateTime.parse(json['started_at'] as String).toLocal(),
         durationSeconds: json['duration_seconds'] as int?,
         otherUser: User.fromJson(json['other_user'] as Map<String, dynamic>),
       );

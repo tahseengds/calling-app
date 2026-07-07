@@ -129,6 +129,12 @@ def rate_limit(endpoint_name: str, max_calls: int, window_seconds: int):
         count = await redis.incr(key)
         if count == 1:
             await redis.expire(key, window_seconds)
+        elif count > max_calls:
+            # Self-heal a bucket that was left without a TTL (e.g. the process
+            # died between INCR and EXPIRE on the very first call). Without this,
+            # a TTL-less key would rate-limit that IP+endpoint permanently.
+            if await redis.ttl(key) < 0:
+                await redis.expire(key, window_seconds)
         if count > max_calls:
             raise RateLimitError(
                 f"Too many requests — limit is {max_calls} per {window_seconds}s"

@@ -25,8 +25,13 @@ const httpServer = http.createServer((req, res) => {
   if (req.method === 'GET' && req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok' }));
+    return;
   }
-  // All other paths are handled by engine.io (added after createServer).
+  // engine.io intercepts '/signal*' before this listener runs; anything else
+  // that reaches here is not a route we serve. Close it out with a 404 instead
+  // of leaving the socket open until Node's requestTimeout (~5 min).
+  res.writeHead(404, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ error: 'not_found' }));
 });
 
 // ── Socket.IO ─────────────────────────────────────────────────────────────────
@@ -41,11 +46,25 @@ const io = new Server(httpServer, {
 });
 
 // Auth middleware — runs before every connection
-io.use((socket, next) => {
+io.use(async (socket, next) => {
   const token = socket.handshake.auth.token;
   if (!token) return next(new Error('No token'));
   try {
-    const { userId } = verifyToken(token);
+    const { userId, jti } = verifyToken(token);
+    // Parity with the FastAPI backend: a token whose jti has been revoked
+    // (logout) must not be able to open a socket. Fail closed only on an
+    // actual revocation hit — a Redis lookup error should not lock everyone
+    // out of signaling, so it falls through to allow (the token signature and
+    // expiry were already verified above).
+    if (jti) {
+      try {
+        if (await redisClient.exists(`token_revoked:${jti}`)) {
+          return next(new Error('Token revoked'));
+        }
+      } catch (err) {
+        logger.error({ event: 'revocation_check_failed', error: err.message });
+      }
+    }
     socket.userId = userId;
     next();
   } catch (err) {
@@ -68,7 +87,13 @@ io.on('connection', async (socket) => {
   // unnamed listener would accumulate over the connection's lifetime.
   const onPing = async (packet) => {
     if (packet.type === 'ping') {
-      await redisClient.expire(`socket_sessions:${userId}`, 3600);
+      // Best-effort TTL refresh. A Redis hiccup here must never bubble up as an
+      // unhandled rejection (which crashes the whole process under Node ≥15).
+      try {
+        await redisClient.expire(`socket_sessions:${userId}`, 3600);
+      } catch (err) {
+        logger.error({ event: 'ping_ttl_refresh_failed', userId, error: err.message });
+      }
     }
   };
 
@@ -109,6 +134,16 @@ io.on('connection', async (socket) => {
       // Ignore — listener removal is best-effort.
     }
     try {
+      // Reconnect race guard: on a network flap the new socket registers
+      // (`SET socket_sessions:{userId}`) before this stale socket's disconnect
+      // fires. If the stored socket id is no longer ours, a newer connection
+      // owns the session — do not delete it or mark the (online) user offline.
+      const current = await redisClient.get(`socket_sessions:${userId}`);
+      if (current && current !== socket.id) {
+        logger.info({ event: 'disconnect_superseded', userId, socketId: socket.id });
+        return;
+      }
+
       const lastSeen = new Date().toISOString();
       await redisClient.del(`socket_sessions:${userId}`);
       // Keep last-seen in presence for 24 h so chat lists can show "last seen X"
@@ -127,6 +162,23 @@ io.on('connection', async (socket) => {
       logger.error({ event: 'disconnect_cleanup_error', userId, error: err.message });
     }
   });
+});
+
+// ── Process-level safety net ────────────────────────────────────────────────
+// Socket.IO does not catch exceptions thrown inside event listeners, and a
+// bare `await` on a transient Redis error rejects into the void. Under Node ≥15
+// an unhandledRejection terminates the process by default — one malformed
+// event or a 2-second Redis blip during a call would drop every user. Log and
+// keep running instead; a genuinely fatal state will surface elsewhere.
+process.on('unhandledRejection', (reason) => {
+  logger.error({
+    event: 'unhandled_rejection',
+    error: reason instanceof Error ? reason.message : String(reason),
+    stack: reason instanceof Error ? reason.stack : undefined,
+  });
+});
+process.on('uncaughtException', (err) => {
+  logger.error({ event: 'uncaught_exception', error: err.message, stack: err.stack });
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────

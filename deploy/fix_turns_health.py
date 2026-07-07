@@ -14,6 +14,17 @@ HOST = "165.227.146.247"
 SSH_KEY = os.path.expanduser(os.environ.get("DEPLOY_KEY", "~/.ssh/do_droplet"))
 ROOT = Path(__file__).resolve().parents[1]
 
+# The TURN shared secret must never be hardcoded in the repo (a leaked secret
+# lets anyone mint TURN credentials and abuse the relay). Read it from the
+# environment; it should match TURN_SECRET in the server's .env.
+TURN_SECRET = os.environ.get("TURN_SECRET")
+if not TURN_SECRET:
+    sys.exit(
+        "TURN_SECRET env var is required (e.g. `export TURN_SECRET=$(grep "
+        "TURN_SECRET .env | cut -d= -f2)` on the server, or read it from your "
+        "secret store). Refusing to run without it."
+    )
+
 c = paramiko.SSHClient()
 c.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 c.connect(HOST, username="root", key_filename=SSH_KEY)
@@ -46,7 +57,7 @@ run('find /opt/lumin -name "*.sh" -exec dos2unix {} +')
 run(
     "cd /opt/lumin && "
     "VPS_PUBLIC_IP=165.227.146.247 DOMAIN=lumin.tahseen.tech "
-    "TURN_SECRET=80c0816fed2f1aa8339f9630e9393ec78acfa6a5adb549376382a09715b134f6 "
+    f"TURN_SECRET={TURN_SECRET} "
     "bash coturn/install.sh"
 )
 run("ss -lntup | grep 5349 || echo '5349 not listening'")

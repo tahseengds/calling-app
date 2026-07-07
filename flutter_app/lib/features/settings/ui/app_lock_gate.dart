@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../shared/widgets/fl_button.dart';
 import '../../../shared/widgets/lumio_icons.dart';
 import '../../../shared/widgets/lumio_logo.dart';
-import '../../profile/presentation/screens/app_lock_pin_screen.dart';
 import '../domain/app_lock_controller.dart';
 import '../domain/privacy_settings_notifier.dart';
 
@@ -29,6 +30,12 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
     with WidgetsBindingObserver {
   bool _locked = false;
   bool _prompting = false;
+  // When true the overlay shows an inline PIN entry (biometric unavailable but
+  // a PIN is set). We render PIN entry INSIDE the overlay rather than pushing a
+  // route: AppLockGate lives in MaterialApp.router's builder, above the
+  // Router's Navigator, so Navigator.of(context) here has no Navigator ancestor
+  // and pushing would throw — permanently locking out non-biometric devices.
+  bool _showPinEntry = false;
   DateTime? _pausedAt;
   bool _firstFrameDone = false;
 
@@ -123,19 +130,20 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
         setState(() => _locked = false);
         return;
       }
+      // Show the inline PIN entry inside the overlay (see _showPinEntry doc).
       if (!mounted) return;
-      final ok = await Navigator.of(context, rootNavigator: true).push<bool>(
-        MaterialPageRoute(
-          builder: (_) => const AppLockPinScreen(mode: PinMode.verify),
-          fullscreenDialog: true,
-        ),
-      );
-      if (ok == true && mounted) {
-        setState(() => _locked = false);
-      }
+      setState(() => _showPinEntry = true);
     } finally {
       _prompting = false;
     }
+  }
+
+  void _onPinSuccess() {
+    if (!mounted) return;
+    setState(() {
+      _locked = false;
+      _showPinEntry = false;
+    });
   }
 
   @override
@@ -151,7 +159,13 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
     return Stack(
       children: [
         widget.child,
-        Positioned.fill(child: _LockOverlay(onUnlock: _tryUnlock)),
+        Positioned.fill(
+          child: _LockOverlay(
+            onUnlock: _tryUnlock,
+            showPinEntry: _showPinEntry,
+            onPinSuccess: _onPinSuccess,
+          ),
+        ),
       ],
     );
   }
@@ -159,7 +173,13 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
 
 class _LockOverlay extends StatelessWidget {
   final VoidCallback onUnlock;
-  const _LockOverlay({required this.onUnlock});
+  final bool showPinEntry;
+  final VoidCallback onPinSuccess;
+  const _LockOverlay({
+    required this.onUnlock,
+    required this.showPinEntry,
+    required this.onPinSuccess,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -180,35 +200,112 @@ class _LockOverlay extends StatelessWidget {
                   style: AppTextStyles.h1(color: colors.fg1)),
               const SizedBox(height: AppSpacing.space2),
               Text(
-                'Use biometric or PIN to unlock.',
+                showPinEntry
+                    ? 'Enter your PIN to unlock.'
+                    : 'Use biometric or PIN to unlock.',
                 textAlign: TextAlign.center,
                 style: AppTextStyles.secondary(color: colors.fg2),
               ),
               const SizedBox(height: AppSpacing.space8),
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: ElevatedButton.icon(
-                  onPressed: onUnlock,
-                  icon: const Icon(LumioIcons.fingerprint, color: Colors.white),
-                  label: Text(
-                    'Unlock',
-                    style: AppTextStyles.bodySemibold(color: Colors.white),
-                  ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(AppRadius.lg),
+              if (showPinEntry)
+                _PinUnlock(onSuccess: onPinSuccess)
+              else
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: ElevatedButton.icon(
+                    onPressed: onUnlock,
+                    icon:
+                        const Icon(LumioIcons.fingerprint, color: Colors.white),
+                    label: Text(
+                      'Unlock',
+                      style: AppTextStyles.bodySemibold(color: Colors.white),
                     ),
-                    elevation: 0,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.lg),
+                      ),
+                      elevation: 0,
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Inline PIN verification rendered inside the lock overlay. Verifies against
+/// [AppLockController.verifyPin] and calls [onSuccess] on a match. Deliberately
+/// does not touch the Navigator (see [_AppLockGateState._showPinEntry]).
+class _PinUnlock extends ConsumerStatefulWidget {
+  final VoidCallback onSuccess;
+  const _PinUnlock({required this.onSuccess});
+
+  @override
+  ConsumerState<_PinUnlock> createState() => _PinUnlockState();
+}
+
+class _PinUnlockState extends ConsumerState<_PinUnlock> {
+  final TextEditingController _ctrl = TextEditingController();
+  bool _checking = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_checking) return;
+    setState(() => _checking = true);
+    final ok = await ref.read(appLockControllerProvider).verifyPin(_ctrl.text);
+    if (!mounted) return;
+    if (ok) {
+      widget.onSuccess();
+      return;
+    }
+    setState(() {
+      _error = 'Incorrect PIN. Try again.';
+      _checking = false;
+      _ctrl.clear();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.lumioColors;
+    return Column(
+      children: [
+        TextField(
+          controller: _ctrl,
+          autofocus: true,
+          obscureText: true,
+          maxLength: 8,
+          enabled: !_checking,
+          keyboardType: TextInputType.number,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          textAlign: TextAlign.center,
+          style: AppTextStyles.h2(color: colors.fg1).copyWith(letterSpacing: 8),
+          onSubmitted: (_) => _submit(),
+          decoration: InputDecoration(
+            counterText: '',
+            hintText: '••••',
+            errorText: _error,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.space6),
+        FlButton(
+          label: 'Unlock',
+          isLoading: _checking,
+          onPressed: _submit,
+        ),
+      ],
     );
   }
 }

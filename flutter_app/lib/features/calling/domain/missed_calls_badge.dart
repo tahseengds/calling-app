@@ -53,7 +53,12 @@ final missedCallsBadgeProvider = Provider<int>((ref) {
       );
   final lastSeen = ref.watch(callsLastSeenProvider);
   if (lastSeen == null) return 0; // prefs still loading
+  // Stored status is '{direction}_{status}' (see CallRepository.upsert), so an
+  // incoming call that was never answered is 'incoming_missed'. Only incoming
+  // misses count toward the badge — the old plain 'missed' compare never
+  // matched, so the badge was always 0.
   return rows
-      .where((r) => r.status == 'missed' && r.startedAt.isAfter(lastSeen))
+      .where((r) =>
+          r.status == 'incoming_missed' && r.startedAt.isAfter(lastSeen))
       .length;
 });

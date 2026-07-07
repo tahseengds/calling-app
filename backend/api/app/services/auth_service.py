@@ -68,7 +68,12 @@ async def firebase_signin(
     # the same email is verified.
     result = await db.execute(select(User).where(User.firebase_uid == uid))
     user = result.scalar_one_or_none()
-    if user is None and email:
+    if user is None and email and claims.get("email_verified"):
+        # Only link to an existing account by email when Firebase says the
+        # email is verified. verify_firebase_id_token already enforces this for
+        # password sign-ins and Google emails are always verified, but gating
+        # the linking step explicitly keeps a future unverified-email provider
+        # from becoming an account-takeover path.
         result = await db.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()
 

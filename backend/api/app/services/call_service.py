@@ -15,6 +15,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.call_record import CallRecord
+from app.models.contact import Contact
 from app.models.user import User
 from app.schemas.call import (
     CallHistoryPage,
@@ -46,6 +47,22 @@ async def log_call(db: AsyncSession, user: User, req: CallLogRequest) -> None:
     call_id PK (ON CONFLICT DO NOTHING), so whichever side records the call
     first wins and the other is a harmless no-op.
     """
+    # The peer must be one of the reporter's contacts. Without this, any authed
+    # user can fabricate call-history rows against arbitrary users, or pre-insert
+    # a chosen call_id to pre-empt the signaling server's real record (the
+    # INSERT below is ON CONFLICT DO NOTHING, so the genuine row becomes a
+    # silent no-op).
+    is_contact = (
+        await db.execute(
+            select(Contact.id).where(
+                Contact.user_id == user.id,
+                Contact.contact_user_id == req.peer_user_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if is_contact is None:
+        raise ValidationFailedError("Unknown call peer")
+
     # caller/callee from the reporter's perspective.
     if req.direction == "outgoing":
         caller_id, callee_id = user.id, req.peer_user_id

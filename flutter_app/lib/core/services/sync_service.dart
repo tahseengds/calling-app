@@ -68,8 +68,27 @@ class SyncService {
           isSynced: Value(true),
           status: Value('sent'),
         ));
+      } on DioException catch (e) {
+        final status = e.response?.statusCode ?? 0;
+        // A permanent rejection (blocked contact, validation error, etc.) will
+        // never succeed on retry. Mark it failed and stop re-POSTing it on
+        // every reconnect. 408/429 are transient — leave those for retry.
+        if (status >= 400 &&
+            status < 500 &&
+            status != 408 &&
+            status != 429) {
+          debugPrint('[sync] outbox message ${row.id} rejected ($status) — '
+              'marking failed');
+          await (_db.update(_db.messagesTable)
+                ..where((m) => m.id.equals(row.id)))
+              .write(const MessagesTableCompanion(
+            isSynced: Value(true),
+            status: Value('failed'),
+          ));
+        }
+        // Else (network/5xx): leave as-is — retried on next reconnect.
       } catch (_) {
-        // Leave as-is — retried on next reconnect.
+        // Non-HTTP failure — leave as-is, retried on next reconnect.
       }
     }
   }
@@ -173,12 +192,20 @@ class SyncService {
         content: Value(msg.content),
         mediaRemoteUrl: Value(msg.media?.url),
         thumbnailUrl: Value(msg.media?.thumbnailUrl),
+        // These four were previously dropped here. Without expiresAt a
+        // disappearing message received while offline is stored with a NULL
+        // expiry and never purged; without durationSeconds voice notes render
+        // with no duration; edits/pins made offline lose their flags.
+        durationSeconds: Value(msg.media?.durationSeconds),
         status: Value(msg.status.name),
         replyToId: Value(msg.replyToId),
         createdAt: Value(msg.createdAt),
         isSynced: const Value(true),
         isDeleted: Value(msg.isDeleted),
         reactionsJson: Value(encodeReactions(msg.reactions)),
+        editedAt: Value(msg.editedAt),
+        pinnedAt: Value(msg.pinnedAt),
+        expiresAt: Value(msg.expiresAt),
       );
 }
 

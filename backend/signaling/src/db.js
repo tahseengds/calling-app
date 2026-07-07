@@ -35,6 +35,38 @@ async function getContactUserIds(userId) {
 }
 
 /**
+ * True if `targetId` has blocked `userId` (i.e. the target's contact row for
+ * the caller is flagged is_blocked). The FastAPI backend enforces block in
+ * both directions for messaging; the call path must do the same so a blocked
+ * user can't ring the person who blocked them.
+ */
+async function isBlockedBy(userId, targetId) {
+  const { rows } = await pool.query(
+    'SELECT 1 FROM contacts WHERE user_id = $1 AND contact_user_id = $2 AND is_blocked = true LIMIT 1',
+    [targetId, userId]
+  );
+  return rows.length > 0;
+}
+
+/**
+ * True if `userId` may send interaction signals (typing, etc.) to `targetId`:
+ * the target is a non-blocked contact AND the target has not blocked the user.
+ * Single round-trip so it's cheap enough for the high-frequency typing path.
+ */
+async function canInteract(userId, targetId) {
+  const { rows } = await pool.query(
+    `SELECT
+       EXISTS(SELECT 1 FROM contacts
+              WHERE user_id = $1 AND contact_user_id = $2 AND is_blocked = false) AS forward,
+       EXISTS(SELECT 1 FROM contacts
+              WHERE user_id = $2 AND contact_user_id = $1 AND is_blocked = true) AS blocked`,
+    [userId, targetId]
+  );
+  const r = rows[0];
+  return Boolean(r && r.forward && !r.blocked);
+}
+
+/**
  * Persist a user's last-seen timestamp to Postgres. Redis holds the live value
  * (with a 24h TTL); writing it through on disconnect makes "last seen X" durable
  * past that TTL so the REST API can still return an accurate time days later.
@@ -77,6 +109,8 @@ module.exports = {
   getUserBrief,
   getFcmToken,
   getContactUserIds,
+  isBlockedBy,
+  canInteract,
   updateLastSeen,
   insertCallRecord,
 };

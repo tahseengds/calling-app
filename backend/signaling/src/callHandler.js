@@ -2,7 +2,7 @@
 const { v4: uuidv4 } = require('uuid');
 const { mintSignalToken } = require('./auth');
 const { redisClient } = require('./redis');
-const { getUserBrief, insertCallRecord, getContactUserIds } = require('./db');
+const { getUserBrief, insertCallRecord, getContactUserIds, isBlockedBy } = require('./db');
 const { isLimited } = require('./rateLimit');
 const { insertCallLogMessage } = require('./callLogMessage');
 const logger = require('./logger');
@@ -34,7 +34,10 @@ function _isUuid(s) {
 function _isPlausibleSdp(o) {
   if (typeof o === 'string') return o.length > 0 && o.length < 20_000;
   if (o && typeof o === 'object' && !Array.isArray(o)) {
-    return typeof o.sdp === 'string' && o.sdp.length > 0;
+    // Cap the object form too — otherwise a ~1 MB sdp is fanned out to the
+    // callee and copied into the FCM queue (where it silently exceeds FCM's
+    // 4 KB data limit and makes the push undeliverable).
+    return typeof o.sdp === 'string' && o.sdp.length > 0 && o.sdp.length < 20_000;
   }
   return false;
 }
@@ -140,6 +143,20 @@ function registerCallHandlers(io, socket) {
     if (!contactIds.includes(to)) {
       logger.warn({ event: 'call_initiate_unauthorized', userId, to });
       socket.emit('call:error', { message: 'You can only call your contacts.' });
+      return;
+    }
+    // Reverse-block: the caller may not have blocked the target, but if the
+    // target has blocked the caller the call must not go through. The client
+    // sees the same generic message so block state isn't disclosed.
+    try {
+      if (await isBlockedBy(userId, to)) {
+        logger.warn({ event: 'call_initiate_blocked_by_target', userId, to });
+        socket.emit('call:error', { message: 'You can only call your contacts.' });
+        return;
+      }
+    } catch (err) {
+      logger.error({ event: 'call_initiate_block_check_failed', userId, to, error: err.message });
+      socket.emit('call:error', { message: 'Internal error.' });
       return;
     }
 

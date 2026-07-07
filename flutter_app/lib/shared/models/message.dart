@@ -253,7 +253,10 @@ class Message {
           (e) => e.name == (json['status'] as String? ?? 'sent'),
           orElse: () => MessageStatus.sent,
         ),
-        createdAt: DateTime.parse(json['created_at'] as String),
+        // Backend sends UTC; convert to local so bubble timestamps and day
+        // separators ("Today"/"Yesterday") match the device clock. Sibling
+        // models (conversation, sync) already do this.
+        createdAt: DateTime.parse(json['created_at'] as String).toLocal(),
         replyToId: json['reply_to_id'] as String?,
         replyTo: json['reply_to'] != null
             ? ReplyPreview.fromJson(json['reply_to'] as Map<String, dynamic>)

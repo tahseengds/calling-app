@@ -1039,11 +1039,18 @@ class CallNotifier extends Notifier<CallSession?> {
   }
 
   Future<void> _sampleQuality() async {
-    final session = state;
-    if (session == null || !session.isActive || _webrtc == null) {
+    if (state == null || !state!.isActive || _webrtc == null) {
       return;
     }
     final stats = await _webrtc!.getStats();
+    // Re-read state AFTER the await. The call may have ended (peer hung up, ICE
+    // failed) while getStats() was in flight; writing a copyWith of the stale
+    // pre-await session would resurrect the ended call and permanently wedge
+    // the calling stack ("one active call at a time").
+    final session = state;
+    if (session == null || !session.isActive) {
+      return;
+    }
     state = session.copyWith(
       quality: stats.level,
       localAudioLevel: stats.localAudioLevel,

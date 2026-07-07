@@ -209,18 +209,15 @@ class ChatNotifier extends Notifier<ChatState> {
     });
 
     // Mark unread as read.
-    final unread = cached
-        .where((m) => m.status != MessageStatus.read &&
-            m.senderId != _currentUserId)
-        .map((m) => m.id)
-        .toList();
-    if (unread.isNotEmpty) {
-      ref.read(messageRepositoryProvider).markRead(unread).ignore();
-      dao.clearUnread(_conversationId);
-    }
+    await _markInboundRead(cached);
 
-    // Fetch missed messages from server.
+    // Fetch missed messages from server, then mark THOSE read too. The chat is
+    // open, so messages pulled by the sync must also get receipts — otherwise
+    // the sender is stuck on "delivered" for anything that arrived while the
+    // socket was down (the mark-read above only saw the pre-sync cache).
     await ref.read(syncServiceProvider).fetchMissedMessages(_conversationId);
+    final afterSync = await dao.getMessages(_conversationId);
+    await _markInboundRead(afterSync);
 
     // Real-time events.
     _subscribeToSignaling();
@@ -235,6 +232,20 @@ class ChatNotifier extends Notifier<ChatState> {
         ref.read(signalingServiceProvider).requestPresence([otherId]);
       }
     };
+  }
+
+  /// Send read receipts for inbound, not-yet-read messages in [msgs] and clear
+  /// the local unread flag. Safe to call repeatedly — already-read messages are
+  /// filtered out.
+  Future<void> _markInboundRead(List<Message> msgs) async {
+    final unread = msgs
+        .where((m) =>
+            m.status != MessageStatus.read && m.senderId != _currentUserId)
+        .map((m) => m.id)
+        .toList();
+    if (unread.isEmpty) return;
+    ref.read(messageRepositoryProvider).markRead(unread).ignore();
+    ref.read(messageLocalDaoProvider).clearUnread(_conversationId);
   }
 
   String get _currentUserId {
@@ -709,17 +720,21 @@ class ChatNotifier extends Notifier<ChatState> {
   /// Forwards [source] into THIS conversation. Text is re-sent verbatim; media
   /// is downloaded from its URL and re-uploaded, since we don't keep the
   /// server-side media id locally to reference directly. Call-log messages
-  /// aren't forwardable. Best-effort: failures are logged, not surfaced.
-  Future<void> forward(Message source) async {
+  /// aren't forwardable.
+  ///
+  /// Returns true only if the message was actually queued/sent, so the caller
+  /// doesn't show a "Forwarded" confirmation when the media download failed.
+  Future<bool> forward(Message source) async {
     if (source.type == MessageType.text) {
       final content = source.content?.trim() ?? '';
-      if (content.isNotEmpty) await sendText(content);
-      return;
+      if (content.isEmpty) return false;
+      await sendText(content);
+      return true;
     }
-    if (source.type == MessageType.callLog) return;
+    if (source.type == MessageType.callLog) return false;
 
     final media = source.media;
-    if (media == null || media.url.isEmpty) return;
+    if (media == null || media.url.isEmpty) return false;
     try {
       final dir = await getTemporaryDirectory();
       final dest = '${dir.path}/fwd_${_uuid.v4()}${_forwardExt(source)}';
@@ -729,8 +744,10 @@ class ChatNotifier extends Notifier<ChatState> {
         source.type,
         durationSeconds: media.durationSeconds,
       );
+      return true;
     } catch (e, st) {
       debugPrint('[chat] forward failed for ${source.id}: $e\n$st');
+      return false;
     }
   }
 

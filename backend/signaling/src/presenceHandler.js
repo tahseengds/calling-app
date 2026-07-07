@@ -64,9 +64,26 @@ function registerPresenceHandlers(io, socket) {
     const userIds = Array.isArray(payload?.userIds) ? payload.userIds : [];
     // Cap to a sane upper bound — a malicious client can't ask us to scan
     // arbitrarily large key sets.
-    const sliced = userIds.slice(0, 100).filter((u) => typeof u === 'string');
+    const requested = userIds.slice(0, 100).filter((u) => typeof u === 'string');
     try {
       const result = {};
+      if (requested.length === 0) {
+        if (typeof callback === 'function') callback(result);
+        else socket.emit('presence:data', result);
+        return;
+      }
+      // Only reveal presence/last-seen for the caller's own contacts. Otherwise
+      // a removed or blocked user can keep tracking a victim's online/offline
+      // transitions and exact last-seen by polling arbitrary UUIDs.
+      let contactIds;
+      try {
+        contactIds = new Set(await getContactUserIds(userId));
+      } catch (err) {
+        logger.error({ event: 'presence_get_contacts_error', userId, error: err.message });
+        if (typeof callback === 'function') callback({});
+        return;
+      }
+      const sliced = requested.filter((u) => u === userId || contactIds.has(u));
       if (sliced.length === 0) {
         if (typeof callback === 'function') callback(result);
         else socket.emit('presence:data', result);
@@ -76,9 +93,17 @@ function registerPresenceHandlers(io, socket) {
       const raws = await redisClient.mget(keys);
       sliced.forEach((u, i) => {
         const raw = raws[i];
-        result[u] = raw
-          ? JSON.parse(raw)
-          : { status: 'offline', lastSeen: null };
+        // Guard each parse: one corrupt value must not blank the whole
+        // response (which would leave the client's ack un-fired).
+        if (!raw) {
+          result[u] = { status: 'offline', lastSeen: null };
+          return;
+        }
+        try {
+          result[u] = JSON.parse(raw);
+        } catch (_) {
+          result[u] = { status: 'offline', lastSeen: null };
+        }
       });
       if (typeof callback === 'function') {
         callback(result);
@@ -87,6 +112,7 @@ function registerPresenceHandlers(io, socket) {
       }
     } catch (err) {
       logger.error({ event: 'presence_get_error', userId, error: err.message });
+      if (typeof callback === 'function') callback({});
     }
   });
 }

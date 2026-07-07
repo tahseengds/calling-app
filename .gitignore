@@ -29,3 +29,6 @@ build/
 
 # Logs
 *.log
+
+# Local Redis snapshot from running redis-server in-repo during tests
+dump.rdb

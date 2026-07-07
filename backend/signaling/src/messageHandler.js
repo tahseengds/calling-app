@@ -93,7 +93,10 @@ function registerMessageBridge(io) {
 
 function registerMessageHandlers(socket) {
   // Optional lightweight ack; delivery tracking is handled via REST
-  socket.on('message:ack', ({ messageId }) => {
+  socket.on('message:ack', (payload) => {
+    // Defensive destructure: an ack emitted with no argument would otherwise
+    // throw synchronously in Socket.IO's dispatch and crash the process.
+    const { messageId } = payload || {};
     logger.debug({ event: 'message:ack_socket', userId: socket.userId, messageId });
   });
 }

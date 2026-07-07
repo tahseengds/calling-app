@@ -458,3 +458,86 @@ async def test_only_sender_can_delete_message(
     # Bob tries to delete Alice's message — must be forbidden
     r2 = await client.delete(f"/api/messages/{client_id}", headers=_auth(token_b))
     assert r2.status_code == 403
+
+
+async def test_client_id_collision_with_foreign_message_is_rejected(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A client_id that collides with someone else's message must not return
+    that message's content (IDOR guard)."""
+    # Alice ↔ Bob exchange a message.
+    token_a, token_b, _alice_id, bob_id = await _setup_pair(client, monkeypatch)
+    victim_id = str(uuid.uuid4())
+    r = await client.post(
+        "/api/messages/",
+        json={
+            "client_id": victim_id,
+            "recipient_id": bob_id,
+            "message_type": "text",
+            "content": "secret between Alice and Bob",
+        },
+        headers=_auth(token_a),
+    )
+    assert r.status_code == 201
+
+    # A third party (Carol) sends to her own contact reusing the victim's UUID.
+    email_c, email_d = _next_email(), _next_email()
+    token_c = await _signin(client, monkeypatch, email_c, "Carol")
+    token_d = await _signin(client, monkeypatch, email_d, "Dave")
+    dave_id = (await client.get("/api/users/me", headers=_auth(token_d))).json()["id"]
+    await client.post("/api/contacts/", json={"email": email_d}, headers=_auth(token_c))
+
+    r2 = await client.post(
+        "/api/messages/",
+        json={
+            "client_id": victim_id,  # collide with Alice→Bob message
+            "recipient_id": dave_id,
+            "message_type": "text",
+            "content": "carol's own message",
+        },
+        headers=_auth(token_c),
+    )
+    # Must be rejected, not return Alice and Bob's content.
+    assert r2.status_code == 409, r2.text
+    assert "secret between Alice and Bob" not in r2.text
+
+
+async def test_reply_to_message_in_another_conversation_is_rejected(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """reply_to_id must reference a message in the same conversation, so a
+    sender can't leak another conversation's content via the reply preview."""
+    token_a, token_b, _alice_id, bob_id = await _setup_pair(client, monkeypatch)
+    foreign_id = str(uuid.uuid4())
+    r = await client.post(
+        "/api/messages/",
+        json={
+            "client_id": foreign_id,
+            "recipient_id": bob_id,
+            "message_type": "text",
+            "content": "private A↔B content",
+        },
+        headers=_auth(token_a),
+    )
+    assert r.status_code == 201
+
+    # Carol → Dave, quoting the Alice↔Bob message id.
+    email_c, email_d = _next_email(), _next_email()
+    token_c = await _signin(client, monkeypatch, email_c, "Carol")
+    token_d = await _signin(client, monkeypatch, email_d, "Dave")
+    dave_id = (await client.get("/api/users/me", headers=_auth(token_d))).json()["id"]
+    await client.post("/api/contacts/", json={"email": email_d}, headers=_auth(token_c))
+
+    r2 = await client.post(
+        "/api/messages/",
+        json={
+            "client_id": str(uuid.uuid4()),
+            "recipient_id": dave_id,
+            "message_type": "text",
+            "content": "hi dave",
+            "reply_to_id": foreign_id,
+        },
+        headers=_auth(token_c),
+    )
+    assert r2.status_code == 422, r2.text
+    assert "private A↔B content" not in r2.text

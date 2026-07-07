@@ -3,11 +3,14 @@ const jwt = require('jsonwebtoken');
 const config = require('../config');
 
 /**
- * Verify a JWT and return { userId }.
+ * Verify a JWT and return { userId, jti }.
  * Accepts:
  *   - regular access tokens (no `type` claim, or type === 'access')
  *   - short-lived signal_token minted for offline call wakeups (type === 'signal')
  * Throws on invalid/expired token or disallowed type.
+ *
+ * `jti` is returned so the caller can check the FastAPI revocation set
+ * (`token_revoked:{jti}` in Redis) — logout must cut off signaling too.
  */
 function verifyToken(token) {
   const payload = jwt.verify(token, config.jwt.secret, {
@@ -19,7 +22,7 @@ function verifyToken(token) {
     throw new Error(`Disallowed token type: ${type}`);
   }
 
-  return { userId: String(payload.sub) };
+  return { userId: String(payload.sub), jti: payload.jti };
 }
 
 /**

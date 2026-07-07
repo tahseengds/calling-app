@@ -1613,10 +1613,17 @@ class _ChatRichScreenState extends ConsumerState<ChatRichScreen> {
         currentConversationId: widget.conversationId,
         onPick: (targetId, targetName) async {
           Navigator.of(sheetContext).pop();
-          await ref.read(chatProvider(targetId).notifier).forward(source);
+          final ok =
+              await ref.read(chatProvider(targetId).notifier).forward(source);
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Forwarded to $targetName')),
+            SnackBar(
+              content: Text(
+                ok
+                    ? 'Forwarded to $targetName'
+                    : "Couldn't forward — please try again",
+              ),
+            ),
           );
         },
       ),

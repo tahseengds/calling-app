@@ -198,13 +198,15 @@ async def test_cannot_react_to_deleted_message(
     )
     assert r.status_code == 200, r.text
 
-    # Bob can no longer react
+    # Bob can no longer react. Reacting to a deleted message is a validation
+    # failure, which this API surfaces as 422 (ValidationFailedError) — the
+    # same code it uses for every other validation failure.
     r = await client.post(
         f"/api/messages/{message_id}/reactions",
         json={"emoji": "❤️"},
         headers=_auth(token_b),
     )
-    assert r.status_code == 400, r.text
+    assert r.status_code == 422, r.text
 
 
 async def test_non_participant_cannot_react(

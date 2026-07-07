@@ -354,14 +354,29 @@ async def process_audio(
 
 # ── Document processing ───────────────────────────────────────────────────────
 
+# Extensions that a browser/webview may execute as active content on our
+# origin. Even though libmagic gates the *content* type, the stored extension
+# drives the Content-Type nginx serves, so a text/plain-detected file named
+# ".html" would be rendered as HTML. Store these under a neutral extension.
+# (nginx also forces attachment + nosniff on /media/ as a second layer.)
+_UNSAFE_DOC_EXTS = frozenset({
+    ".html", ".htm", ".xhtml", ".shtml", ".svg", ".xml",
+    ".js", ".mjs", ".css", ".swf", ".xht",
+})
+
+
 async def process_document(
     data: bytes, media_id: str, original_name: str
 ) -> str:
     """
-    Store document as-is, preserving the original extension.
+    Store document as-is. The original extension is preserved for legitimate
+    document types, but any extension that could be rendered as active content
+    on our origin is neutralized to ".bin".
     Returns stored_name.
     """
     ext = Path(original_name).suffix or ".bin"
+    if ext.lower() in _UNSAFE_DOC_EXTS:
+        ext = ".bin"
     stored_name = f"documents/{media_id}{ext}"
     await write_bytes(Path(settings.MEDIA_BASE_PATH) / stored_name, data)
     return stored_name

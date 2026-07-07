@@ -1,5 +1,6 @@
 'use strict';
 const { redisClient } = require('./redis');
+const { canInteract } = require('./db');
 const { isLimited } = require('./rateLimit');
 const logger = require('./logger');
 
@@ -12,6 +13,15 @@ function registerTypingHandlers(io, socket) {
     if (isLimited(userId, 'typing:start')) return;
     const { to, conversation_id: conversationId } = payload || {};
     if (typeof to !== 'string' || !UUID_RE.test(to)) return;
+    // Only deliver typing signals between users who may message each other.
+    // Without this a blocked user (or a stranger) can push a perpetual
+    // "typing…" indicator to any victim.
+    try {
+      if (!(await canInteract(userId, to))) return;
+    } catch (err) {
+      logger.error({ event: 'typing_authz_error', userId, to, error: err.message });
+      return;
+    }
     try {
       // Key uses sorted pair so both directions share the same namespace
       const pair = [userId, to].sort().join(':');
